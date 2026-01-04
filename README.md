@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 54 Google Cloud services:
+GoogleCloudSwift provides models for 55 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -134,6 +134,7 @@ GoogleCloudSwift provides models for 54 Google Cloud services:
 | **Cloud Batch** | Containerized batch processing | `GoogleCloudBatchJob`, `TaskGroup`, `AllocationPolicy`, `DAISBatchTemplate` |
 | **Binary Authorization** | Container image security | `GoogleCloudBinaryAuthorizationPolicy`, `GoogleCloudAttestor`, `AdmissionRule`, `DAISBinaryAuthorizationTemplate` |
 | **Certificate Authority Service** | Private CA management | `GoogleCloudCaPool`, `GoogleCloudCertificateAuthority`, `GoogleCloudCertificate`, `DAISCertificateAuthorityTemplate` |
+| **Network Intelligence Center** | Network monitoring and diagnostics | `GoogleCloudConnectivityTest`, `Endpoint`, `GoogleCloudNetworkTopology`, `DAISNetworkIntelligenceTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -7049,6 +7050,185 @@ print(template.issueCertificateScript(
 | `devops` | Basic features | Development, CI/CD |
 | `enterprise` | Advanced features with HSM | Production workloads |
 
+### GoogleCloudConnectivityTest (Network Intelligence Center API)
+
+Network Intelligence Center provides network monitoring, diagnostics, and connectivity testing:
+
+```swift
+// Create a VM-to-VM connectivity test
+let test = GoogleCloudConnectivityTest(
+    name: "app-to-db-test",
+    projectID: "my-project",
+    description: "Test connectivity from app server to database",
+    source: .instance("projects/my-project/zones/us-central1-a/instances/app-vm"),
+    destination: .instance("projects/my-project/zones/us-central1-a/instances/db-vm"),
+    networkProtocol: .tcp
+)
+
+print(test.createCommand)
+print(test.rerunCommand)
+```
+
+**Testing Different Endpoint Types:**
+
+```swift
+// Test to an external IP
+let externalTest = GoogleCloudConnectivityTest(
+    name: "egress-test",
+    projectID: "my-project",
+    source: .instance("projects/my-project/zones/us-central1-a/instances/vm1"),
+    destination: .ip("8.8.8.8", port: 443),
+    networkProtocol: .tcp
+)
+
+// Test GKE cluster connectivity
+let gkeTest = GoogleCloudConnectivityTest(
+    name: "gke-egress",
+    projectID: "my-project",
+    source: .gkeMaster("projects/my-project/locations/us-central1/clusters/my-cluster"),
+    destination: .ip("api.example.com", port: 443),
+    networkProtocol: .tcp
+)
+
+// Test to Cloud SQL
+let sqlTest = GoogleCloudConnectivityTest(
+    name: "app-to-sql",
+    projectID: "my-project",
+    source: .instance("projects/my-project/zones/us-central1-a/instances/app-vm"),
+    destination: .cloudSql("projects/my-project/instances/my-database"),
+    networkProtocol: .tcp
+)
+
+// Test to Cloud Function
+let fnTest = GoogleCloudConnectivityTest(
+    name: "to-function",
+    projectID: "my-project",
+    source: .instance("projects/my-project/zones/us-central1-a/instances/client-vm"),
+    destination: .cloudFunction(uri: "projects/my-project/locations/us-central1/functions/my-function"),
+    networkProtocol: .tcp
+)
+```
+
+**Network Topology:**
+
+```swift
+// Define network topology resources
+let resource = GoogleCloudNetworkTopology.TopologyResource(
+    name: "my-network",
+    resourceType: .network,
+    location: "global",
+    connections: [
+        .init(targetResource: "my-subnet", connectionType: "parent")
+    ]
+)
+
+let topology = GoogleCloudNetworkTopology(
+    projectID: "my-project",
+    resources: [resource],
+    locations: ["us-central1", "us-east1"]
+)
+```
+
+**Firewall Insights:**
+
+```swift
+// Track firewall insights
+let insight = GoogleCloudFirewallInsight(
+    name: "unused-rule-insight",
+    projectID: "my-project",
+    insightType: .unusedRule,
+    severity: .medium,
+    firewallRules: [
+        .init(firewallRuleName: "allow-ssh", network: "default")
+    ],
+    recommendation: "Consider removing unused firewall rule"
+)
+```
+
+**Network Intelligence Operations:**
+
+```swift
+let ops = NetworkIntelligenceOperations(projectID: "my-project")
+
+// Enable APIs
+print(ops.enableAPICommand)
+print(ops.enableRecommenderAPICommand)
+
+// List connectivity tests
+print(ops.listTestsCommand)
+
+// Create VM-to-VM test
+print(ops.createVMToVMTestCommand(
+    name: "web-to-api",
+    sourceInstance: "projects/my-project/zones/us-central1-a/instances/web-vm",
+    sourceNetwork: "projects/my-project/global/networks/default",
+    destinationInstance: "projects/my-project/zones/us-central1-a/instances/api-vm",
+    destinationNetwork: "projects/my-project/global/networks/default",
+    networkProtocol: .tcp,
+    port: 8080
+))
+
+// List firewall insights
+print(ops.listFirewallInsightsCommand)
+
+// Add IAM binding
+print(ops.addIAMBindingCommand(
+    member: "user:admin@example.com",
+    role: .networkManagementAdmin
+))
+```
+
+**DAIS Network Intelligence Template:**
+
+```swift
+let template = DAISNetworkIntelligenceTemplate(projectID: "my-project")
+
+// Create VM to VM test
+let vmTest = template.vmToVMTest(
+    name: "app-to-db",
+    sourceInstance: "projects/my-project/zones/us-central1-a/instances/app-vm",
+    destinationInstance: "projects/my-project/zones/us-central1-a/instances/db-vm"
+)
+
+// Create internet egress test
+let egressTest = template.vmToInternetTest(
+    name: "internet-access",
+    sourceInstance: "projects/my-project/zones/us-central1-a/instances/vm1",
+    destinationIP: "8.8.8.8",
+    port: 443
+)
+
+// Create GKE connectivity test
+let gkeConnTest = template.gkeConnectivityTest(
+    name: "gke-api-access",
+    clusterUri: "projects/my-project/locations/us-central1/clusters/my-cluster",
+    destinationIP: "registry.example.com",
+    port: 443
+)
+
+// Create Cloud SQL connectivity test
+let sqlConnTest = template.cloudSqlConnectivityTest(
+    name: "app-db-connectivity",
+    sourceInstance: "projects/my-project/zones/us-central1-a/instances/app-vm",
+    sqlInstanceUri: "projects/my-project/instances/postgres-db",
+    port: 5432
+)
+
+// Generate connectivity testing script
+print(template.connectivityTestingScript)
+```
+
+**Supported Endpoint Types:**
+
+| Endpoint | Factory Method | Use Case |
+|----------|---------------|----------|
+| VM Instance | `.instance(uri)` | Testing between VMs |
+| IP Address | `.ip(address, port:)` | External or internal IPs |
+| GKE Master | `.gkeMaster(uri)` | GKE cluster connectivity |
+| Cloud SQL | `.cloudSql(uri)` | Database connectivity |
+| Cloud Function | `.cloudFunction(uri:)` | Function invocations |
+| Cloud Run | `.cloudRun(uri:)` | Cloud Run services |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -8643,6 +8823,16 @@ MIT License
 - [Issuance Policies](https://cloud.google.com/certificate-authority-service/docs/issuance-policies)
 - [Certificate Revocation](https://cloud.google.com/certificate-authority-service/docs/revoke-certificates)
 - [CAS API Reference](https://cloud.google.com/certificate-authority-service/docs/reference/rest)
+
+### Network Intelligence Center
+- [Network Intelligence Center Documentation](https://cloud.google.com/network-intelligence-center/docs)
+- [Connectivity Tests Overview](https://cloud.google.com/network-intelligence-center/docs/connectivity-tests/concepts/overview)
+- [Creating Connectivity Tests](https://cloud.google.com/network-intelligence-center/docs/connectivity-tests/how-to/creating-connectivity-tests)
+- [Analyzing Test Results](https://cloud.google.com/network-intelligence-center/docs/connectivity-tests/concepts/results-analysis)
+- [Network Topology](https://cloud.google.com/network-intelligence-center/docs/network-topology/concepts/overview)
+- [Firewall Insights](https://cloud.google.com/network-intelligence-center/docs/firewall-insights/concepts/overview)
+- [Performance Dashboard](https://cloud.google.com/network-intelligence-center/docs/performance-dashboard/concepts/overview)
+- [Network Management API](https://cloud.google.com/network-intelligence-center/docs/connectivity-tests/reference/networkmanagement/rest)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)
