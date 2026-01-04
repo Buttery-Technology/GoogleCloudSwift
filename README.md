@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 52 Google Cloud services:
+GoogleCloudSwift provides models for 53 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -132,6 +132,7 @@ GoogleCloudSwift provides models for 52 Google Cloud services:
 | **Text-to-Speech** | Speech synthesis | `GoogleCloudTextToSpeechRequest`, `GoogleCloudTextToSpeechVoice`, `SSMLBuilder`, `DAISTextToSpeechTemplate` |
 | **Translation AI** | Text translation | `GoogleCloudTranslationRequest`, `GoogleCloudGlossary`, `LanguageCode`, `DAISTranslationTemplate` |
 | **Cloud Batch** | Containerized batch processing | `GoogleCloudBatchJob`, `TaskGroup`, `AllocationPolicy`, `DAISBatchTemplate` |
+| **Binary Authorization** | Container image security | `GoogleCloudBinaryAuthorizationPolicy`, `GoogleCloudAttestor`, `AdmissionRule`, `DAISBinaryAuthorizationTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -6775,6 +6776,124 @@ print(template.monitoringScript)
 | `nvidiaL4` | NVIDIA L4 | Inference, AI workloads |
 | `nvidiaH100` | NVIDIA H100 | LLM training |
 
+### GoogleCloudBinaryAuthorizationPolicy (Binary Authorization API)
+
+Binary Authorization provides deploy-time security controls for GKE and Cloud Run:
+
+```swift
+// Create a policy that requires attestation for all container images
+let policy = GoogleCloudBinaryAuthorizationPolicy(
+    projectID: "my-project",
+    description: "Require attestation for production deployments",
+    globalPolicyEvaluationMode: .enable,
+    admissionWhitelistPatterns: [
+        .gcr(project: "my-project"),
+        .artifactRegistry(project: "my-project", location: "us-central1", repository: "production")
+    ],
+    defaultAdmissionRule: .requireAttestation(attestors: [
+        "projects/my-project/attestors/security-team",
+        "projects/my-project/attestors/qa-team"
+    ])
+)
+
+print(policy.getPolicyCommand)
+// gcloud container binauthz policy export --project=my-project
+```
+
+**Creating Attestors:**
+
+```swift
+// Create an attestor with KMS key
+let attestor = GoogleCloudAttestor(
+    name: "security-team",
+    projectID: "my-project",
+    description: "Security team attestor for production deployments",
+    userOwnedGrafeasNote: .init(
+        noteReference: "projects/my-project/notes/security-team-note"
+    )
+)
+
+print(attestor.createCommand)
+// gcloud container binauthz attestors create security-team --project=my-project ...
+
+// Add a KMS signing key
+print(attestor.addKMSKeyCommand(
+    kmsKeyVersionResourceID: "projects/my-project/locations/global/keyRings/binauthz/cryptoKeys/attestor-key/cryptoKeyVersions/1"
+))
+```
+
+**Creating Attestations:**
+
+```swift
+// Create an attestation for a container image
+let attestation = GoogleCloudAttestation(
+    resourceUri: "gcr.io/my-project/my-app@sha256:abc123def456",
+    attestorName: "security-team",
+    projectID: "my-project"
+)
+
+// Create attestation with KMS key
+print(attestation.createKMSCommand(
+    kmsKeyVersion: "projects/my-project/locations/global/keyRings/binauthz/cryptoKeys/attestor-key/cryptoKeyVersions/1"
+))
+
+// Verify attestation
+print(attestation.verifyCommand)
+// gcloud container binauthz attestations verify --artifact-url=gcr.io/my-project/my-app@sha256:abc123def456 ...
+```
+
+**Binary Authorization Operations:**
+
+```swift
+let ops = BinaryAuthorizationOperations(projectID: "my-project")
+
+// Enable Binary Authorization
+print(ops.enableAPICommand)
+print(ops.enableContainerAnalysisAPICommand)
+
+// List attestors
+print(ops.listAttestorsCommand)
+
+// Create attestation for an image
+print(ops.createAttestationCommand(
+    imageUri: "gcr.io/my-project/app@sha256:abc123",
+    attestor: "security-team",
+    kmsKeyVersion: "projects/my-project/locations/global/keyRings/binauthz/cryptoKeys/key/cryptoKeyVersions/1"
+))
+```
+
+**DAIS Binary Authorization Template:**
+
+```swift
+let template = DAISBinaryAuthorizationTemplate(projectID: "my-project")
+
+// Create a policy that requires attestation
+let policy = template.attestationRequiredPolicy(attestorNames: ["security-team", "qa-team"])
+
+// Create a deny-all policy (for maximum security)
+let strictPolicy = template.denyAllPolicy
+
+// Create an attestor
+let attestor = template.attestor(name: "security-team", description: "Security team attestor")
+
+// Generate setup script
+print(template.setupScript)
+
+// Generate CI/CD integration script
+print(template.cicdIntegrationScript)
+
+// Generate policy YAML
+print(template.requireAttestationPolicyYAML(attestorName: "security-team"))
+```
+
+**Policy Types:**
+
+| Policy | Description | Use Case |
+|--------|-------------|----------|
+| `allowAll` | Allow all images | Development/testing |
+| `denyAll` | Deny all images | Lock-down mode |
+| `requireAttestation` | Require signed attestations | Production security |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -8347,6 +8466,17 @@ MIT License
 - [GPU Support](https://cloud.google.com/batch/docs/vm-gpus)
 - [Environment Variables](https://cloud.google.com/batch/docs/create-run-job-environment-variables)
 - [Batch API Reference](https://cloud.google.com/batch/docs/reference/rest)
+
+### Binary Authorization
+- [Binary Authorization Documentation](https://cloud.google.com/binary-authorization/docs)
+- [Policy Overview](https://cloud.google.com/binary-authorization/docs/policy-yaml-reference)
+- [Creating Attestors](https://cloud.google.com/binary-authorization/docs/creating-attestors)
+- [Creating Attestations](https://cloud.google.com/binary-authorization/docs/making-attestations)
+- [Using Cloud KMS Keys](https://cloud.google.com/binary-authorization/docs/cloud-kms-keys)
+- [Continuous Validation](https://cloud.google.com/binary-authorization/docs/continuous-validation)
+- [GKE Integration](https://cloud.google.com/binary-authorization/docs/deploy-to-gke)
+- [Cloud Run Integration](https://cloud.google.com/binary-authorization/docs/cloud-run)
+- [Binary Authorization API](https://cloud.google.com/binary-authorization/docs/reference/rest)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)
