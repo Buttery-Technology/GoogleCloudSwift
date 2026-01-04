@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 16 Google Cloud services:
+GoogleCloudSwift provides models for 17 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -101,6 +101,7 @@ GoogleCloudSwift provides models for 16 Google Cloud services:
 | **Cloud Run** | Containerized services | `GoogleCloudRunService`, `GoogleCloudRunJob` |
 | **Cloud Logging** | Log management and analysis | `GoogleCloudLogEntry`, `GoogleCloudLogSink` |
 | **Cloud Monitoring** | Metrics, alerts, and uptime checks | `GoogleCloudAlertPolicy`, `GoogleCloudUptimeCheck` |
+| **VPC Networks** | Virtual Private Cloud networking | `GoogleCloudVPCNetwork`, `GoogleCloudSubnet`, `GoogleCloudFirewallRule` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -1289,6 +1290,286 @@ let script = DAISMonitoringTemplate.setupScript(
 | `tenMinutes` | 600s |
 | `fifteenMinutes` | 900s |
 
+### GoogleCloudVPCNetwork (VPC Networks API)
+
+VPC Networks provide the foundation for networking in Google Cloud, enabling secure, isolated networks for your resources:
+
+```swift
+// Create a custom-mode VPC network
+let network = GoogleCloudVPCNetwork(
+    name: "my-vpc",
+    projectID: "my-project",
+    autoCreateSubnetworks: false,
+    routingMode: .global,
+    description: "Production VPC network",
+    mtu: 1460
+)
+print(network.createCommand)
+print(network.resourceName)
+print(network.selfLink)
+```
+
+**Subnets:**
+
+```swift
+// Create a subnet with secondary ranges for GKE
+let subnet = GoogleCloudSubnet(
+    name: "us-central1-subnet",
+    networkName: "my-vpc",
+    projectID: "my-project",
+    region: "us-central1",
+    ipCidrRange: "10.0.0.0/24",
+    privateIpGoogleAccess: true,
+    enableFlowLogs: true,
+    flowLogAggregationInterval: .interval5Min,
+    secondaryIpRanges: [
+        .init(rangeName: "pods", ipCidrRange: "10.4.0.0/14"),
+        .init(rangeName: "services", ipCidrRange: "10.0.32.0/20")
+    ]
+)
+print(subnet.createCommand)
+print(subnet.expandIpRangeCommand(newRange: "20"))
+```
+
+**Firewall Rules:**
+
+```swift
+// Allow HTTP/HTTPS ingress
+let httpRule = GoogleCloudFirewallRule(
+    name: "allow-http",
+    networkName: "my-vpc",
+    projectID: "my-project",
+    direction: .ingress,
+    allowed: [
+        .init(protocol: .tcp, ports: ["80", "443"])
+    ],
+    priority: 1000,
+    sourceRanges: ["0.0.0.0/0"],
+    targetTags: ["web-server"],
+    enableLogging: true
+)
+print(httpRule.createCommand)
+
+// Allow internal traffic
+let internalRule = GoogleCloudFirewallRule(
+    name: "allow-internal",
+    networkName: "my-vpc",
+    projectID: "my-project",
+    direction: .ingress,
+    allowed: [
+        .init(protocol: .tcp),
+        .init(protocol: .udp),
+        .init(protocol: .icmp)
+    ],
+    sourceTags: ["internal"],
+    targetTags: ["internal"]
+)
+```
+
+**Routes:**
+
+```swift
+// Custom route to internal load balancer
+let route = GoogleCloudRoute(
+    name: "to-ilb",
+    networkName: "my-vpc",
+    projectID: "my-project",
+    destRange: "10.100.0.0/16",
+    nextHop: .ilb(forwardingRule: "my-ilb", region: "us-central1"),
+    priority: 900,
+    tags: ["needs-ilb"]
+)
+print(route.createCommand)
+
+// Route through VPN tunnel
+let vpnRoute = GoogleCloudRoute(
+    name: "to-on-prem",
+    networkName: "my-vpc",
+    projectID: "my-project",
+    destRange: "192.168.0.0/16",
+    nextHop: .vpnTunnel(name: "my-vpn", region: "us-central1")
+)
+```
+
+**VPC Peering:**
+
+```swift
+// Peer with another VPC
+let peering = GoogleCloudVPCPeering(
+    name: "peer-to-shared",
+    networkName: "my-vpc",
+    projectID: "my-project",
+    peerNetwork: "projects/shared-project/global/networks/shared-vpc",
+    exportCustomRoutes: true,
+    importCustomRoutes: true
+)
+print(peering.createCommand)
+print(peering.updateCommand)
+```
+
+**Cloud Router (for BGP):**
+
+```swift
+// Create a Cloud Router
+let router = GoogleCloudRouter(
+    name: "my-router",
+    networkName: "my-vpc",
+    projectID: "my-project",
+    region: "us-central1",
+    bgpAsn: 64512,
+    advertisedIpRanges: ["10.0.0.0/8"],
+    advertiseMode: .custom
+)
+print(router.createCommand)
+print(router.resourceName)
+```
+
+**Cloud NAT:**
+
+```swift
+// Create Cloud NAT for outbound internet access
+let nat = GoogleCloudNATGateway(
+    name: "my-nat",
+    routerName: "my-router",
+    projectID: "my-project",
+    region: "us-central1",
+    enableDynamicPortAllocation: true,
+    minPortsPerVm: 64,
+    logFilter: .errorsOnly
+)
+print(nat.createCommand)
+print(nat.describeCommand)
+```
+
+**Reserved IP Addresses:**
+
+```swift
+// Reserve a regional external IP
+let externalIP = GoogleCloudReservedAddress(
+    name: "my-external-ip",
+    projectID: "my-project",
+    region: "us-central1",
+    addressType: .external,
+    networkTier: .premium
+)
+print(externalIP.createCommand)
+
+// Reserve a global IP for load balancer
+let globalIP = GoogleCloudReservedAddress(
+    name: "lb-ip",
+    projectID: "my-project",
+    region: nil  // Global
+)
+print(globalIP.createCommand)
+```
+
+**Predefined CIDR Ranges:**
+
+```swift
+// RFC 1918 private ranges
+let range10 = PredefinedCIDRRange.private10    // "10.0.0.0/8"
+let range172 = PredefinedCIDRRange.private172  // "172.16.0.0/12"
+let range192 = PredefinedCIDRRange.private192  // "192.168.0.0/16"
+
+// GKE recommended ranges
+let gkePods = PredefinedCIDRRange.gkePods          // "10.4.0.0/14"
+let gkeServices = PredefinedCIDRRange.gkeServices  // "10.0.32.0/20"
+let gkeMaster = PredefinedCIDRRange.gkeMaster      // "172.16.0.0/28"
+
+// Private Google Access
+let privateAccess = PredefinedCIDRRange.privateGoogleAccess  // "199.36.153.8/30"
+```
+
+**DAIS VPC Templates:**
+
+```swift
+// Create VPC network
+let network = DAISVPCTemplate.network(
+    projectID: "my-project",
+    deploymentName: "dais-prod"
+)
+
+// Create node subnet with flow logs
+let subnet = DAISVPCTemplate.nodeSubnet(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    region: "us-central1",
+    cidrRange: "10.0.0.0/24"
+)
+
+// Firewall rules
+let grpcRule = DAISVPCTemplate.grpcFirewallRule(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    port: 9090
+)
+
+let healthCheckRule = DAISVPCTemplate.healthCheckFirewallRule(
+    projectID: "my-project",
+    deploymentName: "dais-prod"
+)
+
+let sshRule = DAISVPCTemplate.sshFirewallRule(
+    projectID: "my-project",
+    deploymentName: "dais-prod"
+)
+
+let internalRule = DAISVPCTemplate.internalFirewallRule(
+    projectID: "my-project",
+    deploymentName: "dais-prod"
+)
+
+// Cloud Router and NAT
+let router = DAISVPCTemplate.router(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    region: "us-central1"
+)
+
+let nat = DAISVPCTemplate.natGateway(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    region: "us-central1"
+)
+
+// Complete setup and teardown scripts
+let setupScript = DAISVPCTemplate.setupScript(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    region: "us-central1",
+    nodeSubnetCidr: "10.0.0.0/24"
+)
+
+let teardownScript = DAISVPCTemplate.teardownScript(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    region: "us-central1"
+)
+```
+
+**Routing Modes:**
+
+| Mode | Description |
+|------|-------------|
+| `regional` | Routes are propagated only to subnets in the same region |
+| `global` | Routes are propagated to all subnets in the network |
+
+**Firewall Direction:**
+
+| Direction | Description |
+|-----------|-------------|
+| `ingress` | Incoming traffic to VM instances |
+| `egress` | Outgoing traffic from VM instances |
+
+**Subnet Purposes:**
+
+| Purpose | Description |
+|---------|-------------|
+| `privateDefault` | Standard subnet for VM instances |
+| `regionalManagedProxy` | Proxy-only subnet for regional HTTP(S) LB |
+| `globalManagedProxy` | Proxy-only subnet for global HTTP(S) LB |
+| `privateServiceConnect` | Subnet for Private Service Connect |
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -1873,6 +2154,10 @@ MIT License
 - [Cloud Monitoring Documentation](https://cloud.google.com/monitoring/docs)
 - [Alerting Policies Documentation](https://cloud.google.com/monitoring/alerts)
 - [Uptime Checks Documentation](https://cloud.google.com/monitoring/uptime-checks)
+- [VPC Networks Documentation](https://cloud.google.com/vpc/docs)
+- [Firewall Rules Documentation](https://cloud.google.com/vpc/docs/firewalls)
+- [Cloud Router Documentation](https://cloud.google.com/network-connectivity/docs/router)
+- [Cloud NAT Documentation](https://cloud.google.com/nat/docs)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
