@@ -15570,3 +15570,488 @@ import Testing
     #expect(GoogleCloudDataflowJob.EnvironmentConfig.DiskType.pdStandard.rawValue == "pd-standard")
     #expect(GoogleCloudDataflowJob.EnvironmentConfig.DiskType.pdBalanced.rawValue == "pd-balanced")
 }
+
+// MARK: - Cloud Deploy Tests
+
+@Test func testDeliveryPipelineBasicInit() {
+    let pipeline = GoogleCloudDeliveryPipeline(
+        name: "my-pipeline",
+        projectID: "my-project",
+        location: "us-central1",
+        description: "Test pipeline"
+    )
+
+    #expect(pipeline.name == "my-pipeline")
+    #expect(pipeline.projectID == "my-project")
+    #expect(pipeline.resourceName == "projects/my-project/locations/us-central1/deliveryPipelines/my-pipeline")
+}
+
+@Test func testDeliveryPipelineWithStages() {
+    let pipeline = GoogleCloudDeliveryPipeline(
+        name: "prod-pipeline",
+        projectID: "my-project",
+        location: "us-central1",
+        serialPipeline: GoogleCloudDeliveryPipeline.SerialPipeline(
+            stages: [
+                GoogleCloudDeliveryPipeline.SerialPipeline.Stage(targetId: "dev", profiles: ["dev"]),
+                GoogleCloudDeliveryPipeline.SerialPipeline.Stage(targetId: "staging", profiles: ["staging"]),
+                GoogleCloudDeliveryPipeline.SerialPipeline.Stage(targetId: "prod", profiles: ["prod"])
+            ]
+        )
+    )
+
+    #expect(pipeline.serialPipeline?.stages.count == 3)
+    #expect(pipeline.serialPipeline?.stages[0].targetId == "dev")
+    #expect(pipeline.serialPipeline?.stages[2].targetId == "prod")
+}
+
+@Test func testDeliveryPipelineCreateCommand() {
+    let pipeline = GoogleCloudDeliveryPipeline(
+        name: "app-pipeline",
+        projectID: "my-project",
+        location: "us-central1",
+        description: "Application delivery pipeline",
+        labels: ["team": "platform"]
+    )
+
+    let cmd = pipeline.createCommand
+    #expect(cmd.contains("gcloud deploy delivery-pipelines create app-pipeline"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(cmd.contains("--description=\"Application delivery pipeline\""))
+    #expect(cmd.contains("--labels=team=platform"))
+}
+
+@Test func testDeliveryPipelineDescribeCommand() {
+    let pipeline = GoogleCloudDeliveryPipeline(
+        name: "my-pipeline",
+        projectID: "my-project",
+        location: "us-west1"
+    )
+
+    #expect(pipeline.describeCommand == "gcloud deploy delivery-pipelines describe my-pipeline --project=my-project --region=us-west1")
+}
+
+@Test func testDeliveryPipelineDeleteCommand() {
+    let pipeline = GoogleCloudDeliveryPipeline(
+        name: "old-pipeline",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(pipeline.deleteCommand == "gcloud deploy delivery-pipelines delete old-pipeline --project=my-project --region=us-central1 --quiet")
+}
+
+@Test func testDeliveryPipelineListCommand() {
+    let cmd = GoogleCloudDeliveryPipeline.listCommand(projectID: "my-project", location: "us-central1")
+    #expect(cmd == "gcloud deploy delivery-pipelines list --project=my-project --region=us-central1")
+}
+
+@Test func testDeliveryPipelineCreateFromFileCommand() {
+    let pipeline = GoogleCloudDeliveryPipeline(
+        name: "my-pipeline",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let cmd = pipeline.createFromFileCommand(filePath: "pipeline.yaml")
+    #expect(cmd == "gcloud deploy apply --file=pipeline.yaml --project=my-project --region=us-central1")
+}
+
+@Test func testDeployTargetCloudRun() {
+    let target = GoogleCloudDeployTarget(
+        name: "prod-target",
+        projectID: "my-project",
+        location: "us-central1",
+        description: "Production Cloud Run target",
+        targetType: .cloudRun(location: "us-central1"),
+        requireApproval: true
+    )
+
+    #expect(target.name == "prod-target")
+    #expect(target.resourceName == "projects/my-project/locations/us-central1/targets/prod-target")
+
+    let cmd = target.createCommand
+    #expect(cmd.contains("gcloud deploy targets create prod-target"))
+    #expect(cmd.contains("--run-location=us-central1"))
+    #expect(cmd.contains("--require-approval"))
+}
+
+@Test func testDeployTargetGKE() {
+    let target = GoogleCloudDeployTarget(
+        name: "gke-prod",
+        projectID: "my-project",
+        location: "us-central1",
+        targetType: .gke(
+            cluster: "projects/my-project/locations/us-central1/clusters/my-cluster",
+            internalIP: true
+        )
+    )
+
+    let cmd = target.createCommand
+    #expect(cmd.contains("--gke-cluster=projects/my-project/locations/us-central1/clusters/my-cluster"))
+    #expect(cmd.contains("--internal-ip"))
+}
+
+@Test func testDeployTargetDescribeCommand() {
+    let target = GoogleCloudDeployTarget(
+        name: "dev-target",
+        projectID: "my-project",
+        location: "us-central1",
+        targetType: .cloudRun(location: "us-central1")
+    )
+
+    #expect(target.describeCommand == "gcloud deploy targets describe dev-target --project=my-project --region=us-central1")
+}
+
+@Test func testDeployTargetDeleteCommand() {
+    let target = GoogleCloudDeployTarget(
+        name: "old-target",
+        projectID: "my-project",
+        location: "us-west1",
+        targetType: .cloudRun(location: "us-west1")
+    )
+
+    #expect(target.deleteCommand == "gcloud deploy targets delete old-target --project=my-project --region=us-west1 --quiet")
+}
+
+@Test func testDeployTargetListCommand() {
+    let cmd = GoogleCloudDeployTarget.listCommand(projectID: "my-project", location: "us-central1")
+    #expect(cmd == "gcloud deploy targets list --project=my-project --region=us-central1")
+}
+
+@Test func testDeployReleaseBasicInit() {
+    let release = GoogleCloudDeployRelease(
+        name: "release-001",
+        projectID: "my-project",
+        location: "us-central1",
+        pipelineName: "my-pipeline",
+        description: "Initial release"
+    )
+
+    #expect(release.name == "release-001")
+    #expect(release.resourceName == "projects/my-project/locations/us-central1/deliveryPipelines/my-pipeline/releases/release-001")
+}
+
+@Test func testDeployReleaseCreateCommand() {
+    let release = GoogleCloudDeployRelease(
+        name: "v1.0.0",
+        projectID: "my-project",
+        location: "us-central1",
+        pipelineName: "app-pipeline",
+        description: "Version 1.0.0 release",
+        buildArtifacts: [
+            GoogleCloudDeployRelease.BuildArtifact(image: "app", tag: "gcr.io/my-project/app:v1.0.0")
+        ],
+        skaffoldConfigUri: "gs://my-bucket/skaffold.yaml"
+    )
+
+    let cmd = release.createCommand
+    #expect(cmd.contains("gcloud deploy releases create v1.0.0"))
+    #expect(cmd.contains("--delivery-pipeline=app-pipeline"))
+    #expect(cmd.contains("--images=app=gcr.io/my-project/app:v1.0.0"))
+    #expect(cmd.contains("--source=gs://my-bucket/skaffold.yaml"))
+}
+
+@Test func testDeployReleaseDescribeCommand() {
+    let release = GoogleCloudDeployRelease(
+        name: "rel-123",
+        projectID: "my-project",
+        location: "us-central1",
+        pipelineName: "my-pipeline"
+    )
+
+    #expect(release.describeCommand.contains("releases describe rel-123"))
+    #expect(release.describeCommand.contains("--delivery-pipeline=my-pipeline"))
+}
+
+@Test func testDeployReleaseListCommand() {
+    let cmd = GoogleCloudDeployRelease.listCommand(
+        projectID: "my-project",
+        location: "us-central1",
+        pipelineName: "my-pipeline"
+    )
+    #expect(cmd.contains("releases list"))
+    #expect(cmd.contains("--delivery-pipeline=my-pipeline"))
+}
+
+@Test func testDeployReleasePromoteCommand() {
+    let release = GoogleCloudDeployRelease(
+        name: "v1.0.0",
+        projectID: "my-project",
+        location: "us-central1",
+        pipelineName: "app-pipeline"
+    )
+
+    let cmd = release.promoteCommand(toTarget: "prod")
+    #expect(cmd.contains("releases promote"))
+    #expect(cmd.contains("--release=v1.0.0"))
+    #expect(cmd.contains("--to-target=prod"))
+}
+
+@Test func testDeployRolloutBasicInit() {
+    let rollout = GoogleCloudDeployRollout(
+        name: "rollout-001",
+        projectID: "my-project",
+        location: "us-central1",
+        pipelineName: "my-pipeline",
+        releaseName: "v1.0.0",
+        targetId: "prod",
+        state: .inProgress
+    )
+
+    #expect(rollout.name == "rollout-001")
+    #expect(rollout.state == .inProgress)
+    #expect(rollout.resourceName.contains("rollouts/rollout-001"))
+}
+
+@Test func testDeployRolloutDescribeCommand() {
+    let rollout = GoogleCloudDeployRollout(
+        name: "rollout-abc",
+        projectID: "my-project",
+        location: "us-central1",
+        pipelineName: "pipeline",
+        releaseName: "release",
+        targetId: "prod"
+    )
+
+    #expect(rollout.describeCommand.contains("rollouts describe rollout-abc"))
+    #expect(rollout.describeCommand.contains("--release=release"))
+}
+
+@Test func testDeployRolloutApproveCommand() {
+    let rollout = GoogleCloudDeployRollout(
+        name: "pending-rollout",
+        projectID: "my-project",
+        location: "us-central1",
+        pipelineName: "pipeline",
+        releaseName: "release",
+        targetId: "prod",
+        state: .pendingApproval
+    )
+
+    #expect(rollout.approveCommand.contains("rollouts approve pending-rollout"))
+}
+
+@Test func testDeployRolloutRejectCommand() {
+    let rollout = GoogleCloudDeployRollout(
+        name: "bad-rollout",
+        projectID: "my-project",
+        location: "us-central1",
+        pipelineName: "pipeline",
+        releaseName: "release",
+        targetId: "prod"
+    )
+
+    #expect(rollout.rejectCommand.contains("rollouts reject bad-rollout"))
+}
+
+@Test func testDeployRolloutCancelCommand() {
+    let rollout = GoogleCloudDeployRollout(
+        name: "in-progress-rollout",
+        projectID: "my-project",
+        location: "us-central1",
+        pipelineName: "pipeline",
+        releaseName: "release",
+        targetId: "prod"
+    )
+
+    #expect(rollout.cancelCommand.contains("rollouts cancel in-progress-rollout"))
+}
+
+@Test func testDeployRolloutStates() {
+    #expect(GoogleCloudDeployRollout.RolloutState.succeeded.rawValue == "SUCCEEDED")
+    #expect(GoogleCloudDeployRollout.RolloutState.failed.rawValue == "FAILED")
+    #expect(GoogleCloudDeployRollout.RolloutState.inProgress.rawValue == "IN_PROGRESS")
+    #expect(GoogleCloudDeployRollout.RolloutState.pendingApproval.rawValue == "PENDING_APPROVAL")
+    #expect(GoogleCloudDeployRollout.RolloutState.cancelled.rawValue == "CANCELLED")
+}
+
+@Test func testCloudDeployOperationsEnableAPI() {
+    let cmd = CloudDeployOperations.enableAPICommand(projectID: "my-project")
+    #expect(cmd == "gcloud services enable clouddeploy.googleapis.com --project=my-project")
+}
+
+@Test func testCloudDeployOperationsGetServiceAccount() {
+    let cmd = CloudDeployOperations.getServiceAccountCommand(projectID: "my-project", location: "us-central1")
+    #expect(cmd.contains("deploy get-config"))
+}
+
+@Test func testCloudDeployOperationsCreateAutomation() {
+    let cmd = CloudDeployOperations.createAutomationCommand(
+        name: "auto-promote",
+        projectID: "my-project",
+        location: "us-central1",
+        pipelineName: "my-pipeline",
+        targetId: "staging",
+        serviceAccount: "deploy@my-project.iam.gserviceaccount.com",
+        automationType: .promoteRelease
+    )
+
+    #expect(cmd.contains("automations create auto-promote"))
+    #expect(cmd.contains("--promote-release-rule=promoteRule"))
+}
+
+@Test func testDAISCloudDeployTemplateCloudRunPipeline() {
+    let pipeline = DAISCloudDeployTemplate.cloudRunPipeline(
+        projectID: "my-project",
+        location: "us-central1",
+        deploymentName: "dais-prod",
+        stages: [
+            (name: "dev", runLocation: "us-central1", requireApproval: false),
+            (name: "prod", runLocation: "us-central1", requireApproval: true)
+        ]
+    )
+
+    #expect(pipeline.name == "dais-prod-pipeline")
+    #expect(pipeline.serialPipeline?.stages.count == 2)
+    #expect(pipeline.labels?["deployment"] == "dais-prod")
+}
+
+@Test func testDAISCloudDeployTemplateCloudRunTarget() {
+    let target = DAISCloudDeployTemplate.cloudRunTarget(
+        projectID: "my-project",
+        location: "us-central1",
+        deploymentName: "dais-prod",
+        environment: "prod",
+        runLocation: "us-central1",
+        requireApproval: true
+    )
+
+    #expect(target.name == "dais-prod-prod")
+    #expect(target.requireApproval == true)
+    #expect(target.labels?["environment"] == "prod")
+}
+
+@Test func testDAISCloudDeployTemplateGKETarget() {
+    let target = DAISCloudDeployTemplate.gkeTarget(
+        projectID: "my-project",
+        location: "us-central1",
+        deploymentName: "dais-prod",
+        environment: "staging",
+        clusterName: "main-cluster",
+        clusterLocation: "us-central1-a"
+    )
+
+    #expect(target.name == "dais-prod-staging")
+    if case .gke(let cluster, _) = target.targetType {
+        #expect(cluster.contains("main-cluster"))
+    }
+}
+
+@Test func testDAISCloudDeployTemplateSetupScript() {
+    let script = DAISCloudDeployTemplate.setupScript(
+        projectID: "my-project",
+        location: "us-central1",
+        deploymentName: "dais-prod",
+        environments: [
+            (name: "dev", runLocation: "us-central1", requireApproval: false),
+            (name: "prod", runLocation: "us-central1", requireApproval: true)
+        ]
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("clouddeploy.googleapis.com"))
+    #expect(script.contains("targets create dais-prod-dev"))
+    #expect(script.contains("targets create dais-prod-prod"))
+    #expect(script.contains("--require-approval"))
+    #expect(script.contains("dais-prod-pipeline"))
+}
+
+@Test func testDAISCloudDeployTemplateTeardownScript() {
+    let script = DAISCloudDeployTemplate.teardownScript(
+        projectID: "my-project",
+        location: "us-central1",
+        deploymentName: "dais-prod",
+        environments: ["dev", "staging", "prod"]
+    )
+
+    #expect(script.contains("delivery-pipelines delete dais-prod-pipeline"))
+    #expect(script.contains("targets delete dais-prod-dev"))
+    #expect(script.contains("targets delete dais-prod-staging"))
+    #expect(script.contains("targets delete dais-prod-prod"))
+}
+
+@Test func testDAISCloudDeployTemplateSkaffoldYaml() {
+    let yaml = DAISCloudDeployTemplate.skaffoldYamlCloudRun(
+        projectID: "my-project",
+        serviceName: "my-service",
+        image: "gcr.io/my-project/my-service:latest"
+    )
+
+    #expect(yaml.contains("apiVersion: skaffold/v4beta7"))
+    #expect(yaml.contains("cloudrun: {}"))
+}
+
+@Test func testDAISCloudDeployTemplateCloudRunServiceYaml() {
+    let yaml = DAISCloudDeployTemplate.cloudRunServiceYaml(
+        serviceName: "api-service",
+        image: "gcr.io/project/api:v1",
+        port: 8080,
+        memory: "1Gi",
+        cpu: "2"
+    )
+
+    #expect(yaml.contains("serving.knative.dev/v1"))
+    #expect(yaml.contains("name: api-service"))
+    #expect(yaml.contains("containerPort: 8080"))
+    #expect(yaml.contains("memory: 1Gi"))
+}
+
+@Test func testDeliveryPipelineCodable() throws {
+    let pipeline = GoogleCloudDeliveryPipeline(
+        name: "test-pipeline",
+        projectID: "my-project",
+        location: "us-central1",
+        description: "Test",
+        labels: ["env": "test"]
+    )
+
+    let data = try JSONEncoder().encode(pipeline)
+    let decoded = try JSONDecoder().decode(GoogleCloudDeliveryPipeline.self, from: data)
+
+    #expect(decoded.name == "test-pipeline")
+    #expect(decoded.labels?["env"] == "test")
+}
+
+@Test func testDeployReleaseCodable() throws {
+    let release = GoogleCloudDeployRelease(
+        name: "v1.0.0",
+        projectID: "my-project",
+        location: "us-central1",
+        pipelineName: "pipeline",
+        buildArtifacts: [
+            GoogleCloudDeployRelease.BuildArtifact(image: "app", tag: "v1.0.0")
+        ]
+    )
+
+    let data = try JSONEncoder().encode(release)
+    let decoded = try JSONDecoder().decode(GoogleCloudDeployRelease.self, from: data)
+
+    #expect(decoded.name == "v1.0.0")
+    #expect(decoded.buildArtifacts?.first?.tag == "v1.0.0")
+}
+
+@Test func testDeployRolloutCodable() throws {
+    let rollout = GoogleCloudDeployRollout(
+        name: "rollout-1",
+        projectID: "my-project",
+        location: "us-central1",
+        pipelineName: "pipeline",
+        releaseName: "release",
+        targetId: "prod",
+        state: .succeeded
+    )
+
+    let data = try JSONEncoder().encode(rollout)
+    let decoded = try JSONDecoder().decode(GoogleCloudDeployRollout.self, from: data)
+
+    #expect(decoded.name == "rollout-1")
+    #expect(decoded.state == .succeeded)
+}
+
+@Test func testExecutionConfigUsages() {
+    #expect(GoogleCloudDeployTarget.ExecutionConfig.Usage.render.rawValue == "RENDER")
+    #expect(GoogleCloudDeployTarget.ExecutionConfig.Usage.deploy.rawValue == "DEPLOY")
+    #expect(GoogleCloudDeployTarget.ExecutionConfig.Usage.verify.rawValue == "VERIFY")
+}
