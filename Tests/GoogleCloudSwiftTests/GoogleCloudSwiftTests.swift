@@ -6610,3 +6610,963 @@ import Testing
     #expect(script.contains("gcloud compute routers nats delete dais-prod-nat"))
     #expect(script.contains("gcloud compute routers delete dais-prod-router"))
 }
+
+// MARK: - Cloud DNS Tests
+
+@Test func testManagedZoneBasicInit() {
+    let zone = GoogleCloudManagedZone(
+        name: "example-zone",
+        dnsName: "example.com",
+        projectID: "test-project"
+    )
+
+    #expect(zone.name == "example-zone")
+    #expect(zone.dnsName == "example.com.")
+    #expect(zone.projectID == "test-project")
+    #expect(zone.visibility == .public)
+}
+
+@Test func testManagedZoneWithDot() {
+    let zone = GoogleCloudManagedZone(
+        name: "example-zone",
+        dnsName: "example.com.",
+        projectID: "test-project"
+    )
+
+    #expect(zone.dnsName == "example.com.")
+}
+
+@Test func testManagedZonePrivate() {
+    let zone = GoogleCloudManagedZone(
+        name: "internal-zone",
+        dnsName: "internal.example.com",
+        projectID: "test-project",
+        visibility: .private,
+        networks: ["my-vpc", "other-vpc"]
+    )
+
+    #expect(zone.visibility == .private)
+    #expect(zone.networks.count == 2)
+}
+
+@Test func testManagedZoneWithDNSSEC() {
+    let zone = GoogleCloudManagedZone(
+        name: "secure-zone",
+        dnsName: "secure.example.com",
+        projectID: "test-project",
+        dnssecConfig: .init(state: .on, nonExistence: .nsec3)
+    )
+
+    #expect(zone.dnssecConfig?.state == .on)
+    #expect(zone.dnssecConfig?.nonExistence == .nsec3)
+}
+
+@Test func testManagedZoneWithForwarding() {
+    let zone = GoogleCloudManagedZone(
+        name: "forwarding-zone",
+        dnsName: "forward.example.com",
+        projectID: "test-project",
+        visibility: .private,
+        forwardingConfig: .init(targetNameServers: [
+            .init(ipv4Address: "10.0.0.53"),
+            .init(ipv4Address: "10.0.0.54", forwardingPath: .private)
+        ])
+    )
+
+    #expect(zone.forwardingConfig?.targetNameServers.count == 2)
+}
+
+@Test func testManagedZoneResourceName() {
+    let zone = GoogleCloudManagedZone(
+        name: "example-zone",
+        dnsName: "example.com",
+        projectID: "test-project"
+    )
+
+    #expect(zone.resourceName == "projects/test-project/managedZones/example-zone")
+}
+
+@Test func testManagedZoneCreateCommand() {
+    let zone = GoogleCloudManagedZone(
+        name: "example-zone",
+        dnsName: "example.com",
+        projectID: "test-project",
+        description: "Example zone",
+        visibility: .public,
+        dnssecConfig: .init(state: .on)
+    )
+
+    #expect(zone.createCommand.contains("gcloud dns managed-zones create example-zone"))
+    #expect(zone.createCommand.contains("--dns-name=example.com."))
+    #expect(zone.createCommand.contains("--visibility=public"))
+    #expect(zone.createCommand.contains("--dnssec-state=on"))
+}
+
+@Test func testManagedZoneCreateCommandPrivate() {
+    let zone = GoogleCloudManagedZone(
+        name: "private-zone",
+        dnsName: "internal.example.com",
+        projectID: "test-project",
+        visibility: .private,
+        networks: ["my-vpc"]
+    )
+
+    #expect(zone.createCommand.contains("--visibility=private"))
+    #expect(zone.createCommand.contains("--networks=my-vpc"))
+}
+
+@Test func testManagedZoneDeleteCommand() {
+    let zone = GoogleCloudManagedZone(
+        name: "example-zone",
+        dnsName: "example.com",
+        projectID: "test-project"
+    )
+
+    #expect(zone.deleteCommand == "gcloud dns managed-zones delete example-zone --project=test-project --quiet")
+}
+
+@Test func testManagedZoneDescribeCommand() {
+    let zone = GoogleCloudManagedZone(
+        name: "example-zone",
+        dnsName: "example.com",
+        projectID: "test-project"
+    )
+
+    #expect(zone.describeCommand == "gcloud dns managed-zones describe example-zone --project=test-project")
+}
+
+@Test func testManagedZoneListCommand() {
+    let cmd = GoogleCloudManagedZone.listCommand(projectID: "test-project")
+    #expect(cmd == "gcloud dns managed-zones list --project=test-project")
+}
+
+@Test func testManagedZoneUpdateCommand() {
+    let zone = GoogleCloudManagedZone(
+        name: "example-zone",
+        dnsName: "example.com",
+        projectID: "test-project"
+    )
+
+    let cmd = zone.updateCommand(newDescription: "Updated description")
+    #expect(cmd.contains("gcloud dns managed-zones update example-zone"))
+    #expect(cmd.contains("--description=\"Updated description\""))
+}
+
+@Test func testManagedZoneCodable() throws {
+    let zone = GoogleCloudManagedZone(
+        name: "example-zone",
+        dnsName: "example.com",
+        projectID: "test-project",
+        visibility: .public,
+        dnssecConfig: .init(state: .on)
+    )
+
+    let data = try JSONEncoder().encode(zone)
+    let decoded = try JSONDecoder().decode(GoogleCloudManagedZone.self, from: data)
+
+    #expect(decoded.name == zone.name)
+    #expect(decoded.dnsName == zone.dnsName)
+    #expect(decoded.dnssecConfig?.state == .on)
+}
+
+@Test func testVisibilityValues() {
+    #expect(GoogleCloudManagedZone.Visibility.public.rawValue == "public")
+    #expect(GoogleCloudManagedZone.Visibility.private.rawValue == "private")
+}
+
+@Test func testDNSSECStateValues() {
+    #expect(GoogleCloudManagedZone.DNSSECConfig.State.on.rawValue == "on")
+    #expect(GoogleCloudManagedZone.DNSSECConfig.State.off.rawValue == "off")
+    #expect(GoogleCloudManagedZone.DNSSECConfig.State.transfer.rawValue == "transfer")
+}
+
+// MARK: - DNS Record Tests
+
+@Test func testDNSRecordBasicInit() {
+    let record = GoogleCloudDNSRecord(
+        name: "www.example.com",
+        type: .a,
+        ttl: 300,
+        rrdatas: ["192.0.2.1"]
+    )
+
+    #expect(record.name == "www.example.com.")
+    #expect(record.type == .a)
+    #expect(record.ttl == 300)
+    #expect(record.rrdatas.count == 1)
+}
+
+@Test func testDNSRecordWithDot() {
+    let record = GoogleCloudDNSRecord(
+        name: "www.example.com.",
+        type: .a,
+        ttl: 300,
+        rrdatas: ["192.0.2.1"]
+    )
+
+    #expect(record.name == "www.example.com.")
+}
+
+@Test func testDNSRecordTypes() {
+    #expect(GoogleCloudDNSRecord.RecordType.a.rawValue == "A")
+    #expect(GoogleCloudDNSRecord.RecordType.aaaa.rawValue == "AAAA")
+    #expect(GoogleCloudDNSRecord.RecordType.cname.rawValue == "CNAME")
+    #expect(GoogleCloudDNSRecord.RecordType.mx.rawValue == "MX")
+    #expect(GoogleCloudDNSRecord.RecordType.txt.rawValue == "TXT")
+    #expect(GoogleCloudDNSRecord.RecordType.ns.rawValue == "NS")
+    #expect(GoogleCloudDNSRecord.RecordType.srv.rawValue == "SRV")
+    #expect(GoogleCloudDNSRecord.RecordType.caa.rawValue == "CAA")
+    #expect(GoogleCloudDNSRecord.RecordType.ptr.rawValue == "PTR")
+}
+
+@Test func testDNSRecordWithRoutingPolicy() {
+    let record = GoogleCloudDNSRecord(
+        name: "www.example.com",
+        type: .a,
+        ttl: 300,
+        rrdatas: [],
+        routingPolicy: .init(wrr: .init(items: [
+            .init(weight: 0.7, rrdatas: ["192.0.2.1"]),
+            .init(weight: 0.3, rrdatas: ["192.0.2.2"])
+        ]))
+    )
+
+    #expect(record.routingPolicy?.wrr?.items.count == 2)
+}
+
+@Test func testDNSRecordGeoPolicy() {
+    let record = GoogleCloudDNSRecord(
+        name: "www.example.com",
+        type: .a,
+        ttl: 300,
+        rrdatas: [],
+        routingPolicy: .init(geo: .init(items: [
+            .init(location: "us-east1", rrdatas: ["192.0.2.1"]),
+            .init(location: "europe-west1", rrdatas: ["192.0.2.2"])
+        ]))
+    )
+
+    #expect(record.routingPolicy?.geo?.items.count == 2)
+}
+
+@Test func testDNSRecordCodable() throws {
+    let record = GoogleCloudDNSRecord(
+        name: "www.example.com",
+        type: .a,
+        ttl: 300,
+        rrdatas: ["192.0.2.1", "192.0.2.2"]
+    )
+
+    let data = try JSONEncoder().encode(record)
+    let decoded = try JSONDecoder().decode(GoogleCloudDNSRecord.self, from: data)
+
+    #expect(decoded.name == record.name)
+    #expect(decoded.type == record.type)
+    #expect(decoded.rrdatas.count == 2)
+}
+
+// MARK: - DNS Transaction Tests
+
+@Test func testDNSTransactionInit() {
+    let transaction = GoogleCloudDNSTransaction(
+        zoneName: "example-zone",
+        projectID: "test-project"
+    )
+
+    #expect(transaction.zoneName == "example-zone")
+    #expect(transaction.projectID == "test-project")
+    #expect(transaction.additions.isEmpty)
+    #expect(transaction.deletions.isEmpty)
+}
+
+@Test func testDNSTransactionStartCommand() {
+    let transaction = GoogleCloudDNSTransaction(
+        zoneName: "example-zone",
+        projectID: "test-project"
+    )
+
+    #expect(transaction.startCommand == "gcloud dns record-sets transaction start --zone=example-zone --project=test-project")
+}
+
+@Test func testDNSTransactionExecuteCommand() {
+    let transaction = GoogleCloudDNSTransaction(
+        zoneName: "example-zone",
+        projectID: "test-project"
+    )
+
+    #expect(transaction.executeCommand == "gcloud dns record-sets transaction execute --zone=example-zone --project=test-project")
+}
+
+@Test func testDNSTransactionAbortCommand() {
+    let transaction = GoogleCloudDNSTransaction(
+        zoneName: "example-zone",
+        projectID: "test-project"
+    )
+
+    #expect(transaction.abortCommand == "gcloud dns record-sets transaction abort --zone=example-zone --project=test-project")
+}
+
+@Test func testDNSTransactionAddCommands() {
+    var transaction = GoogleCloudDNSTransaction(
+        zoneName: "example-zone",
+        projectID: "test-project"
+    )
+
+    transaction.additions = [
+        GoogleCloudDNSRecord(name: "www.example.com", type: .a, ttl: 300, rrdatas: ["192.0.2.1"])
+    ]
+
+    #expect(transaction.addCommands.count == 1)
+    #expect(transaction.addCommands[0].contains("transaction add"))
+    #expect(transaction.addCommands[0].contains("--name=www.example.com."))
+    #expect(transaction.addCommands[0].contains("--type=A"))
+}
+
+@Test func testDNSTransactionRemoveCommands() {
+    var transaction = GoogleCloudDNSTransaction(
+        zoneName: "example-zone",
+        projectID: "test-project"
+    )
+
+    transaction.deletions = [
+        GoogleCloudDNSRecord(name: "old.example.com", type: .a, ttl: 300, rrdatas: ["192.0.2.100"])
+    ]
+
+    #expect(transaction.removeCommands.count == 1)
+    #expect(transaction.removeCommands[0].contains("transaction remove"))
+}
+
+@Test func testDNSTransactionScript() {
+    var transaction = GoogleCloudDNSTransaction(
+        zoneName: "example-zone",
+        projectID: "test-project"
+    )
+
+    transaction.additions = [
+        GoogleCloudDNSRecord(name: "www.example.com", type: .a, ttl: 300, rrdatas: ["192.0.2.1"])
+    ]
+
+    let script = transaction.transactionScript
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("Starting DNS transaction"))
+    #expect(script.contains("Adding records"))
+    #expect(script.contains("Executing transaction"))
+}
+
+// MARK: - DNS Record Commands Tests
+
+@Test func testDNSRecordCommandsCreate() {
+    let record = GoogleCloudDNSRecord(
+        name: "www.example.com",
+        type: .a,
+        ttl: 300,
+        rrdatas: ["192.0.2.1"]
+    )
+
+    let cmd = GoogleCloudDNSRecordCommands.createCommand(
+        zoneName: "example-zone",
+        projectID: "test-project",
+        record: record
+    )
+
+    #expect(cmd.contains("gcloud dns record-sets create www.example.com."))
+    #expect(cmd.contains("--zone=example-zone"))
+    #expect(cmd.contains("--type=A"))
+    #expect(cmd.contains("--ttl=300"))
+}
+
+@Test func testDNSRecordCommandsUpdate() {
+    let record = GoogleCloudDNSRecord(
+        name: "www.example.com",
+        type: .a,
+        ttl: 600,
+        rrdatas: ["192.0.2.2"]
+    )
+
+    let cmd = GoogleCloudDNSRecordCommands.updateCommand(
+        zoneName: "example-zone",
+        projectID: "test-project",
+        record: record
+    )
+
+    #expect(cmd.contains("gcloud dns record-sets update"))
+    #expect(cmd.contains("--ttl=600"))
+}
+
+@Test func testDNSRecordCommandsDelete() {
+    let cmd = GoogleCloudDNSRecordCommands.deleteCommand(
+        zoneName: "example-zone",
+        projectID: "test-project",
+        name: "www.example.com.",
+        type: .a
+    )
+
+    #expect(cmd == "gcloud dns record-sets delete www.example.com. --zone=example-zone --project=test-project --type=A --quiet")
+}
+
+@Test func testDNSRecordCommandsDescribe() {
+    let cmd = GoogleCloudDNSRecordCommands.describeCommand(
+        zoneName: "example-zone",
+        projectID: "test-project",
+        name: "www.example.com.",
+        type: .a
+    )
+
+    #expect(cmd == "gcloud dns record-sets describe www.example.com. --zone=example-zone --project=test-project --type=A")
+}
+
+@Test func testDNSRecordCommandsList() {
+    let cmd = GoogleCloudDNSRecordCommands.listCommand(zoneName: "example-zone", projectID: "test-project")
+    #expect(cmd == "gcloud dns record-sets list --zone=example-zone --project=test-project")
+}
+
+@Test func testDNSRecordCommandsListWithFilter() {
+    let cmd = GoogleCloudDNSRecordCommands.listCommand(
+        zoneName: "example-zone",
+        projectID: "test-project",
+        filter: "type=A"
+    )
+    #expect(cmd.contains("--filter=\"type=A\""))
+}
+
+// MARK: - DNS Policy Tests
+
+@Test func testDNSPolicyBasicInit() {
+    let policy = GoogleCloudDNSPolicy(
+        name: "my-policy",
+        projectID: "test-project"
+    )
+
+    #expect(policy.name == "my-policy")
+    #expect(policy.projectID == "test-project")
+    #expect(policy.enableInboundForwarding == false)
+    #expect(policy.enableLogging == false)
+}
+
+@Test func testDNSPolicyWithOptions() {
+    let policy = GoogleCloudDNSPolicy(
+        name: "my-policy",
+        projectID: "test-project",
+        description: "Test policy",
+        enableInboundForwarding: true,
+        enableLogging: true,
+        networks: ["my-vpc"],
+        alternativeNameServerConfig: .init(targetNameServers: ["10.0.0.53", "10.0.0.54"])
+    )
+
+    #expect(policy.enableInboundForwarding == true)
+    #expect(policy.enableLogging == true)
+    #expect(policy.networks.count == 1)
+    #expect(policy.alternativeNameServerConfig?.targetNameServers.count == 2)
+}
+
+@Test func testDNSPolicyResourceName() {
+    let policy = GoogleCloudDNSPolicy(
+        name: "my-policy",
+        projectID: "test-project"
+    )
+
+    #expect(policy.resourceName == "projects/test-project/policies/my-policy")
+}
+
+@Test func testDNSPolicyCreateCommand() {
+    let policy = GoogleCloudDNSPolicy(
+        name: "my-policy",
+        projectID: "test-project",
+        enableInboundForwarding: true,
+        enableLogging: true,
+        networks: ["my-vpc"]
+    )
+
+    #expect(policy.createCommand.contains("gcloud dns policies create my-policy"))
+    #expect(policy.createCommand.contains("--enable-inbound-forwarding"))
+    #expect(policy.createCommand.contains("--enable-logging"))
+    #expect(policy.createCommand.contains("--networks=my-vpc"))
+}
+
+@Test func testDNSPolicyDeleteCommand() {
+    let policy = GoogleCloudDNSPolicy(
+        name: "my-policy",
+        projectID: "test-project"
+    )
+
+    #expect(policy.deleteCommand == "gcloud dns policies delete my-policy --project=test-project --quiet")
+}
+
+@Test func testDNSPolicyListCommand() {
+    let cmd = GoogleCloudDNSPolicy.listCommand(projectID: "test-project")
+    #expect(cmd == "gcloud dns policies list --project=test-project")
+}
+
+@Test func testDNSPolicyCodable() throws {
+    let policy = GoogleCloudDNSPolicy(
+        name: "my-policy",
+        projectID: "test-project",
+        enableLogging: true
+    )
+
+    let data = try JSONEncoder().encode(policy)
+    let decoded = try JSONDecoder().decode(GoogleCloudDNSPolicy.self, from: data)
+
+    #expect(decoded.name == policy.name)
+    #expect(decoded.enableLogging == true)
+}
+
+// MARK: - Response Policy Tests
+
+@Test func testResponsePolicyBasicInit() {
+    let policy = GoogleCloudDNSResponsePolicy(
+        name: "my-response-policy",
+        projectID: "test-project"
+    )
+
+    #expect(policy.name == "my-response-policy")
+    #expect(policy.projectID == "test-project")
+}
+
+@Test func testResponsePolicyWithNetworks() {
+    let policy = GoogleCloudDNSResponsePolicy(
+        name: "my-response-policy",
+        projectID: "test-project",
+        description: "Block malware domains",
+        networks: ["my-vpc", "other-vpc"]
+    )
+
+    #expect(policy.networks.count == 2)
+}
+
+@Test func testResponsePolicyWithGKE() {
+    let policy = GoogleCloudDNSResponsePolicy(
+        name: "my-response-policy",
+        projectID: "test-project",
+        gkeClusters: ["projects/test-project/locations/us-central1/clusters/my-cluster"]
+    )
+
+    #expect(policy.gkeClusters.count == 1)
+}
+
+@Test func testResponsePolicyResourceName() {
+    let policy = GoogleCloudDNSResponsePolicy(
+        name: "my-response-policy",
+        projectID: "test-project"
+    )
+
+    #expect(policy.resourceName == "projects/test-project/responsePolicies/my-response-policy")
+}
+
+@Test func testResponsePolicyCreateCommand() {
+    let policy = GoogleCloudDNSResponsePolicy(
+        name: "my-response-policy",
+        projectID: "test-project",
+        networks: ["my-vpc"]
+    )
+
+    #expect(policy.createCommand.contains("gcloud dns response-policies create my-response-policy"))
+    #expect(policy.createCommand.contains("--networks=my-vpc"))
+}
+
+@Test func testResponsePolicyDeleteCommand() {
+    let policy = GoogleCloudDNSResponsePolicy(
+        name: "my-response-policy",
+        projectID: "test-project"
+    )
+
+    #expect(policy.deleteCommand == "gcloud dns response-policies delete my-response-policy --project=test-project --quiet")
+}
+
+@Test func testResponsePolicyListCommand() {
+    let cmd = GoogleCloudDNSResponsePolicy.listCommand(projectID: "test-project")
+    #expect(cmd == "gcloud dns response-policies list --project=test-project")
+}
+
+@Test func testResponsePolicyCodable() throws {
+    let policy = GoogleCloudDNSResponsePolicy(
+        name: "my-response-policy",
+        projectID: "test-project",
+        networks: ["my-vpc"]
+    )
+
+    let data = try JSONEncoder().encode(policy)
+    let decoded = try JSONDecoder().decode(GoogleCloudDNSResponsePolicy.self, from: data)
+
+    #expect(decoded.name == policy.name)
+    #expect(decoded.networks.count == 1)
+}
+
+// MARK: - Response Policy Rule Tests
+
+@Test func testResponsePolicyRuleBypass() {
+    let rule = GoogleCloudDNSResponsePolicyRule(
+        name: "allow-google",
+        responsePolicyName: "my-policy",
+        projectID: "test-project",
+        dnsName: "google.com",
+        behavior: .bypassResponsePolicy
+    )
+
+    #expect(rule.name == "allow-google")
+    #expect(rule.dnsName == "google.com.")
+    #expect(rule.behavior == .bypassResponsePolicy)
+}
+
+@Test func testResponsePolicyRuleLocalData() {
+    let rule = GoogleCloudDNSResponsePolicyRule(
+        name: "block-malware",
+        responsePolicyName: "my-policy",
+        projectID: "test-project",
+        dnsName: "malware.com",
+        behavior: .localData,
+        localData: .init(localDatas: [
+            .init(name: "malware.com.", type: .a, ttl: 300, rrdatas: ["0.0.0.0"])
+        ])
+    )
+
+    #expect(rule.behavior == .localData)
+    #expect(rule.localData?.localDatas.count == 1)
+}
+
+@Test func testResponsePolicyRuleCreateCommand() {
+    let rule = GoogleCloudDNSResponsePolicyRule(
+        name: "allow-google",
+        responsePolicyName: "my-policy",
+        projectID: "test-project",
+        dnsName: "google.com",
+        behavior: .bypassResponsePolicy
+    )
+
+    #expect(rule.createCommand.contains("gcloud dns response-policies rules create allow-google"))
+    #expect(rule.createCommand.contains("--response-policy=my-policy"))
+    #expect(rule.createCommand.contains("--dns-name=google.com."))
+    #expect(rule.createCommand.contains("--behavior=bypassResponsePolicy"))
+}
+
+@Test func testResponsePolicyRuleDeleteCommand() {
+    let rule = GoogleCloudDNSResponsePolicyRule(
+        name: "allow-google",
+        responsePolicyName: "my-policy",
+        projectID: "test-project",
+        dnsName: "google.com",
+        behavior: .bypassResponsePolicy
+    )
+
+    #expect(rule.deleteCommand == "gcloud dns response-policies rules delete allow-google --response-policy=my-policy --project=test-project --quiet")
+}
+
+@Test func testResponsePolicyRuleListCommand() {
+    let cmd = GoogleCloudDNSResponsePolicyRule.listCommand(responsePolicyName: "my-policy", projectID: "test-project")
+    #expect(cmd == "gcloud dns response-policies rules list --response-policy=my-policy --project=test-project")
+}
+
+@Test func testResponsePolicyRuleCodable() throws {
+    let rule = GoogleCloudDNSResponsePolicyRule(
+        name: "test-rule",
+        responsePolicyName: "my-policy",
+        projectID: "test-project",
+        dnsName: "example.com",
+        behavior: .bypassResponsePolicy
+    )
+
+    let data = try JSONEncoder().encode(rule)
+    let decoded = try JSONDecoder().decode(GoogleCloudDNSResponsePolicyRule.self, from: data)
+
+    #expect(decoded.name == rule.name)
+    #expect(decoded.behavior == rule.behavior)
+}
+
+// MARK: - Common DNS Records Tests
+
+@Test func testCommonDNSRecordsA() {
+    let record = CommonDNSRecords.aRecord(name: "www.example.com", ipAddresses: ["192.0.2.1", "192.0.2.2"])
+
+    #expect(record.type == .a)
+    #expect(record.rrdatas.count == 2)
+    #expect(record.ttl == 300)
+}
+
+@Test func testCommonDNSRecordsAAAA() {
+    let record = CommonDNSRecords.aaaaRecord(name: "www.example.com", ipv6Addresses: ["2001:db8::1"])
+
+    #expect(record.type == .aaaa)
+    #expect(record.rrdatas.count == 1)
+}
+
+@Test func testCommonDNSRecordsCNAME() {
+    let record = CommonDNSRecords.cnameRecord(name: "www.example.com", target: "example.com")
+
+    #expect(record.type == .cname)
+    #expect(record.rrdatas[0] == "example.com.")
+}
+
+@Test func testCommonDNSRecordsMX() {
+    let record = CommonDNSRecords.mxRecord(name: "example.com", mailServers: [
+        (10, "mail1.example.com"),
+        (20, "mail2.example.com")
+    ])
+
+    #expect(record.type == .mx)
+    #expect(record.rrdatas.count == 2)
+    #expect(record.rrdatas[0].contains("10"))
+}
+
+@Test func testCommonDNSRecordsTXT() {
+    let record = CommonDNSRecords.txtRecord(name: "example.com", values: ["v=spf1 include:_spf.google.com ~all"])
+
+    #expect(record.type == .txt)
+    #expect(record.rrdatas[0].contains("v=spf1"))
+}
+
+@Test func testCommonDNSRecordsNS() {
+    let record = CommonDNSRecords.nsRecord(name: "example.com", nameServers: ["ns1.example.com", "ns2.example.com"])
+
+    #expect(record.type == .ns)
+    #expect(record.rrdatas.count == 2)
+}
+
+@Test func testCommonDNSRecordsSRV() {
+    let record = CommonDNSRecords.srvRecord(
+        name: "_grpc._tcp.example.com",
+        services: [(10, 5, 9090, "grpc1.example.com")]
+    )
+
+    #expect(record.type == .srv)
+    #expect(record.rrdatas[0].contains("9090"))
+}
+
+@Test func testCommonDNSRecordsCAA() {
+    let record = CommonDNSRecords.caaRecord(name: "example.com", entries: [
+        (0, "issue", "letsencrypt.org")
+    ])
+
+    #expect(record.type == .caa)
+    #expect(record.rrdatas[0].contains("letsencrypt.org"))
+}
+
+@Test func testCommonDNSRecordsPTR() {
+    let record = CommonDNSRecords.ptrRecord(name: "1.2.0.192.in-addr.arpa", hostname: "www.example.com")
+
+    #expect(record.type == .ptr)
+    #expect(record.rrdatas[0] == "www.example.com.")
+}
+
+@Test func testCommonDNSRecordsSPF() {
+    let record = CommonDNSRecords.spfRecord(name: "example.com", spfValue: "v=spf1 include:_spf.google.com ~all")
+
+    #expect(record.type == .txt)
+}
+
+@Test func testCommonDNSRecordsDKIM() {
+    let record = CommonDNSRecords.dkimRecord(
+        selector: "google",
+        domain: "example.com",
+        publicKey: "MIGfMA0GCSqGSIb3DQEBAQUAA4GN..."
+    )
+
+    #expect(record.name == "google._domainkey.example.com.")
+    #expect(record.type == .txt)
+    #expect(record.rrdatas[0].contains("v=DKIM1"))
+}
+
+@Test func testCommonDNSRecordsDMARC() {
+    let record = CommonDNSRecords.dmarcRecord(
+        domain: "example.com",
+        policy: "reject",
+        rua: "dmarc@example.com"
+    )
+
+    #expect(record.name == "_dmarc.example.com.")
+    #expect(record.type == .txt)
+    #expect(record.rrdatas[0].contains("p=reject"))
+    #expect(record.rrdatas[0].contains("rua=mailto:dmarc@example.com"))
+}
+
+@Test func testCommonDNSRecordsGoogleWorkspaceMX() {
+    let record = CommonDNSRecords.googleWorkspaceMX(domain: "example.com")
+
+    #expect(record.type == .mx)
+    #expect(record.rrdatas.count == 5)
+    #expect(record.rrdatas[0].contains("aspmx.l.google.com"))
+}
+
+@Test func testCommonDNSRecordsGoogleSiteVerification() {
+    let record = CommonDNSRecords.googleSiteVerification(
+        domain: "example.com",
+        verificationCode: "abc123"
+    )
+
+    #expect(record.type == .txt)
+    #expect(record.rrdatas[0].contains("google-site-verification=abc123"))
+}
+
+// MARK: - DAIS DNS Template Tests
+
+@Test func testDAISDNSTemplateManagedZone() {
+    let zone = DAISDNSTemplate.managedZone(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        domain: "example.com"
+    )
+
+    #expect(zone.name == "dais-prod-zone")
+    #expect(zone.dnsName == "example.com.")
+    #expect(zone.visibility == .public)
+    #expect(zone.dnssecConfig?.state == .on)
+}
+
+@Test func testDAISDNSTemplatePrivateZone() {
+    let zone = DAISDNSTemplate.privateZone(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        domain: "internal.example.com",
+        networks: ["my-vpc"]
+    )
+
+    #expect(zone.name == "dais-prod-internal")
+    #expect(zone.visibility == .private)
+    #expect(zone.networks.count == 1)
+}
+
+@Test func testDAISDNSTemplateAPIRecord() {
+    let record = DAISDNSTemplate.apiRecord(
+        domain: "example.com",
+        ipAddress: "192.0.2.1"
+    )
+
+    #expect(record.name == "api.example.com.")
+    #expect(record.type == .a)
+    #expect(record.rrdatas[0] == "192.0.2.1")
+}
+
+@Test func testDAISDNSTemplateGRPCRecord() {
+    let record = DAISDNSTemplate.grpcRecord(
+        domain: "example.com",
+        ipAddress: "192.0.2.2"
+    )
+
+    #expect(record.name == "grpc.example.com.")
+    #expect(record.type == .a)
+}
+
+@Test func testDAISDNSTemplateWildcardCNAME() {
+    let record = DAISDNSTemplate.wildcardCname(
+        domain: "example.com",
+        target: "lb.example.com"
+    )
+
+    #expect(record.name == "*.example.com.")
+    #expect(record.type == .cname)
+}
+
+@Test func testDAISDNSTemplateGRPCSRVRecord() {
+    let record = DAISDNSTemplate.grpcSrvRecord(
+        domain: "example.com",
+        serviceName: "myservice",
+        targets: [(priority: 10, weight: 5, port: 9090, target: "grpc1.example.com")]
+    )
+
+    #expect(record.name == "_grpc._tcp.myservice.example.com.")
+    #expect(record.type == .srv)
+}
+
+@Test func testDAISDNSTemplateHealthCheckRecord() {
+    let record = DAISDNSTemplate.healthCheckRecord(
+        domain: "example.com",
+        target: "lb.example.com"
+    )
+
+    #expect(record.name == "health.example.com.")
+    #expect(record.type == .cname)
+    #expect(record.ttl == 60)
+}
+
+@Test func testDAISDNSTemplateInternalPolicy() {
+    let policy = DAISDNSTemplate.internalPolicy(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        networks: ["my-vpc"]
+    )
+
+    #expect(policy.name == "dais-prod-internal-policy")
+    #expect(policy.enableInboundForwarding == true)
+    #expect(policy.enableLogging == true)
+}
+
+@Test func testDAISDNSTemplateSetupScript() {
+    let script = DAISDNSTemplate.setupScript(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        domain: "example.com",
+        apiIP: "192.0.2.1",
+        grpcIP: "192.0.2.2"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("DAIS DNS Setup Script"))
+    #expect(script.contains("gcloud dns managed-zones create dais-prod-zone"))
+    #expect(script.contains("api.example.com"))
+    #expect(script.contains("grpc.example.com"))
+    #expect(script.contains("192.0.2.1"))
+    #expect(script.contains("192.0.2.2"))
+}
+
+@Test func testDAISDNSTemplateTeardownScript() {
+    let script = DAISDNSTemplate.teardownScript(
+        projectID: "test-project",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("DAIS DNS Teardown Script"))
+    #expect(script.contains("Deleting all record sets"))
+    #expect(script.contains("Deleting managed zone"))
+}
+
+// MARK: - DNSSEC Operations Tests
+
+@Test func testDNSSECOperationsGetDSRecords() {
+    let cmd = DNSSECOperations.getDSRecordsCommand(zoneName: "example-zone", projectID: "test-project")
+    #expect(cmd.contains("gcloud dns dnskeys list"))
+    #expect(cmd.contains("--filter=\"type=keySigning\""))
+}
+
+@Test func testDNSSECOperationsEnable() {
+    let cmd = DNSSECOperations.enableCommand(zoneName: "example-zone", projectID: "test-project")
+    #expect(cmd == "gcloud dns managed-zones update example-zone --project=test-project --dnssec-state=on")
+}
+
+@Test func testDNSSECOperationsDisable() {
+    let cmd = DNSSECOperations.disableCommand(zoneName: "example-zone", projectID: "test-project")
+    #expect(cmd == "gcloud dns managed-zones update example-zone --project=test-project --dnssec-state=off")
+}
+
+@Test func testDNSSECOperationsListKeys() {
+    let cmd = DNSSECOperations.listKeysCommand(zoneName: "example-zone", projectID: "test-project")
+    #expect(cmd == "gcloud dns dnskeys list --zone=example-zone --project=test-project")
+}
+
+// MARK: - DNS Operations Tests
+
+@Test func testDNSOperationsExport() {
+    let cmd = DNSOperations.exportCommand(zoneName: "example-zone", projectID: "test-project", outputFile: "zone.txt")
+    #expect(cmd.contains("gcloud dns record-sets export zone.txt"))
+    #expect(cmd.contains("--zone-file-format"))
+}
+
+@Test func testDNSOperationsImport() {
+    let cmd = DNSOperations.importCommand(zoneName: "example-zone", projectID: "test-project", inputFile: "zone.txt")
+    #expect(cmd.contains("gcloud dns record-sets import zone.txt"))
+}
+
+@Test func testDNSOperationsGetNameServers() {
+    let cmd = DNSOperations.getNameServersCommand(zoneName: "example-zone", projectID: "test-project")
+    #expect(cmd.contains("gcloud dns managed-zones describe"))
+    #expect(cmd.contains("--format=\"value(nameServers)\""))
+}
+
+@Test func testDNSOperationsCheckPropagation() {
+    let cmd = DNSOperations.checkPropagationCommand(domain: "example.com", recordType: "A")
+    #expect(cmd == "dig @8.8.8.8 example.com A +short")
+}
+
+@Test func testDNSOperationsFlushCache() {
+    #expect(DNSOperations.flushLocalCacheCommand.contains("dscacheutil -flushcache"))
+}
