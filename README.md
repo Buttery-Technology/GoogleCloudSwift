@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 33 Google Cloud services:
+GoogleCloudSwift provides models for 34 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -118,6 +118,7 @@ GoogleCloudSwift provides models for 33 Google Cloud services:
 | **BigQuery** | Data warehouse and analytics | `GoogleCloudBigQueryDataset`, `GoogleCloudBigQueryTable`, `GoogleCloudBigQueryJob`, `GoogleCloudBigQueryView` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
+| **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -4296,6 +4297,135 @@ let script = DAISCloudDeployTemplate.setupScript(
 | `failed` | Deployment failed |
 | `cancelled` | Deployment was cancelled |
 
+### GoogleCloudWorkflow (Cloud Workflows API)
+
+Create serverless workflow orchestrations:
+
+```swift
+// Create a basic workflow
+let workflow = GoogleCloudWorkflow(
+    name: "data-processing",
+    projectID: "my-project",
+    location: "us-central1",
+    description: "Process incoming data files",
+    serviceAccount: "workflow-sa@my-project.iam.gserviceaccount.com",
+    callLogLevel: .logErrorsOnly
+)
+
+print(workflow.createCommand)
+print(workflow.resourceName)
+```
+
+**Workflow Executions:**
+
+```swift
+// Execute a workflow with data
+let executeCmd = workflow.executeCommand(data: "{\"bucket\": \"my-bucket\", \"file\": \"data.json\"}")
+
+// Track execution
+let execution = GoogleCloudWorkflowExecution(
+    name: "exec-123",
+    workflowName: "data-processing",
+    projectID: "my-project",
+    location: "us-central1",
+    state: .active
+)
+
+print(execution.describeCommand)  // Get execution status
+print(execution.cancelCommand)    // Cancel if needed
+print(execution.waitCommand)      // Wait for completion
+```
+
+**Building Workflows with Swift:**
+
+```swift
+// Use the YAML builder for workflow definitions
+var builder = WorkflowYAMLBuilder()
+builder.addStep("init", .assign(variables: [("project", "my-project")]))
+builder.addStep("fetchData", .httpGet(url: "https://api.example.com/data", result: "response"))
+builder.addStep("logResult", .log(text: "${response.body}", severity: "INFO"))
+builder.addStep("returnResult", .return(value: "${response}"))
+
+let workflowYAML = builder.build()
+```
+
+**Pre-built Service Connectors:**
+
+```swift
+// BigQuery connector
+let queryStep = WorkflowConnectors.BigQuery.query(
+    query: "SELECT * FROM dataset.table",
+    projectID: "my-project"
+)
+
+// Cloud Storage connector
+let listStep = WorkflowConnectors.Storage.listObjects(bucket: "my-bucket")
+
+// Pub/Sub connector
+let publishStep = WorkflowConnectors.PubSub.publish(
+    topic: "projects/my-project/topics/my-topic",
+    message: "Hello"
+)
+
+// Secret Manager connector
+let secretStep = WorkflowConnectors.SecretManager.accessSecret(
+    secret: "projects/my-project/secrets/api-key"
+)
+```
+
+**DAIS Workflow Templates:**
+
+```swift
+// Create DAIS workflow templates
+let template = DAISWorkflowsTemplate(
+    projectID: "my-project",
+    location: "us-central1",
+    serviceAccountEmail: "workflow-sa@my-project.iam.gserviceaccount.com"
+)
+
+// Data processing workflow
+let dataWorkflow = template.dataProcessingWorkflow
+
+// Batch processing with parallel execution
+let batchWorkflow = template.batchProcessingWorkflow
+
+// Retry workflow with exponential backoff
+let retryWorkflow = template.retryWorkflow
+
+// Human-in-the-loop approval workflow
+let approvalWorkflow = template.approvalWorkflow
+
+// Generate setup script for all workflows
+print(template.setupScript)
+```
+
+**Workflow Operations:**
+
+```swift
+// List workflows
+print(WorkflowOperations.listCommand(location: "us-central1"))
+
+// List executions
+print(WorkflowOperations.listExecutionsCommand(
+    workflow: "data-processing",
+    location: "us-central1",
+    limit: 10
+))
+
+// Enable Workflows API
+print(WorkflowOperations.enableAPICommand)
+```
+
+**Execution States:**
+
+| State | Description |
+|-------|-------------|
+| `active` | Execution is currently running |
+| `succeeded` | Execution completed successfully |
+| `failed` | Execution failed with an error |
+| `cancelled` | Execution was cancelled |
+| `queued` | Execution is queued to run |
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -4975,6 +5105,15 @@ MIT License
 - [Canary Deployments](https://cloud.google.com/deploy/docs/deployment-strategies/canary)
 - [Rollout Approvals](https://cloud.google.com/deploy/docs/promote-release)
 - [Skaffold Configuration](https://cloud.google.com/deploy/docs/using-skaffold)
+
+### Cloud Workflows
+- [Cloud Workflows Documentation](https://cloud.google.com/workflows/docs)
+- [Workflow Syntax](https://cloud.google.com/workflows/docs/reference/syntax)
+- [Standard Library](https://cloud.google.com/workflows/docs/reference/stdlib/overview)
+- [Connectors](https://cloud.google.com/workflows/docs/reference/googleapis)
+- [Parallel Execution](https://cloud.google.com/workflows/docs/execute-parallel-steps)
+- [Error Handling](https://cloud.google.com/workflows/docs/reference/syntax/catching-errors)
+- [Callbacks](https://cloud.google.com/workflows/docs/creating-callback-endpoints)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
