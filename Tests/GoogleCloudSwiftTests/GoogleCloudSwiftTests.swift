@@ -26554,3 +26554,363 @@ import Testing
     #expect(decoded.bigQueryDestination?.datasetUri == "bq://project.dataset")
     #expect(decoded.resourceTypes?.contains("Patient") == true)
 }
+
+// MARK: - Retail API Tests
+
+@Test func testRetailProductBasic() {
+    let product = GoogleCloudRetailProduct(
+        id: "SKU123",
+        title: "Premium Widget",
+        description: "A high-quality widget",
+        categories: ["Electronics", "Gadgets"],
+        priceInfo: .init(currencyCode: "USD", price: 29.99),
+        availability: .inStock
+    )
+
+    #expect(product.id == "SKU123")
+    #expect(product.title == "Premium Widget")
+    #expect(product.priceInfo?.price == 29.99)
+    #expect(product.availability == .inStock)
+}
+
+@Test func testRetailProductTypeValues() {
+    #expect(GoogleCloudRetailProduct.ProductType.primary.rawValue == "PRIMARY")
+    #expect(GoogleCloudRetailProduct.ProductType.variant.rawValue == "VARIANT")
+    #expect(GoogleCloudRetailProduct.ProductType.collection.rawValue == "COLLECTION")
+}
+
+@Test func testRetailProductAvailabilityValues() {
+    #expect(GoogleCloudRetailProduct.Availability.inStock.rawValue == "IN_STOCK")
+    #expect(GoogleCloudRetailProduct.Availability.outOfStock.rawValue == "OUT_OF_STOCK")
+    #expect(GoogleCloudRetailProduct.Availability.preorder.rawValue == "PREORDER")
+    #expect(GoogleCloudRetailProduct.Availability.backorder.rawValue == "BACKORDER")
+}
+
+@Test func testRetailProductPriceInfo() {
+    let priceInfo = GoogleCloudRetailProduct.PriceInfo(
+        currencyCode: "USD",
+        price: 99.99,
+        originalPrice: 129.99,
+        cost: 50.00
+    )
+
+    #expect(priceInfo.currencyCode == "USD")
+    #expect(priceInfo.price == 99.99)
+    #expect(priceInfo.originalPrice == 129.99)
+}
+
+@Test func testRetailUserEventBasic() {
+    let event = GoogleCloudRetailUserEvent(
+        eventType: .productPageView,
+        visitorId: "visitor123",
+        productDetails: [
+            .init(product: .init(id: "SKU456", title: "Widget"), quantity: 1)
+        ]
+    )
+
+    #expect(event.eventType == .productPageView)
+    #expect(event.visitorId == "visitor123")
+    #expect(event.productDetails?.count == 1)
+}
+
+@Test func testRetailUserEventTypeValues() {
+    #expect(GoogleCloudRetailUserEvent.EventType.homePageView.rawValue == "home-page-view")
+    #expect(GoogleCloudRetailUserEvent.EventType.productPageView.rawValue == "detail-page-view")
+    #expect(GoogleCloudRetailUserEvent.EventType.searchPageView.rawValue == "search")
+    #expect(GoogleCloudRetailUserEvent.EventType.addToCart.rawValue == "add-to-cart")
+    #expect(GoogleCloudRetailUserEvent.EventType.purchaseComplete.rawValue == "purchase-complete")
+}
+
+@Test func testRetailUserEventPurchase() {
+    let event = GoogleCloudRetailUserEvent(
+        eventType: .purchaseComplete,
+        visitorId: "visitor123",
+        productDetails: [
+            .init(product: .init(id: "SKU1", title: "Product 1"), quantity: 2),
+            .init(product: .init(id: "SKU2", title: "Product 2"), quantity: 1)
+        ],
+        purchaseTransaction: .init(
+            id: "order-12345",
+            revenue: 150.00,
+            tax: 12.50,
+            currencyCode: "USD"
+        )
+    )
+
+    #expect(event.purchaseTransaction?.id == "order-12345")
+    #expect(event.purchaseTransaction?.revenue == 150.00)
+    #expect(event.purchaseTransaction?.tax == 12.50)
+}
+
+@Test func testRetailCatalogResourceName() {
+    let catalog = GoogleCloudRetailCatalog(
+        name: "my-catalog",
+        projectID: "my-project",
+        location: "global"
+    )
+
+    #expect(catalog.resourceName == "projects/my-project/locations/global/catalogs/my-catalog")
+}
+
+@Test func testRetailServingConfigBasic() {
+    let config = GoogleCloudRetailServingConfig(
+        name: "home-page-recs",
+        projectID: "my-project",
+        location: "global",
+        catalogName: "default_catalog",
+        displayName: "Home Page Recommendations",
+        modelId: "home-page-model",
+        solutionTypes: [.recommendation]
+    )
+
+    #expect(config.name == "home-page-recs")
+    #expect(config.solutionTypes?.contains(.recommendation) == true)
+}
+
+@Test func testRetailServingConfigResourceName() {
+    let config = GoogleCloudRetailServingConfig(
+        name: "product-search",
+        projectID: "my-project",
+        location: "global",
+        catalogName: "default_catalog",
+        solutionTypes: [.search]
+    )
+
+    #expect(config.resourceName == "projects/my-project/locations/global/catalogs/default_catalog/servingConfigs/product-search")
+}
+
+@Test func testRetailServingConfigSolutionTypeValues() {
+    #expect(GoogleCloudRetailServingConfig.SolutionType.recommendation.rawValue == "SOLUTION_TYPE_RECOMMENDATION")
+    #expect(GoogleCloudRetailServingConfig.SolutionType.search.rawValue == "SOLUTION_TYPE_SEARCH")
+}
+
+@Test func testRetailModelBasic() {
+    let model = GoogleCloudRetailModel(
+        name: "homepage-recs-model",
+        projectID: "my-project",
+        location: "global",
+        catalogName: "default_catalog",
+        displayName: "Home Page Recommendations Model",
+        modelType: .recommendationsAI,
+        optimizationObjective: "ctr"
+    )
+
+    #expect(model.name == "homepage-recs-model")
+    #expect(model.modelType == .recommendationsAI)
+    #expect(model.optimizationObjective == "ctr")
+}
+
+@Test func testRetailModelTypeValues() {
+    #expect(GoogleCloudRetailModel.ModelType.recommendationsAI.rawValue == "RECOMMENDATIONS_AI")
+    #expect(GoogleCloudRetailModel.ModelType.searchOptimization.rawValue == "SEARCH_OPTIMIZATION")
+}
+
+@Test func testRetailModelStateValues() {
+    #expect(GoogleCloudRetailModel.ServingState.active.rawValue == "ACTIVE")
+    #expect(GoogleCloudRetailModel.ServingState.inactive.rawValue == "INACTIVE")
+    #expect(GoogleCloudRetailModel.TrainingState.training.rawValue == "TRAINING")
+    #expect(GoogleCloudRetailModel.TrainingState.paused.rawValue == "PAUSED")
+}
+
+@Test func testRetailOperationsEnableAPI() {
+    let ops = RetailOperations(projectID: "my-project")
+    #expect(ops.enableAPICommand == "gcloud services enable retail.googleapis.com --project=my-project")
+}
+
+@Test func testRetailOperationsImportProducts() {
+    let ops = RetailOperations(projectID: "my-project")
+    let cmd = ops.importProductsCommand(gcsUri: "gs://my-bucket/products.json")
+    #expect(cmd.contains("products:import"))
+    #expect(cmd.contains("gs://my-bucket/products.json"))
+}
+
+@Test func testRetailOperationsImportEvents() {
+    let ops = RetailOperations(projectID: "my-project")
+    let cmd = ops.importUserEventsCommand(gcsUri: "gs://my-bucket/events.json")
+    #expect(cmd.contains("userEvents:import"))
+    #expect(cmd.contains("gs://my-bucket/events.json"))
+}
+
+@Test func testRetailOperationsGetRecommendations() {
+    let ops = RetailOperations(projectID: "my-project")
+    let cmd = ops.getRecommendationsCommand(
+        servingConfigId: "home-page-recs",
+        visitorId: "visitor123",
+        productId: "SKU456"
+    )
+    #expect(cmd.contains(":predict"))
+    #expect(cmd.contains("visitor123"))
+}
+
+@Test func testRetailOperationsSearchProducts() {
+    let ops = RetailOperations(projectID: "my-project")
+    let cmd = ops.searchProductsCommand(
+        servingConfigId: "default_search",
+        visitorId: "visitor123",
+        query: "blue shoes"
+    )
+    #expect(cmd.contains(":search"))
+    #expect(cmd.contains("blue shoes"))
+}
+
+@Test func testRetailOperationsIAMRoles() {
+    #expect(RetailOperations.RetailRole.retailAdmin.rawValue == "roles/retail.admin")
+    #expect(RetailOperations.RetailRole.retailEditor.rawValue == "roles/retail.editor")
+    #expect(RetailOperations.RetailRole.retailViewer.rawValue == "roles/retail.viewer")
+}
+
+@Test func testDAISRetailTemplateProduct() {
+    let template = DAISRetailTemplate(projectID: "my-project")
+    let product = template.product(
+        id: "SKU789",
+        title: "Super Widget",
+        description: "The best widget",
+        categories: ["Electronics"],
+        price: 49.99,
+        currencyCode: "USD",
+        availability: .inStock,
+        imageUri: "https://example.com/image.jpg",
+        uri: "https://example.com/products/SKU789"
+    )
+
+    #expect(product.id == "SKU789")
+    #expect(product.title == "Super Widget")
+    #expect(product.priceInfo?.price == 49.99)
+    #expect(product.images?.count == 1)
+}
+
+@Test func testDAISRetailTemplateProductViewEvent() {
+    let template = DAISRetailTemplate(projectID: "my-project")
+    let event = template.productViewEvent(
+        visitorId: "visitor123",
+        productId: "SKU456",
+        productTitle: "Widget"
+    )
+
+    #expect(event.eventType == .productPageView)
+    #expect(event.visitorId == "visitor123")
+    #expect(event.productDetails?.first?.product?.id == "SKU456")
+}
+
+@Test func testDAISRetailTemplateAddToCartEvent() {
+    let template = DAISRetailTemplate(projectID: "my-project")
+    let event = template.addToCartEvent(
+        visitorId: "visitor123",
+        productId: "SKU456",
+        productTitle: "Widget",
+        quantity: 2,
+        cartId: "cart-789"
+    )
+
+    #expect(event.eventType == .addToCart)
+    #expect(event.productDetails?.first?.quantity == 2)
+    #expect(event.cartId == "cart-789")
+}
+
+@Test func testDAISRetailTemplatePurchaseEvent() {
+    let template = DAISRetailTemplate(projectID: "my-project")
+    let event = template.purchaseEvent(
+        visitorId: "visitor123",
+        transactionId: "order-12345",
+        products: [
+            (id: "SKU1", title: "Widget 1", quantity: 2, price: 29.99),
+            (id: "SKU2", title: "Widget 2", quantity: 1, price: 49.99)
+        ]
+    )
+
+    #expect(event.eventType == .purchaseComplete)
+    #expect(event.purchaseTransaction?.id == "order-12345")
+    #expect(event.purchaseTransaction?.revenue == 109.97) // 2*29.99 + 49.99
+    #expect(event.productDetails?.count == 2)
+}
+
+@Test func testDAISRetailTemplateSearchEvent() {
+    let template = DAISRetailTemplate(projectID: "my-project")
+    let event = template.searchEvent(
+        visitorId: "visitor123",
+        query: "blue sneakers",
+        pageCategories: ["Shoes", "Athletic"]
+    )
+
+    #expect(event.eventType == .searchPageView)
+    #expect(event.searchQuery == "blue sneakers")
+    #expect(event.pageCategories?.contains("Shoes") == true)
+}
+
+@Test func testDAISRetailTemplateRecommendationConfig() {
+    let template = DAISRetailTemplate(projectID: "my-project")
+    let config = template.recommendationConfig(
+        name: "pdp-recs",
+        displayName: "Product Detail Recommendations",
+        modelId: "pdp-model"
+    )
+
+    #expect(config.name == "pdp-recs")
+    #expect(config.modelId == "pdp-model")
+    #expect(config.solutionTypes?.contains(.recommendation) == true)
+}
+
+@Test func testDAISRetailTemplateSearchConfig() {
+    let template = DAISRetailTemplate(projectID: "my-project")
+    let config = template.searchConfig(
+        name: "product-search",
+        displayName: "Product Search",
+        enableDynamicFacets: true
+    )
+
+    #expect(config.name == "product-search")
+    #expect(config.dynamicFacetSpec?.mode == .enabled)
+    #expect(config.solutionTypes?.contains(.search) == true)
+}
+
+@Test func testDAISRetailTemplateProductImportScript() {
+    let template = DAISRetailTemplate(projectID: "my-project")
+    let script = template.productImportScript(gcsUri: "gs://my-bucket/products/*.json")
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("gcloud services enable retail.googleapis.com"))
+    #expect(script.contains("products:import"))
+    #expect(script.contains("gs://my-bucket/products/*.json"))
+}
+
+@Test func testRetailProductCodable() throws {
+    let product = GoogleCloudRetailProduct(
+        id: "SKU123",
+        title: "Test Product",
+        priceInfo: .init(currencyCode: "USD", price: 19.99),
+        availability: .inStock
+    )
+
+    let data = try JSONEncoder().encode(product)
+    let decoded = try JSONDecoder().decode(GoogleCloudRetailProduct.self, from: data)
+
+    #expect(decoded.id == "SKU123")
+    #expect(decoded.priceInfo?.price == 19.99)
+}
+
+@Test func testRetailUserEventCodable() throws {
+    let event = GoogleCloudRetailUserEvent(
+        eventType: .addToCart,
+        visitorId: "visitor123"
+    )
+
+    let data = try JSONEncoder().encode(event)
+    let decoded = try JSONDecoder().decode(GoogleCloudRetailUserEvent.self, from: data)
+
+    #expect(decoded.eventType == .addToCart)
+    #expect(decoded.visitorId == "visitor123")
+}
+
+@Test func testRetailServingConfigCodable() throws {
+    let config = GoogleCloudRetailServingConfig(
+        name: "test-config",
+        projectID: "my-project",
+        solutionTypes: [.recommendation]
+    )
+
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(GoogleCloudRetailServingConfig.self, from: data)
+
+    #expect(decoded.name == "test-config")
+    #expect(decoded.solutionTypes?.contains(.recommendation) == true)
+}
