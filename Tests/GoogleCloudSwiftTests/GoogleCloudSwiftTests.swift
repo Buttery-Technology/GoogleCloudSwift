@@ -602,3 +602,337 @@ import Testing
     #expect(decoded.machineType == instance.machineType)
     #expect(decoded.networkTags == instance.networkTags)
 }
+
+// MARK: - Service Usage Tests
+
+@Test func testGoogleCloudService() {
+    let service = GoogleCloudService(
+        name: "compute.googleapis.com",
+        projectID: "test-project"
+    )
+
+    #expect(service.name == "compute.googleapis.com")
+    #expect(service.resourceName == "projects/test-project/services/compute.googleapis.com")
+    #expect(service.state == .disabled)
+}
+
+@Test func testGoogleCloudServiceCommands() {
+    let service = GoogleCloudService(
+        name: "storage.googleapis.com",
+        projectID: "my-project"
+    )
+
+    #expect(service.enableCommand == "gcloud services enable storage.googleapis.com --project=my-project")
+    #expect(service.disableCommand == "gcloud services disable storage.googleapis.com --project=my-project")
+    #expect(service.checkCommand.contains("gcloud services list"))
+}
+
+@Test func testGoogleCloudServiceBatch() {
+    let batch = GoogleCloudServiceBatch(
+        projectID: "test-project",
+        services: ["compute.googleapis.com", "storage.googleapis.com"]
+    )
+
+    #expect(batch.batchEnableCommand.contains("gcloud services enable"))
+    #expect(batch.batchEnableCommand.contains("compute.googleapis.com"))
+    #expect(batch.batchEnableCommand.contains("storage.googleapis.com"))
+}
+
+@Test func testGoogleCloudAPIEnum() {
+    #expect(GoogleCloudAPI.compute.rawValue == "compute.googleapis.com")
+    #expect(GoogleCloudAPI.secretManager.rawValue == "secretmanager.googleapis.com")
+    #expect(GoogleCloudAPI.compute.displayName == "Compute Engine")
+}
+
+@Test func testGoogleCloudAPIService() {
+    let api = GoogleCloudAPI.storage
+    let service = api.service(projectID: "test-project")
+
+    #expect(service.name == "storage.googleapis.com")
+    #expect(service.projectID == "test-project")
+}
+
+@Test func testDAISServiceTemplateRequired() {
+    let required = DAISServiceTemplate.required
+    #expect(required.contains(.compute))
+    #expect(required.contains(.storage))
+    #expect(required.contains(.secretManager))
+    #expect(required.contains(.iam))
+}
+
+@Test func testDAISServiceTemplateEnableCommand() {
+    let cmd = DAISServiceTemplate.enableCommand(for: [.compute, .storage], projectID: "test-project")
+    #expect(cmd.contains("gcloud services enable"))
+    #expect(cmd.contains("compute.googleapis.com"))
+    #expect(cmd.contains("storage.googleapis.com"))
+}
+
+// MARK: - IAM Tests
+
+@Test func testGoogleCloudServiceAccount() {
+    let sa = GoogleCloudServiceAccount(
+        name: "dais-node",
+        projectID: "test-project",
+        displayName: "DAIS Node"
+    )
+
+    #expect(sa.email == "dais-node@test-project.iam.gserviceaccount.com")
+    #expect(sa.memberString == "serviceAccount:dais-node@test-project.iam.gserviceaccount.com")
+    #expect(sa.resourceName.contains("projects/test-project/serviceAccounts"))
+}
+
+@Test func testServiceAccountCreateCommand() {
+    let sa = GoogleCloudServiceAccount(
+        name: "my-sa",
+        projectID: "my-project",
+        displayName: "My Service Account",
+        description: "Test service account"
+    )
+
+    let cmd = sa.createCommand
+    #expect(cmd.contains("gcloud iam service-accounts create my-sa"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--display-name=\"My Service Account\""))
+    #expect(cmd.contains("--description=\"Test service account\""))
+}
+
+@Test func testServiceAccountKeyCommand() {
+    let sa = GoogleCloudServiceAccount(
+        name: "test-sa",
+        projectID: "test-project",
+        displayName: "Test"
+    )
+
+    let keyCmd = sa.createKeyCommand(outputPath: "/tmp/key.json")
+    #expect(keyCmd.contains("gcloud iam service-accounts keys create"))
+    #expect(keyCmd.contains("/tmp/key.json"))
+    #expect(keyCmd.contains("--iam-account=test-sa@test-project.iam.gserviceaccount.com"))
+}
+
+@Test func testGoogleCloudPredefinedRole() {
+    #expect(GoogleCloudPredefinedRole.owner.rawValue == "roles/owner")
+    #expect(GoogleCloudPredefinedRole.computeAdmin.rawValue == "roles/compute.admin")
+    #expect(GoogleCloudPredefinedRole.secretManagerAccessor.rawValue == "roles/secretmanager.secretAccessor")
+    #expect(GoogleCloudPredefinedRole.loggingLogWriter.displayName == "Logs Writer")
+}
+
+@Test func testGoogleCloudIAMBinding() {
+    let binding = GoogleCloudIAMBinding(
+        resource: "test-project",
+        resourceType: .project,
+        role: "roles/viewer",
+        member: "user:test@example.com"
+    )
+
+    let addCmd = binding.addBindingCommand
+    #expect(addCmd.contains("gcloud projects add-iam-policy-binding test-project"))
+    #expect(addCmd.contains("--member=user:test@example.com"))
+    #expect(addCmd.contains("--role=roles/viewer"))
+}
+
+@Test func testIAMBindingFromServiceAccount() {
+    let sa = GoogleCloudServiceAccount(
+        name: "my-sa",
+        projectID: "test-project",
+        displayName: "My SA"
+    )
+
+    let binding = GoogleCloudIAMBinding(
+        projectID: "test-project",
+        role: .storageObjectViewer,
+        serviceAccount: sa
+    )
+
+    #expect(binding.role == "roles/storage.objectViewer")
+    #expect(binding.member == "serviceAccount:my-sa@test-project.iam.gserviceaccount.com")
+}
+
+@Test func testIAMBindingBucket() {
+    let binding = GoogleCloudIAMBinding(
+        resource: "my-bucket",
+        resourceType: .bucket,
+        role: "roles/storage.objectViewer",
+        member: "allUsers"
+    )
+
+    #expect(binding.addBindingCommand.contains("gcloud storage buckets add-iam-policy-binding gs://my-bucket"))
+}
+
+@Test func testIAMCondition() {
+    let condition = IAMCondition(
+        title: "Expires Soon",
+        description: "Temporary access",
+        expression: "request.time < timestamp('2025-12-31T23:59:59Z')"
+    )
+
+    #expect(condition.asString.contains("title=Expires Soon"))
+    #expect(condition.asString.contains("expression="))
+}
+
+@Test func testDAISServiceAccountTemplate() {
+    let sa = DAISServiceAccountTemplate.nodeServiceAccount(projectID: "test-project", deploymentName: "prod")
+    #expect(sa.name == "prod-dais-node")
+    #expect(sa.displayName == "DAIS Node Service Account")
+
+    let roles = DAISServiceAccountTemplate.nodeRoles
+    #expect(roles.contains(.secretManagerAccessor))
+    #expect(roles.contains(.loggingLogWriter))
+}
+
+// MARK: - Resource Manager Tests
+
+@Test func testGoogleCloudProject() {
+    let project = GoogleCloudProject(
+        projectID: "my-dais-project",
+        name: "My DAIS Project"
+    )
+
+    #expect(project.projectID == "my-dais-project")
+    #expect(project.resourceName == "projects/my-dais-project")
+    #expect(project.state == .active)
+}
+
+@Test func testProjectCreateCommand() {
+    let project = GoogleCloudProject(
+        projectID: "test-project",
+        name: "Test Project",
+        labels: ["env": "test", "team": "platform"]
+    )
+
+    let cmd = project.createCommand
+    #expect(cmd.contains("gcloud projects create test-project"))
+    #expect(cmd.contains("--name=\"Test Project\""))
+    #expect(cmd.contains("--labels="))
+}
+
+@Test func testProjectWithParent() {
+    let project = GoogleCloudProject(
+        projectID: "child-project",
+        name: "Child Project",
+        parent: .folder(id: "123456")
+    )
+
+    #expect(project.createCommand.contains("--folder=123456"))
+
+    let orgProject = GoogleCloudProject(
+        projectID: "org-project",
+        name: "Org Project",
+        parent: .organization(id: "789")
+    )
+
+    #expect(orgProject.createCommand.contains("--organization=789"))
+}
+
+@Test func testProjectParentDisplayString() {
+    let folderParent = GoogleCloudProject.ProjectParent.folder(id: "12345")
+    #expect(folderParent.displayString == "folders/12345")
+
+    let orgParent = GoogleCloudProject.ProjectParent.organization(id: "67890")
+    #expect(orgParent.displayString == "organizations/67890")
+}
+
+@Test func testGoogleCloudOrganization() {
+    let org = GoogleCloudOrganization(
+        organizationID: "123456789",
+        displayName: "My Organization",
+        domain: "example.com"
+    )
+
+    #expect(org.resourceName == "organizations/123456789")
+    #expect(org.describeCommand.contains("gcloud organizations describe 123456789"))
+}
+
+@Test func testGoogleCloudFolder() {
+    let folder = GoogleCloudFolder(
+        folderID: "987654321",
+        displayName: "Development",
+        parent: .organization(id: "123456789")
+    )
+
+    #expect(folder.resourceName == "folders/987654321")
+    #expect(folder.createCommand.contains("--display-name=\"Development\""))
+    #expect(folder.createCommand.contains("--organization=123456789"))
+}
+
+@Test func testFolderUnderFolder() {
+    let folder = GoogleCloudFolder(
+        folderID: "111",
+        displayName: "Sub Folder",
+        parent: .folder(id: "222")
+    )
+
+    #expect(folder.createCommand.contains("--folder=222"))
+}
+
+@Test func testGoogleCloudLien() {
+    let lien = GoogleCloudLien(
+        projectID: "protected-project",
+        reason: "Production deployment",
+        origin: "dais-deployment"
+    )
+
+    #expect(lien.createCommand.contains("gcloud resource-manager liens create"))
+    #expect(lien.createCommand.contains("--reason=\"Production deployment\""))
+    #expect(lien.restrictions.contains("resourcemanager.projects.delete"))
+}
+
+@Test func testDAISProjectTemplateDevelopment() {
+    let project = DAISProjectTemplate.development(
+        projectID: "dev-project",
+        name: "Dev Project"
+    )
+
+    #expect(project.labels["environment"] == "development")
+    #expect(project.labels["app"] == "butteryai")
+}
+
+@Test func testDAISProjectTemplateProduction() {
+    let project = DAISProjectTemplate.production(
+        projectID: "prod-project",
+        name: "Prod Project"
+    )
+
+    #expect(project.labels["environment"] == "production")
+    #expect(project.labels["criticality"] == "high")
+}
+
+// MARK: - New API Codable Tests
+
+@Test func testServiceCodable() throws {
+    let service = GoogleCloudService(
+        name: "compute.googleapis.com",
+        projectID: "test-project",
+        state: .enabled
+    )
+    let data = try JSONEncoder().encode(service)
+    let decoded = try JSONDecoder().decode(GoogleCloudService.self, from: data)
+
+    #expect(decoded.name == service.name)
+    #expect(decoded.state == service.state)
+}
+
+@Test func testServiceAccountCodable() throws {
+    let sa = GoogleCloudServiceAccount(
+        name: "test-sa",
+        projectID: "test-project",
+        displayName: "Test SA"
+    )
+    let data = try JSONEncoder().encode(sa)
+    let decoded = try JSONDecoder().decode(GoogleCloudServiceAccount.self, from: data)
+
+    #expect(decoded.name == sa.name)
+    #expect(decoded.email == sa.email)
+}
+
+@Test func testProjectCodable() throws {
+    let project = GoogleCloudProject(
+        projectID: "test-project",
+        name: "Test Project",
+        labels: ["env": "test"]
+    )
+    let data = try JSONEncoder().encode(project)
+    let decoded = try JSONDecoder().decode(GoogleCloudProject.self, from: data)
+
+    #expect(decoded.projectID == project.projectID)
+    #expect(decoded.labels == project.labels)
+}
