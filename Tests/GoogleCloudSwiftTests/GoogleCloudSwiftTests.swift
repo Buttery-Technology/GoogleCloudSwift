@@ -11177,3 +11177,642 @@ import Testing
     #expect(decoded.name == "my-repo")
     #expect(decoded.remoteUri == "https://github.com/owner/repo.git")
 }
+
+// MARK: - Cloud Armor Tests
+
+@Test func testSecurityPolicyBasicInit() {
+    let policy = GoogleCloudSecurityPolicy(
+        name: "test-policy",
+        projectID: "test-project",
+        description: "Test security policy"
+    )
+
+    #expect(policy.name == "test-policy")
+    #expect(policy.projectID == "test-project")
+    #expect(policy.type == .cloudArmor)
+    #expect(policy.resourceName == "projects/test-project/global/securityPolicies/test-policy")
+}
+
+@Test func testSecurityPolicyTypes() {
+    #expect(GoogleCloudSecurityPolicy.PolicyType.cloudArmor.rawValue == "CLOUD_ARMOR")
+    #expect(GoogleCloudSecurityPolicy.PolicyType.cloudArmorEdge.rawValue == "CLOUD_ARMOR_EDGE")
+    #expect(GoogleCloudSecurityPolicy.PolicyType.cloudArmorNetwork.rawValue == "CLOUD_ARMOR_NETWORK")
+}
+
+@Test func testSecurityPolicyCreateCommand() {
+    let policy = GoogleCloudSecurityPolicy(
+        name: "my-policy",
+        projectID: "test-project",
+        description: "My security policy"
+    )
+
+    let cmd = policy.createCommand
+    #expect(cmd.contains("gcloud compute security-policies create my-policy"))
+    #expect(cmd.contains("--project=test-project"))
+    #expect(cmd.contains("--description=\"My security policy\""))
+}
+
+@Test func testSecurityPolicyDeleteCommand() {
+    let policy = GoogleCloudSecurityPolicy(
+        name: "my-policy",
+        projectID: "test-project"
+    )
+
+    #expect(policy.deleteCommand == "gcloud compute security-policies delete my-policy --project=test-project --quiet")
+}
+
+@Test func testSecurityPolicyDescribeCommand() {
+    let policy = GoogleCloudSecurityPolicy(
+        name: "my-policy",
+        projectID: "test-project"
+    )
+
+    #expect(policy.describeCommand == "gcloud compute security-policies describe my-policy --project=test-project")
+}
+
+@Test func testSecurityPolicyListCommand() {
+    let cmd = GoogleCloudSecurityPolicy.listCommand(projectID: "test-project")
+    #expect(cmd == "gcloud compute security-policies list --project=test-project")
+}
+
+@Test func testSecurityPolicyUpdateCommand() {
+    let policy = GoogleCloudSecurityPolicy(
+        name: "my-policy",
+        projectID: "test-project"
+    )
+
+    let cmd = policy.updateCommand(
+        enableAdaptiveProtection: true,
+        logLevel: .verbose,
+        jsonParsing: .standard
+    )
+
+    #expect(cmd.contains("gcloud compute security-policies update my-policy"))
+    #expect(cmd.contains("--enable-layer7-ddos-defense=true"))
+    #expect(cmd.contains("--log-level=VERBOSE"))
+    #expect(cmd.contains("--json-parsing=STANDARD"))
+}
+
+@Test func testSecurityPolicyExportCommand() {
+    let policy = GoogleCloudSecurityPolicy(
+        name: "my-policy",
+        projectID: "test-project"
+    )
+
+    #expect(policy.exportCommand.contains("gcloud compute security-policies export my-policy"))
+    #expect(policy.exportCommand.contains("--file-name=my-policy-policy.yaml"))
+}
+
+@Test func testSecurityPolicyImportCommand() {
+    let cmd = GoogleCloudSecurityPolicy.importCommand(
+        name: "my-policy",
+        projectID: "test-project",
+        fileName: "policy.yaml"
+    )
+
+    #expect(cmd.contains("gcloud compute security-policies import my-policy"))
+    #expect(cmd.contains("--file-name=policy.yaml"))
+}
+
+@Test func testAdaptiveProtectionConfig() {
+    let config = GoogleCloudSecurityPolicy.AdaptiveProtectionConfig(
+        layer7DdosDefenseConfig: .init(enable: true, ruleVisibility: .premium)
+    )
+
+    #expect(config.layer7DdosDefenseConfig?.enable == true)
+    #expect(config.layer7DdosDefenseConfig?.ruleVisibility == .premium)
+}
+
+@Test func testAdvancedOptionsConfig() {
+    let config = GoogleCloudSecurityPolicy.AdvancedOptionsConfig(
+        jsonParsing: .standardWithGraphql,
+        jsonCustomConfig: .init(contentTypes: ["application/json"]),
+        logLevel: .verbose,
+        userIpRequestHeaders: ["X-Forwarded-For"]
+    )
+
+    #expect(config.jsonParsing == .standardWithGraphql)
+    #expect(config.logLevel == .verbose)
+    #expect(config.userIpRequestHeaders == ["X-Forwarded-For"])
+}
+
+@Test func testDDoSProtectionConfig() {
+    let standard = GoogleCloudSecurityPolicy.DDoSProtectionConfig(ddosProtection: .standard)
+    let advanced = GoogleCloudSecurityPolicy.DDoSProtectionConfig(ddosProtection: .advanced)
+
+    #expect(standard.ddosProtection == .standard)
+    #expect(advanced.ddosProtection == .advanced)
+}
+
+@Test func testSecurityPolicyRuleIPRanges() {
+    let rule = SecurityPolicyRule(
+        priority: 1000,
+        description: "Block bad IPs",
+        match: .ipRanges(["192.168.1.0/24", "10.0.0.0/8"]),
+        action: .deny403
+    )
+
+    #expect(rule.priority == 1000)
+    #expect(rule.action == .deny403)
+    #expect(rule.match.config?.srcIpRanges.count == 2)
+}
+
+@Test func testSecurityPolicyRuleExpression() {
+    let rule = SecurityPolicyRule(
+        priority: 2000,
+        description: "Block countries",
+        match: .expression("origin.region_code in ['CN', 'RU']"),
+        action: .deny403
+    )
+
+    #expect(rule.match.expr?.expression == "origin.region_code in ['CN', 'RU']")
+}
+
+@Test func testSecurityPolicyRuleActions() {
+    #expect(SecurityPolicyRule.Action.allow.rawValue == "allow")
+    #expect(SecurityPolicyRule.Action.deny403.rawValue == "deny(403)")
+    #expect(SecurityPolicyRule.Action.deny404.rawValue == "deny(404)")
+    #expect(SecurityPolicyRule.Action.deny502.rawValue == "deny(502)")
+    #expect(SecurityPolicyRule.Action.redirect.rawValue == "redirect")
+    #expect(SecurityPolicyRule.Action.rateBased.rawValue == "rate_based_ban")
+    #expect(SecurityPolicyRule.Action.throttle.rawValue == "throttle")
+}
+
+@Test func testSecurityPolicyRuleAddCommand() {
+    let rule = SecurityPolicyRule(
+        priority: 1000,
+        description: "Test rule",
+        match: .ipRanges(["10.0.0.0/8"]),
+        action: .deny403,
+        preview: true
+    )
+
+    let cmd = rule.addRuleCommand(policyName: "my-policy", projectID: "test-project")
+    #expect(cmd.contains("gcloud compute security-policies rules create 1000"))
+    #expect(cmd.contains("--security-policy=my-policy"))
+    #expect(cmd.contains("--action=deny(403)"))
+    #expect(cmd.contains("--src-ip-ranges=10.0.0.0/8"))
+    #expect(cmd.contains("--preview"))
+}
+
+@Test func testSecurityPolicyRuleExpressionCommand() {
+    let rule = SecurityPolicyRule(
+        priority: 1000,
+        match: .expression("origin.region_code == 'US'"),
+        action: .allow
+    )
+
+    let cmd = rule.addRuleCommand(policyName: "my-policy", projectID: "test-project")
+    #expect(cmd.contains("--expression=\"origin.region_code == 'US'\""))
+}
+
+@Test func testSecurityPolicyRuleDeleteCommand() {
+    let rule = SecurityPolicyRule(
+        priority: 1000,
+        match: .ipRanges(["*"]),
+        action: .allow
+    )
+
+    let cmd = rule.deleteRuleCommand(policyName: "my-policy", projectID: "test-project")
+    #expect(cmd == "gcloud compute security-policies rules delete 1000 --security-policy=my-policy --project=test-project --quiet")
+}
+
+@Test func testRateLimitOptions() {
+    let options = SecurityPolicyRule.RateLimitOptions(
+        rateLimitThreshold: .init(count: 100, intervalSec: 60),
+        conformAction: "allow",
+        exceedAction: "deny(429)",
+        enforceOnKey: .ip,
+        banThreshold: .init(count: 200, intervalSec: 60),
+        banDurationSec: 600
+    )
+
+    #expect(options.rateLimitThreshold?.count == 100)
+    #expect(options.rateLimitThreshold?.intervalSec == 60)
+    #expect(options.enforceOnKey == .ip)
+    #expect(options.banDurationSec == 600)
+}
+
+@Test func testEnforceOnKeyTypes() {
+    #expect(SecurityPolicyRule.RateLimitOptions.EnforceOnKey.all.rawValue == "ALL")
+    #expect(SecurityPolicyRule.RateLimitOptions.EnforceOnKey.ip.rawValue == "IP")
+    #expect(SecurityPolicyRule.RateLimitOptions.EnforceOnKey.httpHeader.rawValue == "HTTP_HEADER")
+    #expect(SecurityPolicyRule.RateLimitOptions.EnforceOnKey.xffIP.rawValue == "XFF_IP")
+    #expect(SecurityPolicyRule.RateLimitOptions.EnforceOnKey.httpCookie.rawValue == "HTTP_COOKIE")
+    #expect(SecurityPolicyRule.RateLimitOptions.EnforceOnKey.regionCode.rawValue == "REGION_CODE")
+}
+
+@Test func testRedirectOptions() {
+    let external = SecurityPolicyRule.RedirectOptions(type: .externalRedirect302, target: "https://example.com/blocked")
+    let recaptcha = SecurityPolicyRule.RedirectOptions(type: .googleRecaptcha)
+
+    #expect(external.type == .externalRedirect302)
+    #expect(external.target == "https://example.com/blocked")
+    #expect(recaptcha.type == .googleRecaptcha)
+}
+
+@Test func testHeaderAction() {
+    let action = SecurityPolicyRule.HeaderAction(
+        requestHeadersToAdds: [
+            .init(headerName: "X-Cloud-Armor", headerValue: "protected"),
+            .init(headerName: "X-Request-ID", headerValue: "abc123")
+        ]
+    )
+
+    #expect(action.requestHeadersToAdds.count == 2)
+    #expect(action.requestHeadersToAdds[0].headerName == "X-Cloud-Armor")
+}
+
+// MARK: - WAF Rules Tests
+
+@Test func testWAFRuleSQLi() {
+    #expect(WAFRule.sqli.rawValue.contains("sqli-v33-stable"))
+    #expect(WAFRule.sqli.description == "SQL Injection protection")
+    #expect(WAFRule.sqli.recommendedSensitivity == 1)
+}
+
+@Test func testWAFRuleXSS() {
+    #expect(WAFRule.xss.rawValue.contains("xss-v33-stable"))
+    #expect(WAFRule.xss.description == "Cross-Site Scripting (XSS) protection")
+}
+
+@Test func testWAFRuleRCE() {
+    #expect(WAFRule.rce.rawValue.contains("rce-v33-stable"))
+    #expect(WAFRule.rce.description == "Remote Code Execution protection")
+}
+
+@Test func testWAFRuleLFI() {
+    #expect(WAFRule.lfi.rawValue.contains("lfi-v33-stable"))
+    #expect(WAFRule.lfi.description == "Local File Inclusion protection")
+}
+
+@Test func testWAFRuleRFI() {
+    #expect(WAFRule.rfi.rawValue.contains("rfi-v33-stable"))
+    #expect(WAFRule.rfi.description == "Remote File Inclusion protection")
+}
+
+@Test func testWAFRuleLog4j() {
+    #expect(WAFRule.cve202144228.rawValue.contains("cve-canary"))
+    #expect(WAFRule.cve202144228.description == "Log4j CVE protection")
+    #expect(WAFRule.cve202144228.recommendedSensitivity == 1)
+}
+
+@Test func testWAFRuleCanaryVersions() {
+    #expect(WAFRule.sqliCanary.rawValue.contains("canary"))
+    #expect(WAFRule.xssCanary.rawValue.contains("canary"))
+    #expect(WAFRule.sqliCanary.recommendedSensitivity == 4)
+}
+
+// MARK: - Security Expressions Tests
+
+@Test func testBlockCountriesExpression() {
+    let expr = SecurityExpressions.blockCountries(["CN", "RU", "KP"])
+    #expect(expr == "origin.region_code in ['CN', 'RU', 'KP']")
+}
+
+@Test func testAllowOnlyCountriesExpression() {
+    let expr = SecurityExpressions.allowOnlyCountries(["US", "CA", "GB"])
+    #expect(expr == "!(origin.region_code in ['US', 'CA', 'GB'])")
+}
+
+@Test func testBlockPathsExpression() {
+    let expr = SecurityExpressions.blockPaths(["/admin.*", "/wp-admin.*"])
+    #expect(expr.contains("request.path.matches('/admin.*')"))
+    #expect(expr.contains("request.path.matches('/wp-admin.*')"))
+}
+
+@Test func testBlockUserAgentsExpression() {
+    let expr = SecurityExpressions.blockUserAgents([".*curl.*", ".*wget.*"])
+    #expect(expr.contains("request.headers['user-agent'].matches('.*curl.*')"))
+}
+
+@Test func testBlockBadBotsExpression() {
+    let expr = SecurityExpressions.blockBadBots
+    #expect(expr.contains("bot"))
+    #expect(expr.contains("googlebot"))
+}
+
+@Test func testBlockEmptyUserAgentExpression() {
+    let expr = SecurityExpressions.blockEmptyUserAgent
+    #expect(expr.contains("request.headers['user-agent']"))
+}
+
+@Test func testMatchMethodsExpression() {
+    let expr = SecurityExpressions.matchMethods(["POST", "PUT", "DELETE"])
+    #expect(expr.contains("request.method == 'POST'"))
+    #expect(expr.contains("request.method == 'PUT'"))
+    #expect(expr.contains("request.method == 'DELETE'"))
+}
+
+@Test func testMatchAPIPathsExpression() {
+    let expr = SecurityExpressions.matchAPIPaths(prefix: "/api/v1")
+    #expect(expr == "request.path.startsWith('/api/v1')")
+}
+
+@Test func testCombineWAFRulesExpression() {
+    let expr = SecurityExpressions.combineWAFRules([.sqli, .xss])
+    #expect(expr.contains("sqli-v33-stable"))
+    #expect(expr.contains("xss-v33-stable"))
+    #expect(expr.contains(" || "))
+}
+
+// MARK: - Cloud Armor Operations Tests
+
+@Test func testCloudArmorEnableAPICommand() {
+    let cmd = CloudArmorOperations.enableAPICommand(projectID: "test-project")
+    #expect(cmd == "gcloud services enable compute.googleapis.com --project=test-project")
+}
+
+@Test func testAttachToBackendServiceCommand() {
+    let cmd = CloudArmorOperations.attachToBackendService(
+        policyName: "my-policy",
+        backendServiceName: "my-backend",
+        projectID: "test-project"
+    )
+
+    #expect(cmd.contains("gcloud compute backend-services update my-backend"))
+    #expect(cmd.contains("--security-policy=my-policy"))
+    #expect(cmd.contains("--global"))
+}
+
+@Test func testDetachFromBackendServiceCommand() {
+    let cmd = CloudArmorOperations.detachFromBackendService(
+        backendServiceName: "my-backend",
+        projectID: "test-project"
+    )
+
+    #expect(cmd.contains("gcloud compute backend-services update my-backend"))
+    #expect(cmd.contains("--security-policy="))
+}
+
+@Test func testAttachEdgePolicyCommand() {
+    let cmd = CloudArmorOperations.attachEdgePolicy(
+        policyName: "edge-policy",
+        backendServiceName: "my-backend",
+        projectID: "test-project"
+    )
+
+    #expect(cmd.contains("--edge-security-policy=edge-policy"))
+}
+
+@Test func testArmorListRulesCommand() {
+    let cmd = CloudArmorOperations.listRulesCommand(policyName: "my-policy", projectID: "test-project")
+    #expect(cmd == "gcloud compute security-policies rules list --security-policy=my-policy --project=test-project")
+}
+
+@Test func testArmorDescribeRuleCommand() {
+    let cmd = CloudArmorOperations.describeRuleCommand(priority: 1000, policyName: "my-policy", projectID: "test-project")
+    #expect(cmd == "gcloud compute security-policies rules describe 1000 --security-policy=my-policy --project=test-project")
+}
+
+@Test func testViewLogsCommand() {
+    let cmd = CloudArmorOperations.viewLogsCommand(projectID: "test-project", policyName: "my-policy")
+    #expect(cmd.contains("gcloud logging read"))
+    #expect(cmd.contains("http_load_balancer"))
+    #expect(cmd.contains("my-policy"))
+}
+
+@Test func testViewBlockedRequestsCommand() {
+    let cmd = CloudArmorOperations.viewBlockedRequestsCommand(projectID: "test-project")
+    #expect(cmd.contains("DENY"))
+}
+
+@Test func testCreateRateLimitRuleCommand() {
+    let cmd = CloudArmorOperations.createRateLimitRule(
+        policyName: "my-policy",
+        projectID: "test-project",
+        priority: 2000,
+        requestsPerInterval: 100,
+        intervalSec: 60,
+        enforceOnKey: .ip,
+        banDurationSec: 600
+    )
+
+    #expect(cmd.contains("gcloud compute security-policies rules create 2000"))
+    #expect(cmd.contains("--action=throttle"))
+    #expect(cmd.contains("--rate-limit-threshold-count=100"))
+    #expect(cmd.contains("--rate-limit-threshold-interval-sec=60"))
+    #expect(cmd.contains("--enforce-on-key=IP"))
+    #expect(cmd.contains("--ban-duration-sec=600"))
+}
+
+@Test func testAddWAFRuleCommand() {
+    let cmd = CloudArmorOperations.addWAFRule(
+        policyName: "my-policy",
+        projectID: "test-project",
+        priority: 1000,
+        wafRule: .sqli,
+        action: .deny403,
+        preview: true
+    )
+
+    #expect(cmd.contains("gcloud compute security-policies rules create 1000"))
+    #expect(cmd.contains("--action=deny(403)"))
+    #expect(cmd.contains("sqli-v33-stable"))
+    #expect(cmd.contains("--preview"))
+}
+
+// MARK: - DAIS Cloud Armor Template Tests
+
+@Test func testDAISSecurityPolicy() {
+    let policy = DAISCloudArmorTemplate.securityPolicy(
+        projectID: "test-project",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(policy.name == "dais-prod-security-policy")
+    #expect(policy.adaptiveProtectionConfig?.layer7DdosDefenseConfig?.enable == true)
+    #expect(policy.advancedOptionsConfig?.jsonParsing == .standard)
+    #expect(policy.labels["deployment"] == "dais-prod")
+}
+
+@Test func testDAISDefaultAllowRule() {
+    let rule = DAISCloudArmorTemplate.defaultAllowRule()
+
+    #expect(rule.priority == 2147483647)
+    #expect(rule.action == .allow)
+}
+
+@Test func testDAISOWASPProtectionRule() {
+    let rule = DAISCloudArmorTemplate.owaspProtectionRule(priority: 1000)
+
+    #expect(rule.priority == 1000)
+    #expect(rule.action == .deny403)
+    #expect(rule.match.expr?.expression.contains("sqli") == true)
+    #expect(rule.match.expr?.expression.contains("xss") == true)
+}
+
+@Test func testDAISRCEProtectionRule() {
+    let rule = DAISCloudArmorTemplate.rceProtectionRule()
+
+    #expect(rule.action == .deny403)
+    #expect(rule.match.expr?.expression.contains("rce") == true)
+    #expect(rule.match.expr?.expression.contains("lfi") == true)
+    #expect(rule.match.expr?.expression.contains("rfi") == true)
+}
+
+@Test func testDAISLog4jProtectionRule() {
+    let rule = DAISCloudArmorTemplate.log4jProtectionRule()
+
+    #expect(rule.priority == 900)
+    #expect(rule.match.expr?.expression.contains("cve") == true)
+}
+
+@Test func testDAISAPIRateLimitRule() {
+    let rule = DAISCloudArmorTemplate.apiRateLimitRule(priority: 2000, requestsPerMinute: 100)
+
+    #expect(rule.priority == 2000)
+    #expect(rule.action == .throttle)
+    #expect(rule.rateLimitOptions?.rateLimitThreshold?.count == 100)
+    #expect(rule.rateLimitOptions?.rateLimitThreshold?.intervalSec == 60)
+    #expect(rule.rateLimitOptions?.enforceOnKey == .ip)
+}
+
+@Test func testDAISGeoBlockRule() {
+    let rule = DAISCloudArmorTemplate.geoBlockRule(
+        priority: 500,
+        blockedCountries: ["CN", "RU"]
+    )
+
+    #expect(rule.priority == 500)
+    #expect(rule.action == .deny403)
+    #expect(rule.match.expr?.expression.contains("CN") == true)
+    #expect(rule.match.expr?.expression.contains("RU") == true)
+}
+
+@Test func testDAISGeoAllowRule() {
+    let rule = DAISCloudArmorTemplate.geoAllowRule(
+        priority: 500,
+        allowedCountries: ["US", "CA"]
+    )
+
+    #expect(rule.match.expr?.expression.contains("!(origin.region_code in") == true)
+}
+
+@Test func testDAISBotProtectionRule() {
+    let rule = DAISCloudArmorTemplate.botProtectionRule()
+
+    #expect(rule.priority == 1500)
+    #expect(rule.action == .deny403)
+}
+
+@Test func testDAISLoginRateLimitRule() {
+    let rule = DAISCloudArmorTemplate.loginRateLimitRule(
+        priority: 1800,
+        loginPath: "/auth/login",
+        requestsPerMinute: 5,
+        banDurationSec: 300
+    )
+
+    #expect(rule.priority == 1800)
+    #expect(rule.action == .rateBased)
+    #expect(rule.rateLimitOptions?.banDurationSec == 300)
+    #expect(rule.match.expr?.expression.contains("/auth/login") == true)
+}
+
+@Test func testDAISArmorSetupScript() {
+    let script = DAISCloudArmorTemplate.setupScript(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        backendServiceName: "dais-backend",
+        enableGeoBlocking: true,
+        blockedCountries: ["CN", "RU"]
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("gcloud compute security-policies create"))
+    #expect(script.contains("dais-prod-security-policy"))
+    #expect(script.contains("--enable-layer7-ddos-defense"))
+    #expect(script.contains("sqli"))
+    #expect(script.contains("xss"))
+    #expect(script.contains("'CN', 'RU'"))
+    #expect(script.contains("dais-backend"))
+    #expect(script.contains("Cloud Armor Setup Complete!"))
+}
+
+@Test func testDAISArmorTeardownScript() {
+    let script = DAISCloudArmorTemplate.teardownScript(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        backendServiceName: "dais-backend"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("gcloud compute backend-services update dais-backend"))
+    #expect(script.contains("--security-policy="))
+    #expect(script.contains("gcloud compute security-policies delete"))
+    #expect(script.contains("teardown complete"))
+}
+
+@Test func testDAISPolicyYAML() {
+    let yaml = DAISCloudArmorTemplate.policyYAML(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        enableAdaptiveProtection: true,
+        enableWAF: true,
+        enableRateLimiting: true,
+        rateLimit: 200
+    )
+
+    #expect(yaml.contains("name: dais-prod-security-policy"))
+    #expect(yaml.contains("layer7DdosDefenseConfig"))
+    #expect(yaml.contains("enable: true"))
+    #expect(yaml.contains("Log4j CVE"))
+    #expect(yaml.contains("SQL Injection"))
+    #expect(yaml.contains("XSS"))
+    #expect(yaml.contains("count: 200"))
+    #expect(yaml.contains("priority: 2147483647"))
+}
+
+// MARK: - Cloud Armor Codable Tests
+
+@Test func testSecurityPolicyCodable() throws {
+    let policy = GoogleCloudSecurityPolicy(
+        name: "test-policy",
+        projectID: "test-project",
+        description: "Test",
+        type: .cloudArmor
+    )
+    let data = try JSONEncoder().encode(policy)
+    let decoded = try JSONDecoder().decode(GoogleCloudSecurityPolicy.self, from: data)
+
+    #expect(decoded.name == "test-policy")
+    #expect(decoded.type == .cloudArmor)
+}
+
+@Test func testSecurityPolicyRuleCodable() throws {
+    let rule = SecurityPolicyRule(
+        priority: 1000,
+        description: "Test rule",
+        match: .ipRanges(["10.0.0.0/8"]),
+        action: .deny403
+    )
+    let data = try JSONEncoder().encode(rule)
+    let decoded = try JSONDecoder().decode(SecurityPolicyRule.self, from: data)
+
+    #expect(decoded.priority == 1000)
+    #expect(decoded.action == .deny403)
+}
+
+@Test func testRateLimitOptionsCodable() throws {
+    let options = SecurityPolicyRule.RateLimitOptions(
+        rateLimitThreshold: .init(count: 100, intervalSec: 60),
+        enforceOnKey: .ip
+    )
+    let data = try JSONEncoder().encode(options)
+    let decoded = try JSONDecoder().decode(SecurityPolicyRule.RateLimitOptions.self, from: data)
+
+    #expect(decoded.rateLimitThreshold?.count == 100)
+    #expect(decoded.enforceOnKey == .ip)
+}
+
+@Test func testAdaptiveProtectionConfigCodable() throws {
+    let config = GoogleCloudSecurityPolicy.AdaptiveProtectionConfig(
+        layer7DdosDefenseConfig: .init(enable: true, ruleVisibility: .premium)
+    )
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(GoogleCloudSecurityPolicy.AdaptiveProtectionConfig.self, from: data)
+
+    #expect(decoded.layer7DdosDefenseConfig?.enable == true)
+    #expect(decoded.layer7DdosDefenseConfig?.ruleVisibility == .premium)
+}
