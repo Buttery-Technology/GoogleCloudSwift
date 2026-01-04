@@ -22979,3 +22979,378 @@ import Testing
     #expect(FaceAnnotation.Landmark.LandmarkType.noseTip.rawValue == "NOSE_TIP")
     #expect(FaceAnnotation.Landmark.LandmarkType.mouthCenter.rawValue == "MOUTH_CENTER")
 }
+
+// MARK: - Speech-to-Text Tests
+
+@Test func testSpeechRecognitionConfigBasicInit() {
+    let config = GoogleCloudSpeechRecognitionConfig(
+        encoding: .linear16,
+        sampleRateHertz: 16000,
+        languageCode: "en-US"
+    )
+
+    #expect(config.encoding == .linear16)
+    #expect(config.sampleRateHertz == 16000)
+    #expect(config.languageCode == "en-US")
+}
+
+@Test func testSpeechAudioEncodingValues() {
+    #expect(GoogleCloudSpeechRecognitionConfig.AudioEncoding.linear16.rawValue == "LINEAR16")
+    #expect(GoogleCloudSpeechRecognitionConfig.AudioEncoding.flac.rawValue == "FLAC")
+    #expect(GoogleCloudSpeechRecognitionConfig.AudioEncoding.mp3.rawValue == "MP3")
+    #expect(GoogleCloudSpeechRecognitionConfig.AudioEncoding.oggOpus.rawValue == "OGG_OPUS")
+    #expect(GoogleCloudSpeechRecognitionConfig.AudioEncoding.mulaw.rawValue == "MULAW")
+}
+
+@Test func testSpeechRecognitionModels() {
+    #expect(GoogleCloudSpeechRecognitionConfig.RecognitionModel.phone_call.rawValue == "phone_call")
+    #expect(GoogleCloudSpeechRecognitionConfig.RecognitionModel.video.rawValue == "video")
+    #expect(GoogleCloudSpeechRecognitionConfig.RecognitionModel.latest_long.rawValue == "latest_long")
+    #expect(GoogleCloudSpeechRecognitionConfig.RecognitionModel.medical_dictation.rawValue == "medical_dictation")
+}
+
+@Test func testSpeechContextWithBoost() {
+    let context = GoogleCloudSpeechRecognitionConfig.SpeechContext(
+        phrases: ["hello", "world", "test"],
+        boost: 10.0
+    )
+
+    #expect(context.phrases.count == 3)
+    #expect(context.boost == 10.0)
+}
+
+@Test func testSpeechRecognitionConfigWithOptions() {
+    let config = GoogleCloudSpeechRecognitionConfig(
+        encoding: .flac,
+        sampleRateHertz: 44100,
+        languageCode: "es-ES",
+        alternativeLanguageCodes: ["en-US", "fr-FR"],
+        maxAlternatives: 3,
+        profanityFilter: true,
+        enableAutomaticPunctuation: true,
+        model: .latest_long,
+        useEnhanced: true
+    )
+
+    #expect(config.alternativeLanguageCodes?.count == 2)
+    #expect(config.maxAlternatives == 3)
+    #expect(config.profanityFilter == true)
+    #expect(config.useEnhanced == true)
+}
+
+@Test func testSpeechRecognitionAudioFromGCS() {
+    let audio = GoogleCloudSpeechRecognitionAudio.fromGCS("gs://my-bucket/audio.flac")
+
+    #expect(audio.uri == "gs://my-bucket/audio.flac")
+    #expect(audio.content == nil)
+}
+
+@Test func testSpeechRecognitionRequest() {
+    let config = GoogleCloudSpeechRecognitionConfig(
+        encoding: .linear16,
+        sampleRateHertz: 16000,
+        languageCode: "en-US"
+    )
+
+    let request = GoogleCloudSpeechRecognitionRequest(
+        projectID: "my-project",
+        config: config,
+        audio: GoogleCloudSpeechRecognitionAudio.fromGCS("gs://bucket/audio.wav")
+    )
+
+    #expect(request.projectID == "my-project")
+    #expect(request.config.languageCode == "en-US")
+}
+
+@Test func testSpeechRecognitionRequestCommands() {
+    let config = GoogleCloudSpeechRecognitionConfig(
+        encoding: .linear16,
+        sampleRateHertz: 16000,
+        languageCode: "en-US",
+        model: .video
+    )
+
+    let request = GoogleCloudSpeechRecognitionRequest(
+        projectID: "my-project",
+        config: config,
+        audio: GoogleCloudSpeechRecognitionAudio(uri: "gs://bucket/audio.wav")
+    )
+
+    let cmd = request.recognizeCommand(audioFile: "audio.wav")
+    #expect(cmd.contains("gcloud ml speech recognize"))
+    #expect(cmd.contains("--language-code=en-US"))
+    #expect(cmd.contains("--model=video"))
+}
+
+@Test func testSpeechRecognitionResponse() {
+    let response = GoogleCloudSpeechRecognitionResponse(
+        results: [
+            SpeechRecognitionResult(
+                alternatives: [
+                    SpeechRecognitionAlternative(transcript: "Hello world", confidence: 0.95)
+                ],
+                languageCode: "en-US"
+            )
+        ],
+        totalBilledTime: "10s"
+    )
+
+    #expect(response.results?.count == 1)
+    #expect(response.results?.first?.alternatives?.first?.transcript == "Hello world")
+    #expect(response.totalBilledTime == "10s")
+}
+
+@Test func testSpeechRecognitionAlternative() {
+    let alternative = SpeechRecognitionAlternative(
+        transcript: "Test transcript",
+        confidence: 0.92,
+        words: [
+            WordInfo(startTime: "0s", endTime: "0.5s", word: "Test", confidence: 0.95),
+            WordInfo(startTime: "0.5s", endTime: "1.2s", word: "transcript", confidence: 0.90)
+        ]
+    )
+
+    #expect(alternative.transcript == "Test transcript")
+    #expect(alternative.confidence == 0.92)
+    #expect(alternative.words?.count == 2)
+}
+
+@Test func testWordInfo() {
+    let word = WordInfo(
+        startTime: "1.5s",
+        endTime: "2.0s",
+        word: "hello",
+        confidence: 0.98,
+        speakerTag: 1
+    )
+
+    #expect(word.word == "hello")
+    #expect(word.startTime == "1.5s")
+    #expect(word.speakerTag == 1)
+}
+
+@Test func testSpeechStreamingConfig() {
+    let config = GoogleCloudSpeechRecognitionConfig(
+        encoding: .linear16,
+        sampleRateHertz: 16000,
+        languageCode: "en-US"
+    )
+
+    let streamingConfig = GoogleCloudSpeechStreamingConfig(
+        config: config,
+        singleUtterance: true,
+        interimResults: true
+    )
+
+    #expect(streamingConfig.singleUtterance == true)
+    #expect(streamingConfig.interimResults == true)
+}
+
+@Test func testSpeechCustomClass() {
+    let customClass = GoogleCloudSpeechCustomClass(
+        name: "my-class",
+        projectID: "my-project",
+        location: "global",
+        displayName: "My Custom Class",
+        items: [
+            GoogleCloudSpeechCustomClass.ClassItem(value: "word1"),
+            GoogleCloudSpeechCustomClass.ClassItem(value: "word2")
+        ]
+    )
+
+    #expect(customClass.resourceName == "projects/my-project/locations/global/customClasses/my-class")
+    #expect(customClass.createCommand.contains("custom-classes create"))
+}
+
+@Test func testSpeechPhraseSet() {
+    let phraseSet = GoogleCloudSpeechPhraseSet(
+        name: "my-phrases",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Phrases",
+        phrases: [
+            GoogleCloudSpeechPhraseSet.Phrase(value: "hello", boost: 5.0),
+            GoogleCloudSpeechPhraseSet.Phrase(value: "world", boost: 3.0)
+        ],
+        boost: 10.0
+    )
+
+    #expect(phraseSet.resourceName == "projects/my-project/locations/us-central1/phraseSets/my-phrases")
+    #expect(phraseSet.phrases?.count == 2)
+    #expect(phraseSet.createCommand.contains("phrase-sets create"))
+}
+
+@Test func testSpeechRecognizer() {
+    let recognizer = GoogleCloudSpeechRecognizer(
+        name: "my-recognizer",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Recognizer",
+        model: "latest_long",
+        languageCodes: ["en-US", "es-ES"],
+        state: .active
+    )
+
+    #expect(recognizer.resourceName == "projects/my-project/locations/us-central1/recognizers/my-recognizer")
+    #expect(recognizer.languageCodes.count == 2)
+    #expect(recognizer.state == .active)
+}
+
+@Test func testSpeechRecognizerCommands() {
+    let recognizer = GoogleCloudSpeechRecognizer(
+        name: "my-recognizer",
+        projectID: "my-project",
+        location: "global",
+        languageCodes: ["en-US"]
+    )
+
+    #expect(recognizer.createCommand.contains("recognizers create"))
+    #expect(recognizer.describeCommand.contains("recognizers describe"))
+    #expect(recognizer.deleteCommand.contains("recognizers delete"))
+}
+
+@Test func testSpeechRecognizerStates() {
+    #expect(GoogleCloudSpeechRecognizer.RecognizerState.active.rawValue == "ACTIVE")
+    #expect(GoogleCloudSpeechRecognizer.RecognizerState.deleted.rawValue == "DELETED")
+}
+
+@Test func testSpeechToTextOperationsEnableAPI() {
+    #expect(SpeechToTextOperations.enableAPICommand == "gcloud services enable speech.googleapis.com")
+}
+
+@Test func testSpeechToTextOperationsCommands() {
+    let recognizeCmd = SpeechToTextOperations.recognizeCommand(
+        audioFile: "audio.wav",
+        languageCode: "en-US",
+        projectID: "my-project"
+    )
+    #expect(recognizeCmd.contains("gcloud ml speech recognize"))
+    #expect(recognizeCmd.contains("--language-code=en-US"))
+
+    let longRunningCmd = SpeechToTextOperations.recognizeLongRunningCommand(
+        gcsUri: "gs://bucket/audio.flac",
+        languageCode: "es-ES",
+        projectID: "my-project"
+    )
+    #expect(longRunningCmd.contains("recognize-long-running"))
+    #expect(longRunningCmd.contains("--async"))
+}
+
+@Test func testDAISSpeechToTextTemplateBasic() {
+    let template = DAISSpeechToTextTemplate(
+        projectID: "my-project",
+        location: "global",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+        audioBucket: "my-project-audio"
+    )
+
+    #expect(template.projectID == "my-project")
+    #expect(template.audioBucket == "my-project-audio")
+}
+
+@Test func testDAISSpeechToTextTemplateEnglishConfig() {
+    let template = DAISSpeechToTextTemplate(
+        projectID: "my-project",
+        location: "global",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+        audioBucket: "my-project-audio"
+    )
+
+    let config = template.englishConfig
+    #expect(config.languageCode == "en-US")
+    #expect(config.encoding == .linear16)
+    #expect(config.sampleRateHertz == 16000)
+    #expect(config.enableAutomaticPunctuation == true)
+    #expect(config.model == .latest_long)
+}
+
+@Test func testDAISSpeechToTextTemplatePhoneCallConfig() {
+    let template = DAISSpeechToTextTemplate(
+        projectID: "my-project",
+        location: "global",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+        audioBucket: "my-project-audio"
+    )
+
+    let config = template.phoneCallConfig
+    #expect(config.encoding == .mulaw)
+    #expect(config.sampleRateHertz == 8000)
+    #expect(config.model == .phone_call)
+}
+
+@Test func testDAISSpeechToTextTemplateMultiLanguageConfig() {
+    let template = DAISSpeechToTextTemplate(
+        projectID: "my-project",
+        location: "global",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+        audioBucket: "my-project-audio"
+    )
+
+    let config = template.multiLanguageConfig
+    #expect(config.alternativeLanguageCodes?.count == 3)
+    #expect(config.alternativeLanguageCodes?.contains("es-ES") == true)
+}
+
+@Test func testDAISSpeechToTextTemplateSetupScript() {
+    let template = DAISSpeechToTextTemplate(
+        projectID: "my-project",
+        location: "global",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+        audioBucket: "my-project-audio"
+    )
+
+    let script = template.setupScript
+    #expect(script.contains("gcloud services enable speech.googleapis.com"))
+    #expect(script.contains("gsutil mb"))
+    #expect(script.contains("my-project-audio"))
+}
+
+@Test func testDAISSpeechToTextTemplatePythonScript() {
+    let template = DAISSpeechToTextTemplate(
+        projectID: "my-project",
+        location: "global",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+        audioBucket: "my-project-audio"
+    )
+
+    let script = template.pythonProcessingScript
+    #expect(script.contains("from google.cloud import speech"))
+    #expect(script.contains("def transcribe_file"))
+    #expect(script.contains("def transcribe_gcs"))
+    #expect(script.contains("def transcribe_with_word_timestamps"))
+}
+
+@Test func testSpeechRecognitionConfigCodable() throws {
+    let config = GoogleCloudSpeechRecognitionConfig(
+        encoding: .flac,
+        sampleRateHertz: 48000,
+        languageCode: "de-DE",
+        enableAutomaticPunctuation: true,
+        model: .video
+    )
+
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(GoogleCloudSpeechRecognitionConfig.self, from: data)
+
+    #expect(decoded.encoding == .flac)
+    #expect(decoded.sampleRateHertz == 48000)
+    #expect(decoded.languageCode == "de-DE")
+    #expect(decoded.model == .video)
+}
+
+@Test func testSpeechRecognitionResponseCodable() throws {
+    let response = GoogleCloudSpeechRecognitionResponse(
+        results: [
+            SpeechRecognitionResult(
+                alternatives: [
+                    SpeechRecognitionAlternative(transcript: "Test", confidence: 0.9)
+                ]
+            )
+        ]
+    )
+
+    let data = try JSONEncoder().encode(response)
+    let decoded = try JSONDecoder().decode(GoogleCloudSpeechRecognitionResponse.self, from: data)
+
+    #expect(decoded.results?.first?.alternatives?.first?.transcript == "Test")
+}
