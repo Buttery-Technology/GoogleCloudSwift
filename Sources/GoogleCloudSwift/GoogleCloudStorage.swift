@@ -80,7 +80,91 @@ public struct GoogleCloudStorageBucket: Codable, Sendable, Equatable {
         if uniformBucketLevelAccess {
             cmd += " --uniform-bucket-level-access"
         }
+        if versioning {
+            cmd += " --enable-versioning"
+        }
+        if !labels.isEmpty {
+            let labelPairs = labels.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+            cmd += " --labels=\(labelPairs)"
+        }
         return cmd
+    }
+
+    /// gcloud command to update lifecycle rules (requires lifecycle JSON file)
+    public var lifecycleCommand: String? {
+        guard !lifecycleRules.isEmpty else { return nil }
+        return "gcloud storage buckets update \(gsutilURI) --lifecycle-file=lifecycle.json"
+    }
+
+    /// JSON representation of lifecycle rules for use with --lifecycle-file
+    public var lifecycleJSON: String? {
+        guard !lifecycleRules.isEmpty else { return nil }
+
+        let rules = lifecycleRules.map { rule -> [String: Any] in
+            var ruleDict: [String: Any] = [:]
+
+            // Action
+            var actionDict: [String: Any] = [:]
+            switch rule.action {
+            case .delete:
+                actionDict["type"] = "Delete"
+            case .setStorageClass(let storageClass):
+                actionDict["type"] = "SetStorageClass"
+                actionDict["storageClass"] = storageClass.rawValue
+            case .abortIncompleteMultipartUpload:
+                actionDict["type"] = "AbortIncompleteMultipartUpload"
+            }
+            ruleDict["action"] = actionDict
+
+            // Condition
+            var conditionDict: [String: Any] = [:]
+            if let ageDays = rule.condition.ageDays {
+                conditionDict["age"] = ageDays
+            }
+            if let createdBefore = rule.condition.createdBefore {
+                let formatter = ISO8601DateFormatter()
+                formatter.formatOptions = [.withFullDate]
+                conditionDict["createdBefore"] = formatter.string(from: createdBefore)
+            }
+            if let isLive = rule.condition.isLive {
+                conditionDict["isLive"] = isLive
+            }
+            if let numNewerVersions = rule.condition.numNewerVersions {
+                conditionDict["numNewerVersions"] = numNewerVersions
+            }
+            if let matchesStorageClass = rule.condition.matchesStorageClass {
+                conditionDict["matchesStorageClass"] = matchesStorageClass.map { $0.rawValue }
+            }
+            ruleDict["condition"] = conditionDict
+
+            return ruleDict
+        }
+
+        let lifecycleDict: [String: Any] = ["rule": rules]
+
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: lifecycleDict, options: .prettyPrinted),
+              let jsonString = String(data: jsonData, encoding: .utf8) else {
+            return nil
+        }
+
+        return jsonString
+    }
+
+    /// Complete setup commands including lifecycle (as a bash script snippet)
+    public var setupCommands: String {
+        var commands = [createCommand]
+
+        if let lifecycleJSON = lifecycleJSON, lifecycleCommand != nil {
+            commands.append("""
+            cat > /tmp/lifecycle-\(name).json << 'LIFECYCLE_EOF'
+            \(lifecycleJSON)
+            LIFECYCLE_EOF
+            gcloud storage buckets update \(gsutilURI) --lifecycle-file=/tmp/lifecycle-\(name).json
+            rm /tmp/lifecycle-\(name).json
+            """)
+        }
+
+        return commands.joined(separator: "\n")
     }
 }
 

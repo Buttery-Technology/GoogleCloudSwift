@@ -196,6 +196,42 @@ extension GoogleCloudDAISDeployment {
 // MARK: - Setup Script Generation
 
 extension GoogleCloudDAISDeployment {
+    /// Service account flags for gcloud command
+    private var serviceAccountFlags: String {
+        guard let sa = instanceConfig.serviceAccount else {
+            return "--scopes=cloud-platform"
+        }
+        let scopes = sa.scopes.joined(separator: ",")
+        return "--service-account=\(sa.email) --scopes=\(scopes)"
+    }
+
+    /// Scheduling flags for gcloud command
+    private var schedulingFlags: String {
+        var flags: [String] = []
+
+        if instanceConfig.scheduling.spot {
+            flags.append("--provisioning-model=SPOT")
+            flags.append("--instance-termination-action=STOP")
+        } else if instanceConfig.scheduling.preemptible {
+            flags.append("--preemptible")
+        }
+
+        if !instanceConfig.scheduling.automaticRestart {
+            flags.append("--no-restart-on-failure")
+        }
+
+        flags.append("--maintenance-policy=\(instanceConfig.scheduling.onHostMaintenance.rawValue)")
+
+        return flags.joined(separator: " \\\n                    ")
+    }
+
+    /// Labels flag for gcloud command
+    private var labelsFlag: String {
+        guard !instanceConfig.labels.isEmpty else { return "" }
+        let labelPairs = instanceConfig.labels.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+        return "--labels=\(labelPairs)"
+    }
+
     /// Generate a complete setup script for this deployment
     public var setupScript: String {
         """
@@ -243,7 +279,7 @@ extension GoogleCloudDAISDeployment {
         # Create backup bucket
         echo "Creating backup storage bucket..."
         if ! gsutil ls \(backupBucket.gsutilURI) 2>/dev/null; then
-            \(backupBucket.createCommand)
+            \(backupBucket.setupCommands)
             echo "Bucket created: \(backupBucket.gsutilURI)"
         else
             echo "Bucket already exists, skipping..."
@@ -271,12 +307,20 @@ extension GoogleCloudDAISDeployment {
                     --project=$PROJECT_ID \\
                     --zone=$ZONE \\
                     --machine-type=\(machineType.rawValue) \\
-                    --image-family=ubuntu-2204-lts \\
-                    --image-project=ubuntu-os-cloud \\
-                    --boot-disk-size=20GB \\
-                    --boot-disk-type=pd-balanced \\
+                    --image-family=\(instanceConfig.bootDisk.image.imageFamily) \\
+                    --image-project=\(instanceConfig.bootDisk.image.imageProject) \\
+                    --boot-disk-size=\(instanceConfig.bootDisk.sizeGB)GB \\
+                    --boot-disk-type=\(instanceConfig.bootDisk.diskType.rawValue) \\
+                    \(instanceConfig.bootDisk.autoDelete ? "--boot-disk-auto-delete" : "--no-boot-disk-auto-delete") \\
                     --tags=\(instanceConfig.networkTags.joined(separator: ",")) \\
-                    --scopes=cloud-platform \\
+                    --network=\(instanceConfig.network.network) \\
+                    \(instanceConfig.network.subnetwork.map { "--subnet=\($0)" } ?? "") \\
+                    \(instanceConfig.network.assignExternalIP ? "" : "--no-address") \\
+                    \(instanceConfig.network.assignExternalIP ? "--network-tier=\(instanceConfig.network.networkTier.rawValue)" : "") \\
+                    \(serviceAccountFlags) \\
+                    \(schedulingFlags) \\
+                    \(instanceConfig.deletionProtection ? "--deletion-protection" : "") \\
+                    \(labelsFlag) \\
                     --metadata=startup-script='#!/bin/bash
         # Install dependencies
         apt-get update
