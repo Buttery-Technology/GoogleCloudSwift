@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 20 Google Cloud services:
+GoogleCloudSwift provides models for 21 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -105,6 +105,7 @@ GoogleCloudSwift provides models for 20 Google Cloud services:
 | **Cloud DNS** | Domain name system management | `GoogleCloudManagedZone`, `GoogleCloudDNSRecord`, `GoogleCloudDNSPolicy` |
 | **Cloud Load Balancing** | Global and regional load balancing | `GoogleCloudHealthCheck`, `GoogleCloudBackendService`, `GoogleCloudURLMap` |
 | **Artifact Registry** | Container and package management | `GoogleCloudArtifactRegistryRepository`, `GoogleCloudDockerImage` |
+| **Cloud Build** | CI/CD pipelines | `GoogleCloudBuild`, `GoogleCloudBuildTrigger`, `GoogleCloudBuildWorkerPool` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -2495,6 +2496,274 @@ let cicdScript = DAISArtifactRegistryTemplate.cicdSetupScript(
 | `delete` | Delete matching artifacts |
 | `keep` | Keep matching artifacts (exclude from deletion) |
 
+### GoogleCloudBuild (Cloud Build API)
+
+Cloud Build provides serverless CI/CD pipelines for building, testing, and deploying applications:
+
+```swift
+// Basic build configuration
+let step = GoogleCloudBuild.BuildStep(
+    name: "gcr.io/cloud-builders/docker",
+    args: ["build", "-t", "us-central1-docker.pkg.dev/my-project/repo/image:$COMMIT_SHA", "."]
+)
+
+let build = GoogleCloudBuild(
+    projectID: "my-project",
+    steps: [step],
+    images: ["us-central1-docker.pkg.dev/my-project/repo/image:$COMMIT_SHA"],
+    timeout: "1200s"
+)
+
+// Submit a build
+print(build.submitCommand)
+// Output: gcloud builds submit --project=my-project
+
+// List and manage builds
+print(GoogleCloudBuild.listCommand(projectID: "my-project", ongoing: true))
+print(GoogleCloudBuild.cancelCommand(buildID: "build-123", projectID: "my-project"))
+print(GoogleCloudBuild.logCommand(buildID: "build-123", projectID: "my-project", stream: true))
+```
+
+**Build Triggers:**
+
+```swift
+// GitHub push trigger
+let githubTrigger = GoogleCloudBuildTrigger(
+    name: "deploy-on-push",
+    projectID: "my-project",
+    description: "Deploy on push to main",
+    triggerSource: .github(
+        owner: "myorg",
+        name: "myrepo",
+        eventConfig: .push(branch: "^main$", tag: nil, invertRegex: false)
+    ),
+    buildConfig: .filename("cloudbuild.yaml"),
+    substitutions: ["DEPLOY_ENV": "production"],
+    region: "us-central1"
+)
+print(githubTrigger.createCommandGitHub!)
+
+// Pull request trigger
+let prTrigger = GoogleCloudBuildTrigger(
+    name: "pr-preview",
+    projectID: "my-project",
+    triggerSource: .github(
+        owner: "myorg",
+        name: "myrepo",
+        eventConfig: .pullRequest(
+            branch: "^main$",
+            commentControl: .commentsEnabledForExternalContributorsOnly,
+            invertRegex: false
+        )
+    ),
+    buildConfig: .filename("cloudbuild-preview.yaml")
+)
+
+// Pub/Sub trigger
+let pubsubTrigger = GoogleCloudBuildTrigger(
+    name: "scheduled-build",
+    projectID: "my-project",
+    triggerSource: .pubsub(
+        topic: "projects/my-project/topics/build-trigger",
+        serviceAccountEmail: "build-sa@my-project.iam.gserviceaccount.com"
+    ),
+    buildConfig: .filename("cloudbuild.yaml")
+)
+
+// Manual trigger (on-demand deployments)
+let manualTrigger = GoogleCloudBuildTrigger(
+    name: "manual-deploy",
+    projectID: "my-project",
+    triggerSource: .manual,
+    buildConfig: .filename("cloudbuild.yaml"),
+    approvalRequired: true
+)
+
+// Trigger operations
+print(githubTrigger.describeCommand)
+print(githubTrigger.runCommand(branchName: "main"))
+print(githubTrigger.deleteCommand)
+```
+
+**Worker Pools (Private Builds):**
+
+```swift
+let workerPool = GoogleCloudBuildWorkerPool(
+    name: "private-pool",
+    projectID: "my-project",
+    region: "us-central1",
+    privatePoolConfig: .init(
+        workerConfig: .init(machineType: "e2-highcpu-8", diskSizeGb: 200),
+        networkConfig: .init(
+            peeredNetwork: "projects/my-project/global/networks/my-vpc",
+            egressOption: .noPublicEgress
+        )
+    )
+)
+
+print(workerPool.createCommand)
+print(workerPool.updateCommand(machineType: "e2-highcpu-32"))
+```
+
+**GitHub/GitLab Connections (2nd Gen):**
+
+```swift
+// Create a GitHub connection
+let connection = GoogleCloudBuildConnection(
+    name: "github-connection",
+    projectID: "my-project",
+    region: "us-central1",
+    connectionType: .github(appInstallationId: nil)
+)
+print(connection.createCommand!)
+
+// Link a repository
+let repo = GoogleCloudBuildRepository(
+    name: "my-repo",
+    projectID: "my-project",
+    region: "us-central1",
+    connectionName: "github-connection",
+    remoteUri: "https://github.com/myorg/myrepo.git"
+)
+print(repo.createCommand)
+```
+
+**Cloud Build Operations:**
+
+```swift
+// Enable Cloud Build API
+print(CloudBuildOperations.enableAPICommand(projectID: "my-project"))
+
+// Submit builds with options
+print(CloudBuildOperations.submitCommand(
+    projectID: "my-project",
+    configFile: "cloudbuild.yaml",
+    tag: "us-central1-docker.pkg.dev/my-project/repo/image:latest",
+    machineType: .e2Highcpu8,
+    timeout: "1800s",
+    async: true
+))
+
+// Grant Cloud Build permissions
+print(CloudBuildOperations.grantCloudRunDeployerCommand(projectID: "my-project"))
+print(CloudBuildOperations.grantArtifactRegistryWriterCommand(projectID: "my-project"))
+print(CloudBuildOperations.grantGKEDeployerCommand(projectID: "my-project"))
+
+// Build approvals
+print(CloudBuildOperations.approveCommand(buildID: "build-123", projectID: "my-project"))
+print(CloudBuildOperations.rejectCommand(buildID: "build-123", projectID: "my-project", comment: "Needs review"))
+```
+
+**cloudbuild.yaml Generators:**
+
+```swift
+// Docker build and push
+let dockerConfig = CloudBuildConfigGenerator.dockerBuildPush(
+    imageName: "us-central1-docker.pkg.dev/my-project/repo/image"
+)
+
+// Docker build and deploy to Cloud Run
+let cloudRunConfig = CloudBuildConfigGenerator.dockerBuildDeployCloudRun(
+    imageName: "us-central1-docker.pkg.dev/my-project/repo/image",
+    serviceName: "my-service",
+    region: "us-central1",
+    envVars: ["ENV": "production"],
+    memory: "512Mi",
+    minInstances: 1
+)
+
+// Swift build and test
+let swiftConfig = CloudBuildConfigGenerator.swiftBuildTest()
+
+// Swift full CI/CD pipeline
+let swiftCICD = CloudBuildConfigGenerator.swiftDockerCloudRun(
+    imageName: "us-central1-docker.pkg.dev/my-project/repo/swift-app",
+    serviceName: "swift-service",
+    region: "us-central1",
+    executableName: "server",
+    port: 8080
+)
+
+// Multi-service deployment
+let multiService = CloudBuildConfigGenerator.multiServiceDeploy(
+    services: [
+        (name: "api", imageName: "gcr.io/my-project/api", dockerfile: "api/Dockerfile", region: "us-central1"),
+        (name: "web", imageName: "gcr.io/my-project/web", dockerfile: "web/Dockerfile", region: "us-central1")
+    ]
+)
+```
+
+**DAIS Cloud Build Templates:**
+
+```swift
+// GitHub trigger for DAIS deployment
+let trigger = DAISCloudBuildTemplate.githubTrigger(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    owner: "myorg",
+    repo: "dais-deployment"
+)
+
+// PR preview environment trigger
+let prPreview = DAISCloudBuildTemplate.prPreviewTrigger(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    owner: "myorg",
+    repo: "dais-deployment"
+)
+
+// Generate complete cloudbuild.yaml for multi-service deployment
+let yaml = DAISCloudBuildTemplate.cloudbuildYaml(
+    projectID: "my-project",
+    location: "us-central1",
+    deploymentName: "dais-prod",
+    cloudRunRegion: "us-central1",
+    services: [
+        (name: "api", port: 8080),
+        (name: "worker", port: 8081),
+        (name: "scheduler", port: 8082)
+    ]
+)
+
+// Complete CI/CD setup script
+let setupScript = DAISCloudBuildTemplate.setupScript(
+    projectID: "my-project",
+    location: "us-central1",
+    deploymentName: "dais-prod",
+    githubOwner: "myorg",
+    githubRepo: "dais-deployment",
+    cloudRunRegion: "us-central1"
+)
+
+// Private worker pool for DAIS builds
+let workerPool = DAISCloudBuildTemplate.workerPool(
+    projectID: "my-project",
+    region: "us-central1",
+    deploymentName: "dais-prod",
+    vpcNetwork: "projects/my-project/global/networks/dais-vpc"
+)
+```
+
+**Trigger Sources:**
+
+| Source | Description |
+|--------|-------------|
+| `github` | GitHub repository push/PR events |
+| `cloudSourceRepository` | Cloud Source Repositories |
+| `pubsub` | Pub/Sub message triggers |
+| `webhook` | HTTP webhook triggers |
+| `manual` | Manual/on-demand triggers |
+
+**Build Machine Types:**
+
+| Type | vCPUs | Memory | Use Case |
+|------|-------|--------|----------|
+| `E2_MEDIUM` | 2 | 4 GB | Small builds |
+| `E2_HIGHCPU_8` | 8 | 8 GB | Standard builds |
+| `E2_HIGHCPU_32` | 32 | 32 GB | Large/parallel builds |
+| `N1_HIGHCPU_8` | 8 | 7.2 GB | Legacy workloads |
+| `N1_HIGHCPU_32` | 32 | 28.8 GB | Legacy large builds |
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -3099,6 +3368,11 @@ MIT License
 - [Python Repository Setup](https://cloud.google.com/artifact-registry/docs/python)
 - [Maven Repository Setup](https://cloud.google.com/artifact-registry/docs/java)
 - [Vulnerability Scanning](https://cloud.google.com/artifact-registry/docs/analysis)
+- [Cloud Build Documentation](https://cloud.google.com/build/docs)
+- [Cloud Build Triggers](https://cloud.google.com/build/docs/automating-builds/create-manage-triggers)
+- [Cloud Build Worker Pools](https://cloud.google.com/build/docs/private-pools/private-pools-overview)
+- [Cloud Build GitHub Integration](https://cloud.google.com/build/docs/automating-builds/github/connect-repo-github)
+- [cloudbuild.yaml Reference](https://cloud.google.com/build/docs/build-config-file-schema)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)

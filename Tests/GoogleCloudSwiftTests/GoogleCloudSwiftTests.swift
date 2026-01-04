@@ -10061,3 +10061,1119 @@ import Testing
 
     #expect(decoded.repositoryName == "python-repo")
 }
+
+// MARK: - Cloud Build Tests
+
+@Test func testGoogleCloudBuildBasicInit() {
+    let step = GoogleCloudBuild.BuildStep(
+        name: "gcr.io/cloud-builders/docker",
+        args: ["build", "-t", "my-image", "."]
+    )
+    let build = GoogleCloudBuild(
+        projectID: "test-project",
+        steps: [step]
+    )
+
+    #expect(build.projectID == "test-project")
+    #expect(build.steps.count == 1)
+    #expect(build.steps[0].name == "gcr.io/cloud-builders/docker")
+    #expect(build.timeout == "600s")
+}
+
+@Test func testBuildStepWithAllOptions() {
+    let volume = GoogleCloudBuild.BuildStep.Volume(name: "vol1", path: "/workspace/vol")
+    let step = GoogleCloudBuild.BuildStep(
+        name: "gcr.io/cloud-builders/docker",
+        args: ["build", "."],
+        env: ["ENV_VAR=value"],
+        dir: "subdir",
+        id: "build-step",
+        waitFor: ["previous-step"],
+        entrypoint: "bash",
+        secretEnv: ["SECRET_KEY"],
+        volumes: [volume],
+        timeout: "300s",
+        script: "echo hello"
+    )
+
+    #expect(step.name == "gcr.io/cloud-builders/docker")
+    #expect(step.args == ["build", "."])
+    #expect(step.env == ["ENV_VAR=value"])
+    #expect(step.dir == "subdir")
+    #expect(step.id == "build-step")
+    #expect(step.waitFor == ["previous-step"])
+    #expect(step.entrypoint == "bash")
+    #expect(step.secretEnv == ["SECRET_KEY"])
+    #expect(step.volumes.count == 1)
+    #expect(step.volumes[0].name == "vol1")
+    #expect(step.timeout == "300s")
+    #expect(step.script == "echo hello")
+}
+
+@Test func testBuildSourceStorageSource() {
+    let source = GoogleCloudBuild.BuildSource.storageSource(
+        bucket: "my-bucket",
+        object: "source.tar.gz",
+        generation: 12345
+    )
+
+    if case .storageSource(let bucket, let object, let generation) = source {
+        #expect(bucket == "my-bucket")
+        #expect(object == "source.tar.gz")
+        #expect(generation == 12345)
+    } else {
+        Issue.record("Expected storageSource")
+    }
+}
+
+@Test func testBuildSourceRepoSource() {
+    let source = GoogleCloudBuild.BuildSource.repoSource(
+        repoName: "my-repo",
+        branchName: "main",
+        tagName: nil,
+        commitSha: nil,
+        dir: "src"
+    )
+
+    if case .repoSource(let repoName, let branchName, _, _, let dir) = source {
+        #expect(repoName == "my-repo")
+        #expect(branchName == "main")
+        #expect(dir == "src")
+    } else {
+        Issue.record("Expected repoSource")
+    }
+}
+
+@Test func testBuildSourceGitSource() {
+    let source = GoogleCloudBuild.BuildSource.gitSource(
+        url: "https://github.com/owner/repo.git",
+        revision: "main",
+        dir: nil
+    )
+
+    if case .gitSource(let url, let revision, _) = source {
+        #expect(url == "https://github.com/owner/repo.git")
+        #expect(revision == "main")
+    } else {
+        Issue.record("Expected gitSource")
+    }
+}
+
+@Test func testBuildSourceConnectedRepository() {
+    let source = GoogleCloudBuild.BuildSource.connectedRepository(
+        repository: "projects/p/locations/l/connections/c/repositories/r",
+        revision: "main",
+        dir: nil
+    )
+
+    if case .connectedRepository(let repository, let revision, _) = source {
+        #expect(repository == "projects/p/locations/l/connections/c/repositories/r")
+        #expect(revision == "main")
+    } else {
+        Issue.record("Expected connectedRepository")
+    }
+}
+
+@Test func testBuildArtifacts() {
+    let objects = GoogleCloudBuild.Artifacts.Objects(
+        location: "gs://my-bucket/artifacts",
+        paths: ["output/*.jar"]
+    )
+    let mavenArtifact = GoogleCloudBuild.Artifacts.MavenArtifact(
+        repository: "projects/p/locations/l/repositories/maven-repo",
+        path: "target/*.jar",
+        artifactId: "my-artifact",
+        groupId: "com.example",
+        version: "1.0.0"
+    )
+    let pythonPackage = GoogleCloudBuild.Artifacts.PythonPackage(
+        repository: "projects/p/locations/l/repositories/python-repo",
+        paths: ["dist/*.whl"]
+    )
+    let npmPackage = GoogleCloudBuild.Artifacts.NpmPackage(
+        repository: "projects/p/locations/l/repositories/npm-repo",
+        packagePath: "package"
+    )
+    let artifacts = GoogleCloudBuild.Artifacts(
+        images: ["gcr.io/project/image"],
+        objects: objects,
+        mavenArtifacts: [mavenArtifact],
+        pythonPackages: [pythonPackage],
+        npmPackages: [npmPackage]
+    )
+
+    #expect(artifacts.images == ["gcr.io/project/image"])
+    #expect(artifacts.objects?.location == "gs://my-bucket/artifacts")
+    #expect(artifacts.mavenArtifacts.count == 1)
+    #expect(artifacts.pythonPackages.count == 1)
+    #expect(artifacts.npmPackages.count == 1)
+}
+
+@Test func testBuildOptionsMachineTypes() {
+    #expect(GoogleCloudBuild.BuildOptions.MachineType.n1Highcpu8.rawValue == "N1_HIGHCPU_8")
+    #expect(GoogleCloudBuild.BuildOptions.MachineType.n1Highcpu32.rawValue == "N1_HIGHCPU_32")
+    #expect(GoogleCloudBuild.BuildOptions.MachineType.e2Highcpu8.rawValue == "E2_HIGHCPU_8")
+    #expect(GoogleCloudBuild.BuildOptions.MachineType.e2Highcpu32.rawValue == "E2_HIGHCPU_32")
+    #expect(GoogleCloudBuild.BuildOptions.MachineType.e2Medium.rawValue == "E2_MEDIUM")
+}
+
+@Test func testBuildOptionsInit() {
+    let poolOption = GoogleCloudBuild.BuildOptions.PoolOption(name: "my-pool")
+    let options = GoogleCloudBuild.BuildOptions(
+        machineType: .e2Highcpu8,
+        diskSizeGb: 200,
+        substitutionOption: .allowLoose,
+        dynamicSubstitutions: true,
+        logStreamingOption: .streamOn,
+        logging: .cloudLoggingOnly,
+        env: ["MY_VAR=value"],
+        secretEnv: ["SECRET"],
+        pool: poolOption,
+        requestedVerifyOption: .verified
+    )
+
+    #expect(options.machineType == .e2Highcpu8)
+    #expect(options.diskSizeGb == 200)
+    #expect(options.substitutionOption == .allowLoose)
+    #expect(options.dynamicSubstitutions == true)
+    #expect(options.logStreamingOption == .streamOn)
+    #expect(options.logging == .cloudLoggingOnly)
+    #expect(options.env == ["MY_VAR=value"])
+    #expect(options.pool?.name == "my-pool")
+}
+
+@Test func testAvailableSecrets() {
+    let smSecret = GoogleCloudBuild.AvailableSecrets.SecretManagerSecret(
+        versionName: "projects/p/secrets/s/versions/1",
+        env: "MY_SECRET"
+    )
+    let inlineSecret = GoogleCloudBuild.AvailableSecrets.InlineSecret(
+        kmsKeyName: "projects/p/locations/l/keyRings/k/cryptoKeys/c",
+        envMap: ["KEY": "encrypted-value"]
+    )
+    let secrets = GoogleCloudBuild.AvailableSecrets(
+        secretManager: [smSecret],
+        inline: [inlineSecret]
+    )
+
+    #expect(secrets.secretManager.count == 1)
+    #expect(secrets.secretManager[0].env == "MY_SECRET")
+    #expect(secrets.inline.count == 1)
+    #expect(secrets.inline[0].envMap["KEY"] == "encrypted-value")
+}
+
+@Test func testBuildSubmitCommand() {
+    let build = GoogleCloudBuild(
+        projectID: "test-project",
+        steps: []
+    )
+
+    #expect(build.submitCommand == "gcloud builds submit --project=test-project")
+}
+
+@Test func testBuildDescribeCommand() {
+    let build = GoogleCloudBuild(projectID: "test-project", steps: [])
+
+    let cmd = build.describeCommand(buildID: "build-123")
+    #expect(cmd == "gcloud builds describe build-123 --project=test-project")
+
+    let cmdWithRegion = build.describeCommand(buildID: "build-123", region: "us-central1")
+    #expect(cmdWithRegion.contains("--region=us-central1"))
+}
+
+@Test func testBuildListCommand() {
+    let cmd = GoogleCloudBuild.listCommand(projectID: "test-project")
+    #expect(cmd == "gcloud builds list --project=test-project")
+
+    let cmdWithRegion = GoogleCloudBuild.listCommand(projectID: "test-project", region: "us-central1")
+    #expect(cmdWithRegion.contains("--region=us-central1"))
+
+    let cmdOngoing = GoogleCloudBuild.listCommand(projectID: "test-project", ongoing: true)
+    #expect(cmdOngoing.contains("--ongoing"))
+}
+
+@Test func testBuildCancelCommand() {
+    let cmd = GoogleCloudBuild.cancelCommand(buildID: "build-123", projectID: "test-project")
+    #expect(cmd == "gcloud builds cancel build-123 --project=test-project")
+
+    let cmdWithRegion = GoogleCloudBuild.cancelCommand(buildID: "build-123", projectID: "test-project", region: "us-central1")
+    #expect(cmdWithRegion.contains("--region=us-central1"))
+}
+
+@Test func testBuildLogCommand() {
+    let cmd = GoogleCloudBuild.logCommand(buildID: "build-123", projectID: "test-project")
+    #expect(cmd == "gcloud builds log build-123 --project=test-project")
+
+    let cmdStream = GoogleCloudBuild.logCommand(buildID: "build-123", projectID: "test-project", stream: true)
+    #expect(cmdStream.contains("--stream"))
+}
+
+// MARK: - Build Trigger Tests
+
+@Test func testBuildTriggerGitHubPush() {
+    let trigger = GoogleCloudBuildTrigger(
+        name: "my-trigger",
+        projectID: "test-project",
+        description: "Deploy on push",
+        triggerSource: .github(
+            owner: "myorg",
+            name: "myrepo",
+            eventConfig: .push(branch: "^main$", tag: nil, invertRegex: false)
+        ),
+        buildConfig: .filename("cloudbuild.yaml")
+    )
+
+    #expect(trigger.name == "my-trigger")
+    #expect(trigger.resourceName == "projects/test-project/triggers/my-trigger")
+
+    let cmd = trigger.createCommandGitHub
+    #expect(cmd != nil)
+    #expect(cmd!.contains("gcloud builds triggers create github"))
+    #expect(cmd!.contains("--repo-owner=myorg"))
+    #expect(cmd!.contains("--repo-name=myrepo"))
+    #expect(cmd!.contains("--branch-pattern=\"^main$\""))
+    #expect(cmd!.contains("--build-config=cloudbuild.yaml"))
+}
+
+@Test func testBuildTriggerGitHubPullRequest() {
+    let trigger = GoogleCloudBuildTrigger(
+        name: "pr-trigger",
+        projectID: "test-project",
+        triggerSource: .github(
+            owner: "myorg",
+            name: "myrepo",
+            eventConfig: .pullRequest(
+                branch: "^main$",
+                commentControl: .commentsEnabledForExternalContributorsOnly,
+                invertRegex: false
+            )
+        ),
+        buildConfig: .filename("cloudbuild.yaml")
+    )
+
+    let cmd = trigger.createCommandGitHub!
+    #expect(cmd.contains("--pull-request-pattern=\"^main$\""))
+    #expect(cmd.contains("--comment-control=COMMENTS_ENABLED_FOR_EXTERNAL_CONTRIBUTORS_ONLY"))
+}
+
+@Test func testBuildTriggerCSR() {
+    let trigger = GoogleCloudBuildTrigger(
+        name: "csr-trigger",
+        projectID: "test-project",
+        triggerSource: .cloudSourceRepository(
+            repoName: "my-csr-repo",
+            eventConfig: .push(branch: "main", tag: nil, invertRegex: false)
+        ),
+        buildConfig: .filename("cloudbuild.yaml")
+    )
+
+    let cmd = trigger.createCommandCSR!
+    #expect(cmd.contains("gcloud builds triggers create cloud-source-repositories"))
+    #expect(cmd.contains("--repo=my-csr-repo"))
+}
+
+@Test func testBuildTriggerPubSub() {
+    let trigger = GoogleCloudBuildTrigger(
+        name: "pubsub-trigger",
+        projectID: "test-project",
+        triggerSource: .pubsub(
+            topic: "projects/test-project/topics/my-topic",
+            serviceAccountEmail: "sa@test-project.iam.gserviceaccount.com"
+        ),
+        buildConfig: .filename("cloudbuild.yaml")
+    )
+
+    let cmd = trigger.createCommandPubSub!
+    #expect(cmd.contains("gcloud builds triggers create pubsub"))
+    #expect(cmd.contains("--topic=projects/test-project/topics/my-topic"))
+    #expect(cmd.contains("--service-account=sa@test-project.iam.gserviceaccount.com"))
+}
+
+@Test func testBuildTriggerWebhook() {
+    let trigger = GoogleCloudBuildTrigger(
+        name: "webhook-trigger",
+        projectID: "test-project",
+        triggerSource: .webhook(secretName: "projects/test-project/secrets/webhook-secret/versions/1"),
+        buildConfig: .filename("cloudbuild.yaml")
+    )
+
+    let cmd = trigger.createCommandWebhook!
+    #expect(cmd.contains("gcloud builds triggers create webhook"))
+    #expect(cmd.contains("--secret=projects/test-project/secrets/webhook-secret/versions/1"))
+}
+
+@Test func testBuildTriggerManual() {
+    let trigger = GoogleCloudBuildTrigger(
+        name: "manual-trigger",
+        projectID: "test-project",
+        triggerSource: .manual,
+        buildConfig: .filename("cloudbuild.yaml")
+    )
+
+    let cmd = trigger.createCommandManual!
+    #expect(cmd.contains("gcloud builds triggers create manual"))
+    #expect(cmd.contains("--name=manual-trigger"))
+}
+
+@Test func testBuildTriggerWithRegion() {
+    let trigger = GoogleCloudBuildTrigger(
+        name: "regional-trigger",
+        projectID: "test-project",
+        triggerSource: .manual,
+        buildConfig: .filename("cloudbuild.yaml"),
+        region: "us-central1"
+    )
+
+    #expect(trigger.resourceName == "projects/test-project/locations/us-central1/triggers/regional-trigger")
+
+    let cmd = trigger.createCommandManual!
+    #expect(cmd.contains("--region=us-central1"))
+}
+
+@Test func testBuildTriggerDeleteCommand() {
+    let trigger = GoogleCloudBuildTrigger(
+        name: "my-trigger",
+        projectID: "test-project",
+        triggerSource: .manual,
+        buildConfig: .filename("cloudbuild.yaml"),
+        region: "us-central1"
+    )
+
+    #expect(trigger.deleteCommand.contains("gcloud builds triggers delete my-trigger"))
+    #expect(trigger.deleteCommand.contains("--project=test-project"))
+    #expect(trigger.deleteCommand.contains("--region=us-central1"))
+    #expect(trigger.deleteCommand.contains("--quiet"))
+}
+
+@Test func testBuildTriggerDescribeCommand() {
+    let trigger = GoogleCloudBuildTrigger(
+        name: "my-trigger",
+        projectID: "test-project",
+        triggerSource: .manual,
+        buildConfig: .filename("cloudbuild.yaml")
+    )
+
+    #expect(trigger.describeCommand == "gcloud builds triggers describe my-trigger --project=test-project")
+}
+
+@Test func testBuildTriggerRunCommand() {
+    let trigger = GoogleCloudBuildTrigger(
+        name: "my-trigger",
+        projectID: "test-project",
+        triggerSource: .manual,
+        buildConfig: .filename("cloudbuild.yaml")
+    )
+
+    let cmd = trigger.runCommand(branchName: "main")
+    #expect(cmd.contains("gcloud builds triggers run my-trigger"))
+    #expect(cmd.contains("--branch=main"))
+
+    let cmdWithTag = trigger.runCommand(tagName: "v1.0.0")
+    #expect(cmdWithTag.contains("--tag=v1.0.0"))
+
+    let cmdWithSha = trigger.runCommand(sha: "abc123")
+    #expect(cmdWithSha.contains("--sha=abc123"))
+}
+
+@Test func testBuildTriggerListCommand() {
+    let cmd = GoogleCloudBuildTrigger.listCommand(projectID: "test-project")
+    #expect(cmd == "gcloud builds triggers list --project=test-project")
+
+    let cmdWithRegion = GoogleCloudBuildTrigger.listCommand(projectID: "test-project", region: "us-central1")
+    #expect(cmdWithRegion.contains("--region=us-central1"))
+}
+
+@Test func testBuildTriggerWithSubstitutions() {
+    let trigger = GoogleCloudBuildTrigger(
+        name: "my-trigger",
+        projectID: "test-project",
+        triggerSource: .github(
+            owner: "myorg",
+            name: "myrepo",
+            eventConfig: .push(branch: "^main$", tag: nil, invertRegex: false)
+        ),
+        buildConfig: .filename("cloudbuild.yaml"),
+        substitutions: ["DEPLOY_ENV": "production", "VERSION": "1.0"]
+    )
+
+    let cmd = trigger.createCommandGitHub!
+    #expect(cmd.contains("--substitutions="))
+    #expect(cmd.contains("_DEPLOY_ENV=production"))
+    #expect(cmd.contains("_VERSION=1.0"))
+}
+
+@Test func testBuildTriggerWithIncludedIgnoredFiles() {
+    let trigger = GoogleCloudBuildTrigger(
+        name: "my-trigger",
+        projectID: "test-project",
+        triggerSource: .github(
+            owner: "myorg",
+            name: "myrepo",
+            eventConfig: .push(branch: "^main$", tag: nil, invertRegex: false)
+        ),
+        buildConfig: .filename("cloudbuild.yaml"),
+        ignoredFiles: ["docs/**", "*.md"],
+        includedFiles: ["src/**", "*.swift"]
+    )
+
+    let cmd = trigger.createCommandGitHub!
+    #expect(cmd.contains("--included-files=src/**,*.swift"))
+    #expect(cmd.contains("--ignored-files=docs/**,*.md"))
+}
+
+@Test func testBuildTriggerWithApprovalRequired() {
+    let trigger = GoogleCloudBuildTrigger(
+        name: "prod-trigger",
+        projectID: "test-project",
+        triggerSource: .github(
+            owner: "myorg",
+            name: "myrepo",
+            eventConfig: .push(branch: "^main$", tag: nil, invertRegex: false)
+        ),
+        buildConfig: .filename("cloudbuild.yaml"),
+        approvalRequired: true
+    )
+
+    let cmd = trigger.createCommandGitHub!
+    #expect(cmd.contains("--require-approval"))
+}
+
+// MARK: - Worker Pool Tests
+
+@Test func testWorkerPoolBasic() {
+    let pool = GoogleCloudBuildWorkerPool(
+        name: "my-pool",
+        projectID: "test-project",
+        region: "us-central1",
+        privatePoolConfig: .init(
+            workerConfig: .init(machineType: "e2-standard-4", diskSizeGb: 100)
+        )
+    )
+
+    #expect(pool.name == "my-pool")
+    #expect(pool.resourceName == "projects/test-project/locations/us-central1/workerPools/my-pool")
+
+    let cmd = pool.createCommand
+    #expect(cmd.contains("gcloud builds worker-pools create my-pool"))
+    #expect(cmd.contains("--worker-machine-type=e2-standard-4"))
+    #expect(cmd.contains("--worker-disk-size=100GB"))
+}
+
+@Test func testWorkerPoolWithNetwork() {
+    let pool = GoogleCloudBuildWorkerPool(
+        name: "private-pool",
+        projectID: "test-project",
+        region: "us-central1",
+        privatePoolConfig: .init(
+            workerConfig: .init(machineType: "e2-highcpu-8", diskSizeGb: 200),
+            networkConfig: .init(
+                peeredNetwork: "projects/test-project/global/networks/my-vpc",
+                peeredNetworkIPRange: "10.0.0.0/24",
+                egressOption: .noPublicEgress
+            )
+        )
+    )
+
+    let cmd = pool.createCommand
+    #expect(cmd.contains("--peered-network=projects/test-project/global/networks/my-vpc"))
+    #expect(cmd.contains("--peered-network-ip-range=10.0.0.0/24"))
+    #expect(cmd.contains("--no-public-egress=true"))
+}
+
+@Test func testWorkerPoolDeleteCommand() {
+    let pool = GoogleCloudBuildWorkerPool(
+        name: "my-pool",
+        projectID: "test-project",
+        region: "us-central1",
+        privatePoolConfig: .init(workerConfig: .init())
+    )
+
+    #expect(pool.deleteCommand == "gcloud builds worker-pools delete my-pool --project=test-project --region=us-central1 --quiet")
+}
+
+@Test func testWorkerPoolDescribeCommand() {
+    let pool = GoogleCloudBuildWorkerPool(
+        name: "my-pool",
+        projectID: "test-project",
+        region: "us-central1",
+        privatePoolConfig: .init(workerConfig: .init())
+    )
+
+    #expect(pool.describeCommand == "gcloud builds worker-pools describe my-pool --project=test-project --region=us-central1")
+}
+
+@Test func testWorkerPoolUpdateCommand() {
+    let pool = GoogleCloudBuildWorkerPool(
+        name: "my-pool",
+        projectID: "test-project",
+        region: "us-central1",
+        privatePoolConfig: .init(workerConfig: .init())
+    )
+
+    let cmd = pool.updateCommand(machineType: "e2-highcpu-32", diskSizeGb: 500)
+    #expect(cmd.contains("gcloud builds worker-pools update my-pool"))
+    #expect(cmd.contains("--worker-machine-type=e2-highcpu-32"))
+    #expect(cmd.contains("--worker-disk-size=500GB"))
+}
+
+@Test func testWorkerPoolListCommand() {
+    let cmd = GoogleCloudBuildWorkerPool.listCommand(projectID: "test-project", region: "us-central1")
+    #expect(cmd == "gcloud builds worker-pools list --project=test-project --region=us-central1")
+}
+
+// MARK: - Connection Tests
+
+@Test func testConnectionGitHub() {
+    let conn = GoogleCloudBuildConnection(
+        name: "github-conn",
+        projectID: "test-project",
+        region: "us-central1",
+        connectionType: .github(appInstallationId: 12345)
+    )
+
+    #expect(conn.name == "github-conn")
+    #expect(conn.resourceName == "projects/test-project/locations/us-central1/connections/github-conn")
+
+    let cmd = conn.createCommand!
+    #expect(cmd.contains("gcloud builds connections create github github-conn"))
+    #expect(cmd.contains("--project=test-project"))
+    #expect(cmd.contains("--region=us-central1"))
+}
+
+@Test func testConnectionGitHubEnterprise() {
+    let conn = GoogleCloudBuildConnection(
+        name: "ghe-conn",
+        projectID: "test-project",
+        region: "us-central1",
+        connectionType: .githubEnterprise(hostUri: "https://github.mycompany.com", appInstallationId: nil)
+    )
+
+    let cmd = conn.createCommand!
+    #expect(cmd.contains("gcloud builds connections create github-enterprise ghe-conn"))
+    #expect(cmd.contains("--host-uri=https://github.mycompany.com"))
+}
+
+@Test func testConnectionGitLab() {
+    let conn = GoogleCloudBuildConnection(
+        name: "gitlab-conn",
+        projectID: "test-project",
+        region: "us-central1",
+        connectionType: .gitlab(hostUri: "https://gitlab.mycompany.com", authorizerCredential: nil, readAuthorizerCredential: nil)
+    )
+
+    let cmd = conn.createCommand!
+    #expect(cmd.contains("gcloud builds connections create gitlab gitlab-conn"))
+    #expect(cmd.contains("--host-uri=https://gitlab.mycompany.com"))
+}
+
+@Test func testConnectionBitbucketDataCenter() {
+    let conn = GoogleCloudBuildConnection(
+        name: "bdc-conn",
+        projectID: "test-project",
+        region: "us-central1",
+        connectionType: .bitbucketDataCenter(hostUri: "https://bitbucket.mycompany.com", authorizerCredential: nil, readAuthorizerCredential: nil)
+    )
+
+    let cmd = conn.createCommand!
+    #expect(cmd.contains("gcloud builds connections create bitbucket-data-center bdc-conn"))
+    #expect(cmd.contains("--host-uri=https://bitbucket.mycompany.com"))
+}
+
+@Test func testConnectionBitbucketCloud() {
+    let conn = GoogleCloudBuildConnection(
+        name: "bbc-conn",
+        projectID: "test-project",
+        region: "us-central1",
+        connectionType: .bitbucketCloud(workspace: "my-workspace", authorizerCredential: nil, readAuthorizerCredential: nil)
+    )
+
+    let cmd = conn.createCommand!
+    #expect(cmd.contains("gcloud builds connections create bitbucket-cloud bbc-conn"))
+    #expect(cmd.contains("--workspace=my-workspace"))
+}
+
+@Test func testConnectionDeleteCommand() {
+    let conn = GoogleCloudBuildConnection(
+        name: "my-conn",
+        projectID: "test-project",
+        region: "us-central1",
+        connectionType: .github(appInstallationId: nil)
+    )
+
+    #expect(conn.deleteCommand == "gcloud builds connections delete my-conn --project=test-project --region=us-central1 --quiet")
+}
+
+@Test func testConnectionDescribeCommand() {
+    let conn = GoogleCloudBuildConnection(
+        name: "my-conn",
+        projectID: "test-project",
+        region: "us-central1",
+        connectionType: .github(appInstallationId: nil)
+    )
+
+    #expect(conn.describeCommand == "gcloud builds connections describe my-conn --project=test-project --region=us-central1")
+}
+
+@Test func testConnectionListCommand() {
+    let cmd = GoogleCloudBuildConnection.listCommand(projectID: "test-project", region: "us-central1")
+    #expect(cmd == "gcloud builds connections list --project=test-project --region=us-central1")
+}
+
+// MARK: - Cloud Build Repository Tests
+
+@Test func testBuildRepositoryCreate() {
+    let repo = GoogleCloudBuildRepository(
+        name: "my-repo",
+        projectID: "test-project",
+        region: "us-central1",
+        connectionName: "github-conn",
+        remoteUri: "https://github.com/owner/repo.git"
+    )
+
+    #expect(repo.name == "my-repo")
+    #expect(repo.resourceName == "projects/test-project/locations/us-central1/connections/github-conn/repositories/my-repo")
+
+    let cmd = repo.createCommand
+    #expect(cmd.contains("gcloud builds repositories create my-repo"))
+    #expect(cmd.contains("--connection=github-conn"))
+    #expect(cmd.contains("--remote-uri=https://github.com/owner/repo.git"))
+}
+
+@Test func testBuildRepositoryDeleteCommand() {
+    let repo = GoogleCloudBuildRepository(
+        name: "my-repo",
+        projectID: "test-project",
+        region: "us-central1",
+        connectionName: "github-conn",
+        remoteUri: "https://github.com/owner/repo.git"
+    )
+
+    #expect(repo.deleteCommand.contains("gcloud builds repositories delete my-repo"))
+    #expect(repo.deleteCommand.contains("--connection=github-conn"))
+    #expect(repo.deleteCommand.contains("--quiet"))
+}
+
+@Test func testBuildRepositoryDescribeCommand() {
+    let repo = GoogleCloudBuildRepository(
+        name: "my-repo",
+        projectID: "test-project",
+        region: "us-central1",
+        connectionName: "github-conn",
+        remoteUri: "https://github.com/owner/repo.git"
+    )
+
+    #expect(repo.describeCommand.contains("gcloud builds repositories describe my-repo"))
+    #expect(repo.describeCommand.contains("--connection=github-conn"))
+}
+
+@Test func testBuildRepositoryListCommand() {
+    let cmd = GoogleCloudBuildRepository.listCommand(
+        projectID: "test-project",
+        region: "us-central1",
+        connectionName: "github-conn"
+    )
+    #expect(cmd.contains("gcloud builds repositories list"))
+    #expect(cmd.contains("--connection=github-conn"))
+}
+
+// MARK: - Cloud Build Operations Tests
+
+@Test func testEnableAPICommand() {
+    let cmd = CloudBuildOperations.enableAPICommand(projectID: "test-project")
+    #expect(cmd == "gcloud services enable cloudbuild.googleapis.com --project=test-project")
+}
+
+@Test func testSubmitCommandBasic() {
+    let cmd = CloudBuildOperations.submitCommand(projectID: "test-project")
+    #expect(cmd == "gcloud builds submit --project=test-project")
+}
+
+@Test func testSubmitCommandWithOptions() {
+    let cmd = CloudBuildOperations.submitCommand(
+        projectID: "test-project",
+        configFile: "cloudbuild.yaml",
+        tag: "gcr.io/test-project/image:latest",
+        substitutions: ["ENV": "prod"],
+        timeout: "1800s",
+        machineType: .e2Highcpu8,
+        region: "us-central1",
+        workerPool: "projects/test-project/locations/us-central1/workerPools/my-pool",
+        gcsLogDir: "gs://my-bucket/logs",
+        gcsSourceStagingDir: "gs://my-bucket/source",
+        ignoreFile: ".gcloudignore",
+        noCache: true,
+        async: true
+    )
+
+    #expect(cmd.contains("--config=cloudbuild.yaml"))
+    #expect(cmd.contains("--tag=gcr.io/test-project/image:latest"))
+    #expect(cmd.contains("--substitutions=_ENV=prod"))
+    #expect(cmd.contains("--timeout=1800s"))
+    #expect(cmd.contains("--machine-type=E2_HIGHCPU_8"))
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(cmd.contains("--worker-pool=projects/test-project/locations/us-central1/workerPools/my-pool"))
+    #expect(cmd.contains("--gcs-log-dir=gs://my-bucket/logs"))
+    #expect(cmd.contains("--gcs-source-staging-dir=gs://my-bucket/source"))
+    #expect(cmd.contains("--ignore-file=.gcloudignore"))
+    #expect(cmd.contains("--no-cache"))
+    #expect(cmd.contains("--async"))
+}
+
+@Test func testGetServiceAccountCommand() {
+    let cmd = CloudBuildOperations.getServiceAccountCommand(projectID: "test-project")
+    #expect(cmd.contains("gcloud projects describe test-project"))
+    #expect(cmd.contains("@cloudbuild.gserviceaccount.com"))
+}
+
+@Test func testGrantCloudRunDeployerCommand() {
+    let cmd = CloudBuildOperations.grantCloudRunDeployerCommand(projectID: "test-project")
+    #expect(cmd.contains("gcloud projects add-iam-policy-binding test-project"))
+    #expect(cmd.contains("roles/run.admin"))
+    #expect(cmd.contains("roles/iam.serviceAccountUser"))
+}
+
+@Test func testGrantGKEDeployerCommand() {
+    let cmd = CloudBuildOperations.grantGKEDeployerCommand(projectID: "test-project")
+    #expect(cmd.contains("gcloud projects add-iam-policy-binding test-project"))
+    #expect(cmd.contains("roles/container.developer"))
+}
+
+@Test func testGrantArtifactRegistryWriterCommand() {
+    let cmd = CloudBuildOperations.grantArtifactRegistryWriterCommand(projectID: "test-project")
+    #expect(cmd.contains("gcloud projects add-iam-policy-binding test-project"))
+    #expect(cmd.contains("roles/artifactregistry.writer"))
+}
+
+@Test func testApproveCommand() {
+    let cmd = CloudBuildOperations.approveCommand(buildID: "build-123", projectID: "test-project")
+    #expect(cmd == "gcloud builds approve build-123 --project=test-project")
+
+    let cmdWithRegion = CloudBuildOperations.approveCommand(buildID: "build-123", projectID: "test-project", region: "us-central1")
+    #expect(cmdWithRegion.contains("--region=us-central1"))
+}
+
+@Test func testRejectCommand() {
+    let cmd = CloudBuildOperations.rejectCommand(buildID: "build-123", projectID: "test-project")
+    #expect(cmd == "gcloud builds reject build-123 --project=test-project")
+
+    let cmdWithComment = CloudBuildOperations.rejectCommand(buildID: "build-123", projectID: "test-project", comment: "Reason for rejection")
+    #expect(cmdWithComment.contains("--comment=\"Reason for rejection\""))
+}
+
+// MARK: - Config Generator Tests
+
+@Test func testDockerBuildPush() {
+    let config = CloudBuildConfigGenerator.dockerBuildPush(
+        imageName: "gcr.io/test-project/my-image"
+    )
+
+    #expect(config.contains("steps:"))
+    #expect(config.contains("gcr.io/cloud-builders/docker"))
+    #expect(config.contains("gcr.io/test-project/my-image:$COMMIT_SHA"))
+    #expect(config.contains("gcr.io/test-project/my-image:latest"))
+    #expect(config.contains("images:"))
+}
+
+@Test func testDockerBuildDeployCloudRun() {
+    let config = CloudBuildConfigGenerator.dockerBuildDeployCloudRun(
+        imageName: "us-central1-docker.pkg.dev/test-project/repo/image",
+        serviceName: "my-service",
+        region: "us-central1",
+        envVars: ["ENV": "prod"],
+        memory: "512Mi",
+        cpu: "1",
+        minInstances: 1,
+        maxInstances: 10,
+        allowUnauthenticated: true
+    )
+
+    #expect(config.contains("gcr.io/cloud-builders/docker"))
+    #expect(config.contains("gcloud"))
+    #expect(config.contains("run"))
+    #expect(config.contains("deploy"))
+    #expect(config.contains("my-service"))
+    #expect(config.contains("--region=us-central1"))
+    #expect(config.contains("--allow-unauthenticated"))
+    #expect(config.contains("--memory=512Mi"))
+    #expect(config.contains("--cpu=1"))
+    #expect(config.contains("--min-instances=1"))
+    #expect(config.contains("--max-instances=10"))
+    #expect(config.contains("--set-env-vars=ENV=prod"))
+}
+
+@Test func testSwiftBuildTest() {
+    let config = CloudBuildConfigGenerator.swiftBuildTest()
+
+    #expect(config.contains("swift:5.10"))
+    #expect(config.contains("swift build"))
+    #expect(config.contains("swift test"))
+}
+
+@Test func testSwiftDockerCloudRun() {
+    let config = CloudBuildConfigGenerator.swiftDockerCloudRun(
+        imageName: "us-central1-docker.pkg.dev/test-project/repo/swift-app",
+        serviceName: "swift-service",
+        region: "us-central1",
+        executableName: "my-server",
+        port: 8080
+    )
+
+    #expect(config.contains("swift:5.10"))
+    #expect(config.contains("swift build"))
+    #expect(config.contains("swift test"))
+    #expect(config.contains("gcr.io/cloud-builders/docker"))
+    #expect(config.contains("swift-service"))
+    #expect(config.contains("--port=8080"))
+    #expect(config.contains("waitFor: ['test']"))
+}
+
+@Test func testMultiServiceDeploy() {
+    let config = CloudBuildConfigGenerator.multiServiceDeploy(
+        services: [
+            (name: "api", imageName: "gcr.io/p/api", dockerfile: "api/Dockerfile", region: "us-central1"),
+            (name: "web", imageName: "gcr.io/p/web", dockerfile: "web/Dockerfile", region: "us-central1")
+        ]
+    )
+
+    #expect(config.contains("build-api"))
+    #expect(config.contains("build-web"))
+    #expect(config.contains("push-api"))
+    #expect(config.contains("push-web"))
+    #expect(config.contains("deploy-api"))
+    #expect(config.contains("deploy-web"))
+    #expect(config.contains("api/Dockerfile"))
+    #expect(config.contains("web/Dockerfile"))
+}
+
+// MARK: - DAIS Cloud Build Template Tests
+
+@Test func testDAISGitHubTrigger() {
+    let trigger = DAISCloudBuildTemplate.githubTrigger(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        owner: "myorg",
+        repo: "my-repo"
+    )
+
+    #expect(trigger.name == "dais-prod-deploy")
+    #expect(trigger.tags.contains("dais"))
+    #expect(trigger.tags.contains("dais-prod"))
+    #expect(trigger.substitutions["DEPLOYMENT_NAME"] == "dais-prod")
+
+    if case .github(let owner, let name, _) = trigger.triggerSource {
+        #expect(owner == "myorg")
+        #expect(name == "my-repo")
+    }
+}
+
+@Test func testDAISPRPreviewTrigger() {
+    let trigger = DAISCloudBuildTemplate.prPreviewTrigger(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        owner: "myorg",
+        repo: "my-repo"
+    )
+
+    #expect(trigger.name == "dais-prod-pr-preview")
+    #expect(trigger.tags.contains("preview"))
+
+    if case .github(_, _, let eventConfig) = trigger.triggerSource {
+        if case .pullRequest = eventConfig {
+            // Expected
+        } else {
+            Issue.record("Expected pullRequest event config")
+        }
+    }
+}
+
+@Test func testDAISManualTrigger() {
+    let trigger = DAISCloudBuildTemplate.manualTrigger(
+        projectID: "test-project",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(trigger.name == "dais-prod-manual")
+    #expect(trigger.tags.contains("manual"))
+
+    if case .manual = trigger.triggerSource {
+        // Expected
+    } else {
+        Issue.record("Expected manual trigger source")
+    }
+}
+
+@Test func testDAISCloudbuildYaml() {
+    let yaml = DAISCloudBuildTemplate.cloudbuildYaml(
+        projectID: "test-project",
+        location: "us-central1",
+        deploymentName: "dais-prod",
+        cloudRunRegion: "us-central1",
+        services: [
+            (name: "api", port: 8080),
+            (name: "worker", port: 8081)
+        ]
+    )
+
+    #expect(yaml.contains("DAIS Cloud Build Configuration"))
+    #expect(yaml.contains("dais-prod"))
+    #expect(yaml.contains("build-api"))
+    #expect(yaml.contains("build-worker"))
+    #expect(yaml.contains("push-api"))
+    #expect(yaml.contains("push-worker"))
+    #expect(yaml.contains("deploy-api"))
+    #expect(yaml.contains("deploy-worker"))
+    #expect(yaml.contains("--port=8080"))
+    #expect(yaml.contains("--port=8081"))
+    #expect(yaml.contains("E2_HIGHCPU_8"))
+    #expect(yaml.contains("timeout: '1800s'"))
+}
+
+@Test func testDAISSetupScript() {
+    let script = DAISCloudBuildTemplate.setupScript(
+        projectID: "test-project",
+        location: "us-central1",
+        deploymentName: "dais-prod",
+        githubOwner: "myorg",
+        githubRepo: "my-repo",
+        cloudRunRegion: "us-central1"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("gcloud services enable cloudbuild.googleapis.com"))
+    #expect(script.contains("roles/artifactregistry.writer"))
+    #expect(script.contains("roles/run.admin"))
+    #expect(script.contains("roles/iam.serviceAccountUser"))
+    #expect(script.contains("gcloud builds triggers create github"))
+    #expect(script.contains("--repo-owner=myorg"))
+    #expect(script.contains("--repo-name=my-repo"))
+    #expect(script.contains("dais-prod-deploy"))
+    #expect(script.contains("Cloud Build Setup Complete!"))
+}
+
+@Test func testDAISTeardownScript() {
+    let script = DAISCloudBuildTemplate.teardownScript(
+        projectID: "test-project",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("gcloud builds triggers delete dais-prod-deploy"))
+    #expect(script.contains("gcloud builds triggers delete dais-prod-pr-preview"))
+    #expect(script.contains("gcloud builds triggers delete dais-prod-manual"))
+    #expect(script.contains("teardown complete"))
+}
+
+@Test func testDAISWorkerPool() {
+    let pool = DAISCloudBuildTemplate.workerPool(
+        projectID: "test-project",
+        region: "us-central1",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(pool.name == "dais-prod-pool")
+    #expect(pool.displayName == "DAIS dais-prod Worker Pool")
+    #expect(pool.privatePoolConfig.workerConfig.machineType == "e2-standard-4")
+    #expect(pool.privatePoolConfig.workerConfig.diskSizeGb == 100)
+}
+
+@Test func testDAISWorkerPoolWithVPC() {
+    let pool = DAISCloudBuildTemplate.workerPool(
+        projectID: "test-project",
+        region: "us-central1",
+        deploymentName: "dais-prod",
+        vpcNetwork: "projects/test-project/global/networks/my-vpc"
+    )
+
+    #expect(pool.privatePoolConfig.networkConfig != nil)
+    #expect(pool.privatePoolConfig.networkConfig?.peeredNetwork == "projects/test-project/global/networks/my-vpc")
+    #expect(pool.privatePoolConfig.networkConfig?.egressOption == .noPublicEgress)
+}
+
+// MARK: - Cloud Build Codable Tests
+
+@Test func testBuildCodable() throws {
+    let step = GoogleCloudBuild.BuildStep(name: "gcr.io/cloud-builders/docker", args: ["build", "."])
+    let build = GoogleCloudBuild(
+        projectID: "test-project",
+        steps: [step],
+        timeout: "600s"
+    )
+    let data = try JSONEncoder().encode(build)
+    let decoded = try JSONDecoder().decode(GoogleCloudBuild.self, from: data)
+
+    #expect(decoded.projectID == "test-project")
+    #expect(decoded.steps.count == 1)
+    #expect(decoded.timeout == "600s")
+}
+
+@Test func testBuildStepCodable() throws {
+    let step = GoogleCloudBuild.BuildStep(
+        name: "gcr.io/cloud-builders/docker",
+        args: ["build", "."],
+        env: ["KEY=value"],
+        id: "build"
+    )
+    let data = try JSONEncoder().encode(step)
+    let decoded = try JSONDecoder().decode(GoogleCloudBuild.BuildStep.self, from: data)
+
+    #expect(decoded.name == "gcr.io/cloud-builders/docker")
+    #expect(decoded.args == ["build", "."])
+    #expect(decoded.id == "build")
+}
+
+@Test func testBuildTriggerCodable() throws {
+    let trigger = GoogleCloudBuildTrigger(
+        name: "my-trigger",
+        projectID: "test-project",
+        triggerSource: .manual,
+        buildConfig: .filename("cloudbuild.yaml")
+    )
+    let data = try JSONEncoder().encode(trigger)
+    let decoded = try JSONDecoder().decode(GoogleCloudBuildTrigger.self, from: data)
+
+    #expect(decoded.name == "my-trigger")
+    #expect(decoded.projectID == "test-project")
+}
+
+@Test func testWorkerPoolCodable() throws {
+    let pool = GoogleCloudBuildWorkerPool(
+        name: "my-pool",
+        projectID: "test-project",
+        region: "us-central1",
+        privatePoolConfig: .init(workerConfig: .init(machineType: "e2-standard-4", diskSizeGb: 100))
+    )
+    let data = try JSONEncoder().encode(pool)
+    let decoded = try JSONDecoder().decode(GoogleCloudBuildWorkerPool.self, from: data)
+
+    #expect(decoded.name == "my-pool")
+    #expect(decoded.privatePoolConfig.workerConfig.machineType == "e2-standard-4")
+}
+
+@Test func testConnectionCodable() throws {
+    let conn = GoogleCloudBuildConnection(
+        name: "github-conn",
+        projectID: "test-project",
+        region: "us-central1",
+        connectionType: .github(appInstallationId: 12345)
+    )
+    let data = try JSONEncoder().encode(conn)
+    let decoded = try JSONDecoder().decode(GoogleCloudBuildConnection.self, from: data)
+
+    #expect(decoded.name == "github-conn")
+    #expect(decoded.region == "us-central1")
+}
+
+@Test func testBuildRepositoryCodable() throws {
+    let repo = GoogleCloudBuildRepository(
+        name: "my-repo",
+        projectID: "test-project",
+        region: "us-central1",
+        connectionName: "github-conn",
+        remoteUri: "https://github.com/owner/repo.git"
+    )
+    let data = try JSONEncoder().encode(repo)
+    let decoded = try JSONDecoder().decode(GoogleCloudBuildRepository.self, from: data)
+
+    #expect(decoded.name == "my-repo")
+    #expect(decoded.remoteUri == "https://github.com/owner/repo.git")
+}
