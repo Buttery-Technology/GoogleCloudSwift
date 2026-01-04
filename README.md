@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 57 Google Cloud services:
+GoogleCloudSwift provides models for 58 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -137,6 +137,7 @@ GoogleCloudSwift provides models for 57 Google Cloud services:
 | **Network Intelligence Center** | Network monitoring and diagnostics | `GoogleCloudConnectivityTest`, `Endpoint`, `GoogleCloudNetworkTopology`, `DAISNetworkIntelligenceTemplate` |
 | **Cloud Interconnect** | Dedicated and partner network connections | `GoogleCloudInterconnect`, `GoogleCloudInterconnectAttachment`, `GoogleCloudRouterForInterconnect`, `DAISInterconnectTemplate` |
 | **Cloud Healthcare API** | Healthcare data storage (FHIR, HL7v2, DICOM) | `GoogleCloudHealthcareDataset`, `GoogleCloudFHIRStore`, `GoogleCloudDICOMStore`, `DAISHealthcareTemplate` |
+| **Retail API** | Product catalog and recommendations | `GoogleCloudRetailCatalog`, `GoogleCloudRetailProduct`, `GoogleCloudRetailUserEvent`, `DAISRetailTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -7668,6 +7669,224 @@ print(template.fhirBulkImportScript(
 | Immunization | `.immunization` | Vaccination records |
 | DiagnosticReport | `.diagnosticReport` | Lab and imaging reports |
 
+### GoogleCloudRetailProduct (Retail API)
+
+Retail API enables product catalog management, search, and AI-powered recommendations:
+
+```swift
+// Create a product
+let product = GoogleCloudRetailProduct(
+    id: "SKU-12345",
+    title: "Wireless Bluetooth Headphones",
+    description: "Premium noise-canceling headphones",
+    categories: ["Electronics", "Audio", "Headphones"],
+    priceInfo: .init(
+        currencyCode: "USD",
+        price: 199.99,
+        originalPrice: 249.99
+    ),
+    availability: .inStock,
+    availableQuantity: 150,
+    images: [.init(uri: "https://example.com/headphones.jpg")],
+    uri: "https://store.example.com/products/headphones",
+    brands: ["AudioTech"],
+    fulfillmentInfo: [.init(type: "ship-to-store", placeIds: ["store-001", "store-002"])]
+)
+```
+
+**User Events:**
+
+```swift
+// Track product view
+let viewEvent = GoogleCloudRetailUserEvent(
+    eventType: .productPageView,
+    visitorId: "visitor-abc123",
+    productDetails: [
+        .init(product: .init(id: "SKU-12345", title: "Wireless Headphones"), quantity: 1)
+    ],
+    userInfo: .init(userId: "user-456", directUserRequest: true)
+)
+
+// Track add to cart
+let cartEvent = GoogleCloudRetailUserEvent(
+    eventType: .addToCart,
+    visitorId: "visitor-abc123",
+    productDetails: [
+        .init(product: .init(id: "SKU-12345", title: "Wireless Headphones"), quantity: 1)
+    ],
+    cartId: "cart-789"
+)
+
+// Track purchase
+let purchaseEvent = GoogleCloudRetailUserEvent(
+    eventType: .purchaseComplete,
+    visitorId: "visitor-abc123",
+    productDetails: [
+        .init(product: .init(id: "SKU-12345", title: "Wireless Headphones"), quantity: 1)
+    ],
+    purchaseTransaction: .init(
+        id: "order-001",
+        revenue: 199.99,
+        tax: 16.00,
+        currencyCode: "USD"
+    )
+)
+
+// Track search
+let searchEvent = GoogleCloudRetailUserEvent(
+    eventType: .searchPageView,
+    visitorId: "visitor-abc123",
+    searchQuery: "wireless headphones",
+    pageCategories: ["Electronics", "Audio"]
+)
+```
+
+**Serving Configurations:**
+
+```swift
+// Create recommendation serving config
+let recConfig = GoogleCloudRetailServingConfig(
+    name: "homepage-recommendations",
+    projectID: "my-project",
+    location: "global",
+    catalogName: "default_catalog",
+    displayName: "Homepage Recommendations",
+    modelId: "recommendations-model-v1",
+    solutionTypes: [.recommendation]
+)
+
+print(recConfig.resourceName)
+
+// Create search serving config with dynamic facets
+let searchConfig = GoogleCloudRetailServingConfig(
+    name: "product-search",
+    projectID: "my-project",
+    displayName: "Product Search",
+    dynamicFacetSpec: .init(mode: .enabled),
+    solutionTypes: [.search]
+)
+```
+
+**Recommendation Models:**
+
+```swift
+// Create a recommendations model
+let model = GoogleCloudRetailModel(
+    name: "similar-items-model",
+    projectID: "my-project",
+    displayName: "Similar Items Recommendations",
+    modelType: .recommendationsAI,
+    optimizationObjective: "click-through-rate",
+    periodicTuningState: .periodicTuningEnabled
+)
+
+print(model.resourceName)
+```
+
+**Retail Operations:**
+
+```swift
+let ops = RetailOperations(projectID: "my-project")
+
+// Enable API
+print(ops.enableAPICommand)
+
+// Import products from GCS
+print(ops.importProductsCommand(gcsUri: "gs://my-bucket/products.json"))
+
+// Import user events
+print(ops.importUserEventsCommand(gcsUri: "gs://my-bucket/events.json"))
+
+// Get recommendations
+print(ops.getRecommendationsCommand(
+    servingConfigId: "homepage-recs",
+    visitorId: "visitor-123",
+    productId: "SKU-12345"
+))
+
+// Search products
+print(ops.searchProductsCommand(
+    servingConfigId: "product-search",
+    visitorId: "visitor-123",
+    query: "wireless headphones"
+))
+
+// Add IAM binding
+print(ops.addIAMBindingCommand(
+    member: "user:analyst@example.com",
+    role: .retailViewer
+))
+```
+
+**DAIS Retail Template:**
+
+```swift
+let template = DAISRetailTemplate(projectID: "my-project")
+
+// Create products with consistent structure
+let headphones = template.product(
+    id: "SKU-001",
+    title: "Premium Headphones",
+    description: "High-quality audio",
+    categories: ["Electronics", "Audio"],
+    price: 199.99,
+    availability: .inStock,
+    imageUri: "https://cdn.example.com/headphones.jpg"
+)
+
+// Track user journey
+let view = template.productViewEvent(
+    visitorId: "v-123",
+    productId: "SKU-001",
+    productTitle: "Premium Headphones"
+)
+
+let addToCart = template.addToCartEvent(
+    visitorId: "v-123",
+    productId: "SKU-001",
+    productTitle: "Premium Headphones",
+    cartId: "cart-abc"
+)
+
+let purchase = template.purchaseEvent(
+    visitorId: "v-123",
+    transactionId: "order-xyz",
+    products: [
+        (id: "SKU-001", title: "Premium Headphones", quantity: 1, price: 199.99)
+    ]
+)
+
+// Create serving configs
+let recConfig = template.recommendationConfig(
+    name: "similar-products",
+    displayName: "Similar Products",
+    modelId: "recs-model-v1"
+)
+
+let searchConfig = template.searchConfig(
+    name: "main-search",
+    displayName: "Main Search",
+    enableDynamicFacets: true
+)
+
+// Generate import scripts
+print(template.productImportScript(gcsUri: "gs://my-bucket/products/*.json"))
+print(template.userEventsImportScript(gcsUri: "gs://my-bucket/events/*.json"))
+```
+
+**Event Types:**
+
+| Event | Type | Description |
+|-------|------|-------------|
+| Home Page | `.homePageView` | User views home page |
+| Category Page | `.categoryPageView` | User views category |
+| Product Page | `.productPageView` | User views product detail |
+| Search | `.searchPageView` | User performs search |
+| Add to Cart | `.addToCart` | Product added to cart |
+| Remove from Cart | `.removeFromCart` | Product removed from cart |
+| Purchase | `.purchaseComplete` | Order completed |
+| Shopping Cart | `.shoppingCartPageView` | User views cart |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -9292,6 +9511,16 @@ MIT License
 - [De-identification](https://cloud.google.com/healthcare-api/docs/how-tos/deidentify)
 - [BigQuery Streaming](https://cloud.google.com/healthcare-api/docs/how-tos/fhir-bigquery-streaming)
 - [Healthcare API Reference](https://cloud.google.com/healthcare-api/docs/reference/rest)
+
+### Retail API
+- [Retail API Documentation](https://cloud.google.com/retail/docs)
+- [Product Catalog](https://cloud.google.com/retail/docs/catalog)
+- [Product Data Import](https://cloud.google.com/retail/docs/upload-catalog)
+- [User Events](https://cloud.google.com/retail/docs/record-events)
+- [Recommendations AI](https://cloud.google.com/retail/docs/recommendations-ai)
+- [Retail Search](https://cloud.google.com/retail/docs/retail-search)
+- [Serving Configs](https://cloud.google.com/retail/docs/serving-config)
+- [Model Training](https://cloud.google.com/retail/docs/train-model)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)
