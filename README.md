@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 45 Google Cloud services:
+GoogleCloudSwift provides models for 46 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -125,6 +125,7 @@ GoogleCloudSwift provides models for 45 Google Cloud services:
 | **Error Reporting** | Error collection and analysis | `GoogleCloudErrorEvent`, `GoogleCloudErrorGroup`, `ErrorReportingOperations`, `DAISErrorReportingTemplate` |
 | **Cloud Bigtable** | Wide-column NoSQL database | `GoogleCloudBigtableInstance`, `GoogleCloudBigtableCluster`, `GoogleCloudBigtableTable`, `DAISBigtableTemplate` |
 | **Dataproc** | Managed Spark and Hadoop | `GoogleCloudDataprocCluster`, `GoogleCloudDataprocJob`, `GoogleCloudDataprocBatch`, `DAISDataprocTemplate` |
+| **Cloud Composer** | Managed Apache Airflow | `GoogleCloudComposerEnvironment`, `GoogleCloudComposerDAG`, `ComposerOperations`, `DAISComposerTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -5508,6 +5509,195 @@ print(template.teardownScript)
 | `roles/dataproc.viewer` | View only |
 | `roles/dataproc.worker` | Worker node access |
 
+### GoogleCloudComposerEnvironment (Cloud Composer API)
+
+Cloud Composer is a fully managed Apache Airflow service for workflow orchestration:
+
+```swift
+// Create a Composer environment
+let environment = GoogleCloudComposerEnvironment(
+    name: "dais-workflows",
+    projectID: "my-project",
+    location: "us-central1",
+    config: GoogleCloudComposerEnvironment.EnvironmentConfig(
+        softwareConfig: GoogleCloudComposerEnvironment.SoftwareConfig(
+            imageVersion: "composer-2.9.7-airflow-2.9.3",
+            airflowConfigOverrides: [
+                "core-dags_are_paused_at_creation": "False",
+                "webserver-dag_default_view": "graph"
+            ],
+            pypiPackages: [
+                "google-cloud-bigquery": ">=3.0.0",
+                "pandas": ">=2.0.0"
+            ],
+            envVariables: [
+                "DAIS_ENV": "production"
+            ]
+        ),
+        nodeConfig: GoogleCloudComposerEnvironment.NodeConfig(
+            serviceAccount: "composer-sa@my-project.iam.gserviceaccount.com",
+            network: "projects/my-project/global/networks/default",
+            subnetwork: "projects/my-project/regions/us-central1/subnetworks/default"
+        ),
+        workloadsConfig: GoogleCloudComposerEnvironment.WorkloadsConfig(
+            scheduler: GoogleCloudComposerEnvironment.WorkloadsConfig.SchedulerResource(
+                cpu: 2.0,
+                memoryGb: 7.5,
+                storageGb: 5.0,
+                count: 2
+            ),
+            webServer: GoogleCloudComposerEnvironment.WorkloadsConfig.WebServerResource(
+                cpu: 2.0,
+                memoryGb: 7.5,
+                storageGb: 5.0
+            ),
+            worker: GoogleCloudComposerEnvironment.WorkloadsConfig.WorkerResource(
+                cpu: 2.0,
+                memoryGb: 7.5,
+                storageGb: 5.0,
+                minCount: 2,
+                maxCount: 10
+            )
+        ),
+        privateEnvironmentConfig: GoogleCloudComposerEnvironment.PrivateEnvironmentConfig(
+            enablePrivateEnvironment: true,
+            enablePrivateBuildsOnly: true
+        ),
+        environmentSize: .medium
+    ),
+    labels: ["env": "production", "managed-by": "dais"]
+)
+
+print(environment.resourceName)  // projects/my-project/locations/us-central1/environments/dais-workflows
+print(environment.createCommand)
+print(environment.describeCommand)
+```
+
+**Environment Management:**
+
+```swift
+// Update environment
+print(environment.updateCommand(
+    nodeCount: 5,
+    pypiPackages: ["new-package": ">=1.0.0"]
+))
+
+// Get Airflow web UI URL
+print(environment.getWebUICommand)
+
+// List DAG runs
+print(environment.listDagRunsCommand(dagID: "my_dag"))
+
+// Trigger a DAG
+print(environment.triggerDagCommand(dagID: "my_dag", runID: "manual-run-001"))
+```
+
+**DAG Templates:**
+
+```swift
+// Create DAGs for Airflow
+let etlDag = GoogleCloudComposerDAG(
+    dagID: "dais_etl_pipeline",
+    schedule: "0 2 * * *",  // Daily at 2 AM
+    defaultArgs: GoogleCloudComposerDAG.DAGDefaultArgs(
+        owner: "dais-team",
+        startDate: "2024-01-01",
+        retries: 3,
+        retryDelay: 300,
+        email: ["alerts@example.com"],
+        emailOnFailure: true
+    ),
+    catchup: false,
+    tags: ["etl", "production"]
+)
+
+// Generate Python DAG file
+print(etlDag.pythonTemplate)
+/*
+from airflow import DAG
+from datetime import datetime, timedelta
+
+default_args = {
+    'owner': 'dais-team',
+    'start_date': datetime(2024, 1, 1),
+    'retries': 3,
+    'retry_delay': timedelta(seconds=300),
+    'email': ['alerts@example.com'],
+    'email_on_failure': True,
+}
+
+with DAG(
+    'dais_etl_pipeline',
+    default_args=default_args,
+    schedule_interval='0 2 * * *',
+    catchup=False,
+    tags=['etl', 'production'],
+) as dag:
+    pass  # Add tasks here
+*/
+```
+
+**Composer Operations:**
+
+```swift
+// Enable API
+print(ComposerOperations.enableAPICommand)
+
+// Grant roles
+print(ComposerOperations.addAdminRoleCommand(projectID: "my-project", member: "user:admin@example.com"))
+
+// List environments
+print(ComposerOperations.listEnvironmentsCommand(projectID: "my-project", location: "us-central1"))
+
+// Run Airflow CLI command
+print(ComposerOperations.airflowCommand(
+    projectID: "my-project",
+    location: "us-central1",
+    environmentName: "dais-workflows",
+    command: "dags list"
+))
+```
+
+**DAIS Composer Templates:**
+
+```swift
+let template = DAISComposerTemplate(
+    projectID: "my-project",
+    location: "us-central1",
+    environmentName: "dais-composer",
+    serviceAccount: "sa@my-project.iam.gserviceaccount.com"
+)
+
+// Pre-configured environments
+let standardEnv = template.standardEnvironment
+let productionEnv = template.productionEnvironment  // HA with private IP
+let developmentEnv = template.developmentEnvironment  // Minimal for testing
+
+// Sample DAGs
+let sampleDAG = template.sampleDAG
+
+// Setup and teardown scripts
+print(template.setupScript)
+print(template.teardownScript)
+```
+
+**Environment Sizes:**
+
+| Size | Scheduler | Web Server | Worker | Use Case |
+|------|-----------|------------|--------|----------|
+| `SMALL` | 0.5 CPU, 2GB | 0.5 CPU, 2GB | 0.5 CPU, 2GB | Development |
+| `MEDIUM` | 2 CPU, 7.5GB | 2 CPU, 7.5GB | 2 CPU, 7.5GB | Production |
+| `LARGE` | 4 CPU, 15GB | 4 CPU, 15GB | 4 CPU, 15GB | Enterprise |
+
+**IAM Roles:**
+
+| Role | Description |
+|------|-------------|
+| `roles/composer.admin` | Full access to environments |
+| `roles/composer.user` | Trigger DAGs, view environments |
+| `roles/composer.worker` | Worker node access |
+| `roles/composer.environmentAndStorageObjectAdmin` | Environment and storage access |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -7006,6 +7196,17 @@ MIT License
 - [Optional Components](https://cloud.google.com/dataproc/docs/concepts/components/overview)
 - [Preemptible/Spot VMs](https://cloud.google.com/dataproc/docs/concepts/compute/preemptible-vms)
 - [Dataproc IAM Roles](https://cloud.google.com/dataproc/docs/concepts/iam/iam)
+
+### Cloud Composer
+- [Cloud Composer Documentation](https://cloud.google.com/composer/docs)
+- [Environment Configuration](https://cloud.google.com/composer/docs/concepts/environment-configuration)
+- [Apache Airflow DAGs](https://cloud.google.com/composer/docs/how-to/using/writing-dags)
+- [Composer 2 Architecture](https://cloud.google.com/composer/docs/composer-2/composer-2-overview)
+- [Workloads Configuration](https://cloud.google.com/composer/docs/composer-2/configure-workloads)
+- [Private IP Environments](https://cloud.google.com/composer/docs/how-to/configuring-private-ip)
+- [Environment Scaling](https://cloud.google.com/composer/docs/composer-2/scale-environments)
+- [Triggering DAGs](https://cloud.google.com/composer/docs/triggering-dags)
+- [Composer IAM Roles](https://cloud.google.com/composer/docs/access-control)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)
