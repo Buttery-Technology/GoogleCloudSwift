@@ -13751,3 +13751,321 @@ import Testing
     #expect(devicePolicy.osConstraints?.first?.osType == .desktopMac)
     #expect(devicePolicy.allowedDeviceManagementLevels?.contains(.complete) == true)
 }
+
+// MARK: - Cloud Filestore Tests
+
+@Test func testFilestoreInstanceBasicInit() {
+    let instance = GoogleCloudFilestoreInstance(
+        name: "my-filestore",
+        projectID: "my-project",
+        zone: "us-central1-a",
+        tier: .basicSSD,
+        fileShares: [
+            GoogleCloudFilestoreInstance.FileShare(name: "share", capacityGB: 1024)
+        ],
+        networks: [
+            GoogleCloudFilestoreInstance.NetworkConfig(network: "default")
+        ]
+    )
+
+    #expect(instance.name == "my-filestore")
+    #expect(instance.tier == .basicSSD)
+    #expect(instance.region == "us-central1")
+}
+
+@Test func testFilestoreInstanceResourceName() {
+    let instance = GoogleCloudFilestoreInstance(
+        name: "test-fs",
+        projectID: "my-project",
+        zone: "us-west1-b",
+        tier: .basic,
+        fileShares: [GoogleCloudFilestoreInstance.FileShare(name: "data", capacityGB: 2048)],
+        networks: [GoogleCloudFilestoreInstance.NetworkConfig(network: "default")]
+    )
+
+    #expect(instance.resourceName == "projects/my-project/locations/us-west1-b/instances/test-fs")
+}
+
+@Test func testFilestoreInstanceCreateCommand() {
+    let instance = GoogleCloudFilestoreInstance(
+        name: "prod-storage",
+        projectID: "my-project",
+        zone: "us-central1-a",
+        tier: .basicSSD,
+        fileShares: [
+            GoogleCloudFilestoreInstance.FileShare(name: "shared", capacityGB: 2560)
+        ],
+        networks: [
+            GoogleCloudFilestoreInstance.NetworkConfig(
+                network: "my-vpc",
+                reservedIPRange: "10.0.0.0/29"
+            )
+        ],
+        description: "Production storage"
+    )
+
+    let cmd = instance.createCommand
+    #expect(cmd.contains("filestore instances create prod-storage"))
+    #expect(cmd.contains("--tier=basic-ssd"))
+    #expect(cmd.contains("--file-share=name=shared,capacity=2560GB"))
+    #expect(cmd.contains("--network=name=my-vpc,reserved-ip-range=10.0.0.0/29"))
+}
+
+@Test func testFilestoreInstanceDeleteCommand() {
+    let instance = GoogleCloudFilestoreInstance(
+        name: "test-fs",
+        projectID: "my-project",
+        zone: "us-central1-a",
+        tier: .basic,
+        fileShares: [GoogleCloudFilestoreInstance.FileShare(name: "share", capacityGB: 1024)],
+        networks: [GoogleCloudFilestoreInstance.NetworkConfig(network: "default")]
+    )
+
+    let cmd = instance.deleteCommand
+    #expect(cmd.contains("filestore instances delete test-fs"))
+    #expect(cmd.contains("--zone=us-central1-a"))
+}
+
+@Test func testFilestoreTierDescriptions() {
+    #expect(GoogleCloudFilestoreInstance.Tier.basic.description.contains("HDD"))
+    #expect(GoogleCloudFilestoreInstance.Tier.enterprise.description.contains("HA"))
+    #expect(GoogleCloudFilestoreInstance.Tier.highScaleSSD.minCapacityTB == 10.0)
+}
+
+@Test func testFilestoreNFSExportOptions() {
+    let option = GoogleCloudFilestoreInstance.FileShare.NFSExportOption(
+        ipRanges: ["10.0.0.0/8"],
+        accessMode: .readWrite,
+        squashMode: .rootSquash
+    )
+
+    #expect(option.accessMode == .readWrite)
+    #expect(option.squashMode == .rootSquash)
+    #expect(option.ipRanges?.contains("10.0.0.0/8") == true)
+}
+
+@Test func testFilestoreBackupBasicInit() {
+    let backup = GoogleCloudFilestoreBackup(
+        name: "my-backup",
+        projectID: "my-project",
+        region: "us-central1",
+        sourceInstance: "projects/my-project/locations/us-central1-a/instances/my-fs",
+        sourceFileShare: "shared"
+    )
+
+    #expect(backup.name == "my-backup")
+    #expect(backup.resourceName == "projects/my-project/locations/us-central1/backups/my-backup")
+}
+
+@Test func testFilestoreBackupCreateCommand() {
+    let backup = GoogleCloudFilestoreBackup(
+        name: "weekly-backup",
+        projectID: "my-project",
+        region: "us-central1",
+        sourceInstance: "projects/my-project/locations/us-central1-a/instances/prod-fs",
+        sourceFileShare: "data",
+        description: "Weekly backup"
+    )
+
+    let cmd = backup.createCommand
+    #expect(cmd.contains("filestore backups create weekly-backup"))
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(cmd.contains("--source-file-share=data"))
+}
+
+@Test func testFilestoreBackupRestoreCommand() {
+    let backup = GoogleCloudFilestoreBackup(
+        name: "my-backup",
+        projectID: "my-project",
+        region: "us-central1",
+        sourceInstance: "source-instance",
+        sourceFileShare: "shared"
+    )
+
+    let cmd = backup.restoreCommand(
+        targetInstance: "restored-fs",
+        targetZone: "us-central1-a",
+        targetFileShare: "restored",
+        tier: .basicSSD,
+        network: "default"
+    )
+
+    #expect(cmd.contains("filestore instances restore restored-fs"))
+    #expect(cmd.contains("--source-backup="))
+    #expect(cmd.contains("--tier=basic-ssd"))
+}
+
+@Test func testFilestoreSnapshotBasicInit() {
+    let snapshot = GoogleCloudFilestoreSnapshot(
+        name: "my-snapshot",
+        projectID: "my-project",
+        zone: "us-central1-a",
+        instanceName: "my-fs"
+    )
+
+    #expect(snapshot.name == "my-snapshot")
+    #expect(snapshot.resourceName.contains("snapshots/my-snapshot"))
+}
+
+@Test func testFilestoreSnapshotCreateCommand() {
+    let snapshot = GoogleCloudFilestoreSnapshot(
+        name: "pre-upgrade",
+        projectID: "my-project",
+        zone: "us-central1-a",
+        instanceName: "prod-fs",
+        description: "Snapshot before upgrade"
+    )
+
+    let cmd = snapshot.createCommand
+    #expect(cmd.contains("filestore snapshots create pre-upgrade"))
+    #expect(cmd.contains("--instance=prod-fs"))
+}
+
+@Test func testFilestoreOperationsEnableAPI() {
+    let cmd = FilestoreOperations.enableAPICommand(projectID: "my-project")
+    #expect(cmd.contains("services enable file.googleapis.com"))
+    #expect(cmd.contains("--project=my-project"))
+}
+
+@Test func testFilestoreOperationsGetIP() {
+    let cmd = FilestoreOperations.getIPAddressCommand(
+        instanceName: "my-fs",
+        projectID: "my-project",
+        zone: "us-central1-a"
+    )
+    #expect(cmd.contains("filestore instances describe my-fs"))
+    #expect(cmd.contains("ipAddresses"))
+}
+
+@Test func testDAISFilestoreTemplateSharedStorage() {
+    let instance = DAISFilestoreTemplate.sharedStorage(
+        projectID: "my-project",
+        zone: "us-central1-a",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(instance.name == "dais-prod-shared-storage")
+    #expect(instance.tier == .basicSSD)
+    #expect(instance.labels?["deployment"] == "dais-prod")
+}
+
+@Test func testDAISFilestoreTemplateEnterpriseStorage() {
+    let instance = DAISFilestoreTemplate.enterpriseStorage(
+        projectID: "my-project",
+        region: "us-central1",
+        deploymentName: "dais-prod",
+        capacityGB: 4096,
+        network: "prod-vpc"
+    )
+
+    #expect(instance.name == "dais-prod-enterprise-storage")
+    #expect(instance.tier == .enterprise)
+    #expect(instance.fileShares.first?.nfsExportOptions?.first?.squashMode == .rootSquash)
+}
+
+@Test func testDAISFilestoreTemplateDataProcessing() {
+    let instance = DAISFilestoreTemplate.dataProcessingStorage(
+        projectID: "my-project",
+        zone: "us-central1-a",
+        deploymentName: "dais-prod",
+        capacityGB: 20480,
+        network: "data-vpc"
+    )
+
+    #expect(instance.name == "dais-prod-data-storage")
+    #expect(instance.tier == .highScaleSSD)
+    #expect(instance.fileShares.first?.capacityGB == 20480)
+}
+
+@Test func testDAISFilestoreTemplateFstabEntry() {
+    let entry = DAISFilestoreTemplate.fstabEntry(
+        filestoreIP: "10.0.0.2",
+        fileShareName: "shared",
+        mountPoint: "/mnt/filestore"
+    )
+
+    #expect(entry.contains("10.0.0.2:/shared"))
+    #expect(entry.contains("/mnt/filestore"))
+    #expect(entry.contains("nfs"))
+}
+
+@Test func testDAISFilestoreTemplateSetupScript() {
+    let script = DAISFilestoreTemplate.setupScript(
+        projectID: "my-project",
+        zone: "us-central1-a",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(script.contains("file.googleapis.com"))
+    #expect(script.contains("filestore instances create"))
+    #expect(script.contains("dais-prod-shared-storage"))
+}
+
+@Test func testFilestoreInstanceCodable() throws {
+    let instance = GoogleCloudFilestoreInstance(
+        name: "test-fs",
+        projectID: "my-project",
+        zone: "us-central1-a",
+        tier: .enterprise,
+        fileShares: [GoogleCloudFilestoreInstance.FileShare(name: "share", capacityGB: 2048)],
+        networks: [GoogleCloudFilestoreInstance.NetworkConfig(network: "default")]
+    )
+
+    let data = try JSONEncoder().encode(instance)
+    let decoded = try JSONDecoder().decode(GoogleCloudFilestoreInstance.self, from: data)
+
+    #expect(decoded.name == "test-fs")
+    #expect(decoded.tier == .enterprise)
+}
+
+@Test func testFilestoreBackupCodable() throws {
+    let backup = GoogleCloudFilestoreBackup(
+        name: "backup-1",
+        projectID: "my-project",
+        region: "us-central1",
+        sourceInstance: "source-fs",
+        sourceFileShare: "share"
+    )
+
+    let data = try JSONEncoder().encode(backup)
+    let decoded = try JSONDecoder().decode(GoogleCloudFilestoreBackup.self, from: data)
+
+    #expect(decoded.name == "backup-1")
+    #expect(decoded.sourceFileShare == "share")
+}
+
+@Test func testFilestoreInstanceWithKMS() {
+    let instance = GoogleCloudFilestoreInstance(
+        name: "secure-fs",
+        projectID: "my-project",
+        zone: "us-central1-a",
+        tier: .enterprise,
+        fileShares: [GoogleCloudFilestoreInstance.FileShare(name: "encrypted", capacityGB: 2048)],
+        networks: [GoogleCloudFilestoreInstance.NetworkConfig(network: "secure-vpc")],
+        kmsKeyName: "projects/my-project/locations/us-central1/keyRings/my-ring/cryptoKeys/fs-key"
+    )
+
+    let cmd = instance.createCommand
+    #expect(cmd.contains("--kms-key="))
+}
+
+@Test func testFilestoreNetworkConfigConnectMode() {
+    let config = GoogleCloudFilestoreInstance.NetworkConfig(
+        network: "my-vpc",
+        connectMode: .privateServiceAccess
+    )
+
+    #expect(config.connectMode == .privateServiceAccess)
+}
+
+@Test func testFilestoreInstanceListCommand() {
+    let cmd = GoogleCloudFilestoreInstance.listCommand(projectID: "my-project", zone: "us-central1-a")
+    #expect(cmd.contains("filestore instances list"))
+    #expect(cmd.contains("--zone=us-central1-a"))
+}
+
+@Test func testFilestoreBackupListCommand() {
+    let cmd = GoogleCloudFilestoreBackup.listCommand(projectID: "my-project", region: "us-central1")
+    #expect(cmd.contains("filestore backups list"))
+    #expect(cmd.contains("--region=us-central1"))
+}
