@@ -7570,3 +7570,1410 @@ import Testing
 @Test func testDNSOperationsFlushCache() {
     #expect(DNSOperations.flushLocalCacheCommand.contains("dscacheutil -flushcache"))
 }
+
+// MARK: - Cloud Load Balancing Tests
+
+// MARK: Health Check Tests
+
+@Test func testGoogleCloudHealthCheck() {
+    let healthCheck = GoogleCloudHealthCheck(
+        name: "my-http-hc",
+        projectID: "test-project",
+        type: .http,
+        checkIntervalSec: 10,
+        timeoutSec: 5,
+        healthyThreshold: 2,
+        unhealthyThreshold: 3,
+        description: "HTTP health check",
+        httpHealthCheck: .init(port: 8080, requestPath: "/health")
+    )
+
+    #expect(healthCheck.name == "my-http-hc")
+    #expect(healthCheck.type == .http)
+    #expect(healthCheck.checkIntervalSec == 10)
+    #expect(healthCheck.timeoutSec == 5)
+    #expect(healthCheck.healthyThreshold == 2)
+    #expect(healthCheck.unhealthyThreshold == 3)
+    #expect(healthCheck.resourceName == "projects/test-project/global/healthChecks/my-http-hc")
+}
+
+@Test func testHealthCheckCreateCommand() {
+    let healthCheck = GoogleCloudHealthCheck(
+        name: "api-hc",
+        projectID: "my-project",
+        type: .http,
+        checkIntervalSec: 5,
+        timeoutSec: 5,
+        healthyThreshold: 2,
+        unhealthyThreshold: 3,
+        httpHealthCheck: .init(port: 8080, requestPath: "/health", host: "api.example.com")
+    )
+
+    let cmd = healthCheck.createCommand
+    #expect(cmd.contains("gcloud compute health-checks create http api-hc"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--global"))
+    #expect(cmd.contains("--check-interval=5s"))
+    #expect(cmd.contains("--timeout=5s"))
+    #expect(cmd.contains("--healthy-threshold=2"))
+    #expect(cmd.contains("--unhealthy-threshold=3"))
+    #expect(cmd.contains("--port=8080"))
+    #expect(cmd.contains("--request-path=/health"))
+    #expect(cmd.contains("--host=api.example.com"))
+}
+
+@Test func testHealthCheckHTTPS() {
+    let healthCheck = GoogleCloudHealthCheck(
+        name: "https-hc",
+        projectID: "test-project",
+        type: .https,
+        httpsHealthCheck: .init(port: 443, requestPath: "/healthz")
+    )
+
+    let cmd = healthCheck.createCommand
+    #expect(cmd.contains("gcloud compute health-checks create https https-hc"))
+    #expect(cmd.contains("--port=443"))
+    #expect(cmd.contains("--request-path=/healthz"))
+}
+
+@Test func testHealthCheckTCP() {
+    let healthCheck = GoogleCloudHealthCheck(
+        name: "tcp-hc",
+        projectID: "test-project",
+        type: .tcp,
+        tcpHealthCheck: .init(port: 3306)
+    )
+
+    let cmd = healthCheck.createCommand
+    #expect(cmd.contains("gcloud compute health-checks create tcp tcp-hc"))
+    #expect(cmd.contains("--port=3306"))
+}
+
+@Test func testHealthCheckGRPC() {
+    let healthCheck = GoogleCloudHealthCheck(
+        name: "grpc-hc",
+        projectID: "test-project",
+        type: .grpc,
+        grpcHealthCheck: .init(port: 9090, grpcServiceName: "grpc.health.v1.Health")
+    )
+
+    let cmd = healthCheck.createCommand
+    #expect(cmd.contains("gcloud compute health-checks create grpc grpc-hc"))
+    #expect(cmd.contains("--port=9090"))
+    #expect(cmd.contains("--grpc-service-name=grpc.health.v1.Health"))
+}
+
+@Test func testHealthCheckRegional() {
+    let healthCheck = GoogleCloudHealthCheck(
+        name: "regional-hc",
+        projectID: "test-project",
+        type: .http,
+        isGlobal: false,
+        region: "us-central1"
+    )
+
+    #expect(healthCheck.resourceName == "projects/test-project/regions/us-central1/healthChecks/regional-hc")
+
+    let cmd = healthCheck.createCommand
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(!cmd.contains("--global"))
+}
+
+@Test func testHealthCheckDeleteCommand() {
+    let healthCheck = GoogleCloudHealthCheck(
+        name: "to-delete-hc",
+        projectID: "test-project",
+        type: .http
+    )
+
+    let cmd = healthCheck.deleteCommand
+    #expect(cmd.contains("gcloud compute health-checks delete to-delete-hc"))
+    #expect(cmd.contains("--project=test-project"))
+    #expect(cmd.contains("--global"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testHealthCheckDescribeCommand() {
+    let healthCheck = GoogleCloudHealthCheck(
+        name: "describe-hc",
+        projectID: "test-project",
+        type: .http
+    )
+
+    let cmd = healthCheck.describeCommand
+    #expect(cmd.contains("gcloud compute health-checks describe describe-hc"))
+    #expect(cmd.contains("--project=test-project"))
+    #expect(cmd.contains("--global"))
+}
+
+@Test func testHealthCheckListCommand() {
+    let cmd = GoogleCloudHealthCheck.listCommand(projectID: "test-project")
+    #expect(cmd.contains("gcloud compute health-checks list"))
+    #expect(cmd.contains("--project=test-project"))
+}
+
+@Test func testHealthCheckHTTP2() {
+    let healthCheck = GoogleCloudHealthCheck(
+        name: "http2-hc",
+        projectID: "test-project",
+        type: .http2,
+        httpHealthCheck: .init(port: 443, requestPath: "/")
+    )
+
+    let cmd = healthCheck.createCommand
+    #expect(cmd.contains("gcloud compute health-checks create http2 http2-hc"))
+}
+
+@Test func testHealthCheckSSL() {
+    let healthCheck = GoogleCloudHealthCheck(
+        name: "ssl-hc",
+        projectID: "test-project",
+        type: .ssl,
+        tcpHealthCheck: .init(port: 443)
+    )
+
+    let cmd = healthCheck.createCommand
+    #expect(cmd.contains("gcloud compute health-checks create ssl ssl-hc"))
+}
+
+// MARK: Backend Service Tests
+
+@Test func testGoogleCloudBackendService() {
+    let backendService = GoogleCloudBackendService(
+        name: "my-backend",
+        projectID: "test-project",
+        protocol: .http,
+        portName: "http",
+        timeoutSec: 30,
+        healthChecks: ["my-hc"],
+        loadBalancingScheme: .external,
+        sessionAffinity: .none,
+        connectionDrainingTimeoutSec: 300
+    )
+
+    #expect(backendService.name == "my-backend")
+    #expect(backendService.protocol == .http)
+    #expect(backendService.timeoutSec == 30)
+    #expect(backendService.resourceName == "projects/test-project/global/backendServices/my-backend")
+}
+
+@Test func testBackendServiceCreateCommand() {
+    let backendService = GoogleCloudBackendService(
+        name: "api-backend",
+        projectID: "my-project",
+        protocol: .https,
+        portName: "https",
+        timeoutSec: 60,
+        healthChecks: ["api-hc"],
+        description: "API backend service",
+        loadBalancingScheme: .externalManaged,
+        sessionAffinity: .clientIp,
+        connectionDrainingTimeoutSec: 600
+    )
+
+    let cmd = backendService.createCommand
+    #expect(cmd.contains("gcloud compute backend-services create api-backend"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--global"))
+    #expect(cmd.contains("--protocol=HTTPS"))
+    #expect(cmd.contains("--timeout=60s"))
+    #expect(cmd.contains("--connection-draining-timeout=600s"))
+    #expect(cmd.contains("--port-name=https"))
+    #expect(cmd.contains("--health-checks=api-hc"))
+    #expect(cmd.contains("--global-health-checks"))
+    #expect(cmd.contains("--load-balancing-scheme=EXTERNAL_MANAGED"))
+    #expect(cmd.contains("--session-affinity=CLIENT_IP"))
+}
+
+@Test func testBackendServiceWithCDN() {
+    let backendService = GoogleCloudBackendService(
+        name: "cdn-backend",
+        projectID: "test-project",
+        protocol: .http,
+        enableCDN: true,
+        cdnPolicy: .init(cacheMode: .cacheAllStatic, defaultTtl: 3600, maxTtl: 86400)
+    )
+
+    let cmd = backendService.createCommand
+    #expect(cmd.contains("--enable-cdn"))
+}
+
+@Test func testBackendServiceGRPC() {
+    let backendService = GoogleCloudBackendService(
+        name: "grpc-backend",
+        projectID: "test-project",
+        protocol: .grpc,
+        portName: "grpc"
+    )
+
+    let cmd = backendService.createCommand
+    #expect(cmd.contains("--protocol=GRPC"))
+    #expect(cmd.contains("--port-name=grpc"))
+}
+
+@Test func testBackendServiceRegional() {
+    let backendService = GoogleCloudBackendService(
+        name: "regional-backend",
+        projectID: "test-project",
+        protocol: .http,
+        loadBalancingScheme: .internal,
+        isGlobal: false,
+        region: "us-central1"
+    )
+
+    #expect(backendService.resourceName == "projects/test-project/regions/us-central1/backendServices/regional-backend")
+
+    let cmd = backendService.createCommand
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(!cmd.contains("--global"))
+}
+
+@Test func testBackendServiceAddBackendInstanceGroup() {
+    let backendService = GoogleCloudBackendService(
+        name: "test-backend",
+        projectID: "test-project",
+        protocol: .http
+    )
+
+    let backend = GoogleCloudBackendService.Backend(
+        group: .instanceGroup(name: "my-ig", zone: "us-central1-a"),
+        balancingMode: .rate,
+        capacityScaler: 0.8,
+        maxRatePerInstance: 100.0
+    )
+
+    let cmd = backendService.addBackendCommand(backend: backend)
+    #expect(cmd.contains("gcloud compute backend-services add-backend test-backend"))
+    #expect(cmd.contains("--instance-group=my-ig"))
+    #expect(cmd.contains("--instance-group-zone=us-central1-a"))
+    #expect(cmd.contains("--balancing-mode=RATE"))
+    #expect(cmd.contains("--capacity-scaler=0.8"))
+    #expect(cmd.contains("--max-rate-per-instance=100.0"))
+}
+
+@Test func testBackendServiceAddBackendNEG() {
+    let backendService = GoogleCloudBackendService(
+        name: "test-backend",
+        projectID: "test-project",
+        protocol: .http
+    )
+
+    let backend = GoogleCloudBackendService.Backend(
+        group: .networkEndpointGroup(name: "my-neg", zone: "us-central1-a"),
+        balancingMode: .rate,
+        maxRate: 10000
+    )
+
+    let cmd = backendService.addBackendCommand(backend: backend)
+    #expect(cmd.contains("--network-endpoint-group=my-neg"))
+    #expect(cmd.contains("--network-endpoint-group-zone=us-central1-a"))
+    #expect(cmd.contains("--max-rate=10000"))
+}
+
+@Test func testBackendServiceAddBackendServerlessNEG() {
+    let backendService = GoogleCloudBackendService(
+        name: "test-backend",
+        projectID: "test-project",
+        protocol: .http
+    )
+
+    let backend = GoogleCloudBackendService.Backend(
+        group: .serverlessNEG(name: "cloudrun-neg", region: "us-central1")
+    )
+
+    let cmd = backendService.addBackendCommand(backend: backend)
+    #expect(cmd.contains("--network-endpoint-group=cloudrun-neg"))
+    #expect(cmd.contains("--network-endpoint-group-region=us-central1"))
+}
+
+@Test func testBackendServiceDeleteCommand() {
+    let backendService = GoogleCloudBackendService(
+        name: "to-delete",
+        projectID: "test-project",
+        protocol: .http
+    )
+
+    let cmd = backendService.deleteCommand
+    #expect(cmd.contains("gcloud compute backend-services delete to-delete"))
+    #expect(cmd.contains("--project=test-project"))
+    #expect(cmd.contains("--global"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testBackendServiceDescribeCommand() {
+    let backendService = GoogleCloudBackendService(
+        name: "describe-backend",
+        projectID: "test-project",
+        protocol: .http
+    )
+
+    let cmd = backendService.describeCommand
+    #expect(cmd.contains("gcloud compute backend-services describe describe-backend"))
+}
+
+@Test func testBackendServiceListCommand() {
+    let cmd = GoogleCloudBackendService.listCommand(projectID: "test-project", global: true)
+    #expect(cmd.contains("gcloud compute backend-services list"))
+    #expect(cmd.contains("--project=test-project"))
+    #expect(cmd.contains("--global"))
+}
+
+// MARK: URL Map Tests
+
+@Test func testGoogleCloudURLMap() {
+    let urlMap = GoogleCloudURLMap(
+        name: "my-url-map",
+        projectID: "test-project",
+        defaultService: "default-backend",
+        description: "My URL map"
+    )
+
+    #expect(urlMap.name == "my-url-map")
+    #expect(urlMap.defaultService == "default-backend")
+    #expect(urlMap.resourceName == "projects/test-project/global/urlMaps/my-url-map")
+}
+
+@Test func testURLMapCreateCommand() {
+    let urlMap = GoogleCloudURLMap(
+        name: "api-url-map",
+        projectID: "my-project",
+        defaultService: "api-backend",
+        description: "API routing"
+    )
+
+    let cmd = urlMap.createCommand
+    #expect(cmd.contains("gcloud compute url-maps create api-url-map"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--default-service=api-backend"))
+    #expect(cmd.contains("--global"))
+    #expect(cmd.contains("--description=\"API routing\""))
+}
+
+@Test func testURLMapAddPathMatcher() {
+    let urlMap = GoogleCloudURLMap(
+        name: "my-url-map",
+        projectID: "test-project",
+        defaultService: "default-backend"
+    )
+
+    let pathMatcher = GoogleCloudURLMap.PathMatcher(
+        name: "api-paths",
+        defaultService: "api-backend",
+        pathRules: [
+            .init(paths: ["/api/v1/*"], service: "api-v1-backend"),
+            .init(paths: ["/api/v2/*"], service: "api-v2-backend")
+        ]
+    )
+
+    let cmd = urlMap.addPathMatcherCommand(pathMatcher: pathMatcher, hosts: ["api.example.com"])
+    #expect(cmd.contains("gcloud compute url-maps add-path-matcher my-url-map"))
+    #expect(cmd.contains("--path-matcher-name=api-paths"))
+    #expect(cmd.contains("--default-service=api-backend"))
+    #expect(cmd.contains("--new-hosts=api.example.com"))
+    #expect(cmd.contains("--path-rules="))
+}
+
+@Test func testURLMapRegional() {
+    let urlMap = GoogleCloudURLMap(
+        name: "regional-url-map",
+        projectID: "test-project",
+        defaultService: "backend",
+        isGlobal: false,
+        region: "us-central1"
+    )
+
+    #expect(urlMap.resourceName == "projects/test-project/regions/us-central1/urlMaps/regional-url-map")
+
+    let cmd = urlMap.createCommand
+    #expect(cmd.contains("--region=us-central1"))
+}
+
+@Test func testURLMapDeleteCommand() {
+    let urlMap = GoogleCloudURLMap(
+        name: "to-delete",
+        projectID: "test-project",
+        defaultService: "backend"
+    )
+
+    let cmd = urlMap.deleteCommand
+    #expect(cmd.contains("gcloud compute url-maps delete to-delete"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testURLMapDescribeCommand() {
+    let urlMap = GoogleCloudURLMap(
+        name: "describe-map",
+        projectID: "test-project",
+        defaultService: "backend"
+    )
+
+    let cmd = urlMap.describeCommand
+    #expect(cmd.contains("gcloud compute url-maps describe describe-map"))
+}
+
+@Test func testURLMapListCommand() {
+    let cmd = GoogleCloudURLMap.listCommand(projectID: "test-project", global: true)
+    #expect(cmd.contains("gcloud compute url-maps list"))
+    #expect(cmd.contains("--global"))
+}
+
+// MARK: Target Proxy Tests
+
+@Test func testGoogleCloudTargetProxyHTTP() {
+    let proxy = GoogleCloudTargetProxy(
+        name: "http-proxy",
+        projectID: "test-project",
+        type: .http,
+        urlMap: "my-url-map"
+    )
+
+    #expect(proxy.name == "http-proxy")
+    #expect(proxy.type == .http)
+    #expect(proxy.resourceName.contains("targetHttpProxies"))
+}
+
+@Test func testTargetProxyHTTPCreateCommand() {
+    let proxy = GoogleCloudTargetProxy(
+        name: "http-proxy",
+        projectID: "my-project",
+        type: .http,
+        urlMap: "my-url-map",
+        description: "HTTP proxy"
+    )
+
+    let cmd = proxy.createCommand
+    #expect(cmd.contains("gcloud compute target-http-proxies create http-proxy"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--global"))
+    #expect(cmd.contains("--url-map=my-url-map"))
+    #expect(cmd.contains("--global-url-map"))
+}
+
+@Test func testTargetProxyHTTPSCreateCommand() {
+    let proxy = GoogleCloudTargetProxy(
+        name: "https-proxy",
+        projectID: "my-project",
+        type: .https,
+        urlMap: "my-url-map",
+        sslCertificates: ["my-cert"],
+        sslPolicy: "my-ssl-policy"
+    )
+
+    let cmd = proxy.createCommand
+    #expect(cmd.contains("gcloud compute target-https-proxies create https-proxy"))
+    #expect(cmd.contains("--url-map=my-url-map"))
+    #expect(cmd.contains("--ssl-certificates=my-cert"))
+    #expect(cmd.contains("--ssl-policy=my-ssl-policy"))
+}
+
+@Test func testTargetProxyHTTPSMultipleCerts() {
+    let proxy = GoogleCloudTargetProxy(
+        name: "multi-cert-proxy",
+        projectID: "test-project",
+        type: .https,
+        urlMap: "url-map",
+        sslCertificates: ["cert1", "cert2", "cert3"]
+    )
+
+    let cmd = proxy.createCommand
+    #expect(cmd.contains("--ssl-certificates=cert1,cert2,cert3"))
+}
+
+@Test func testTargetProxyTCP() {
+    let proxy = GoogleCloudTargetProxy(
+        name: "tcp-proxy",
+        projectID: "test-project",
+        type: .tcp,
+        backendService: "tcp-backend"
+    )
+
+    let cmd = proxy.createCommand
+    #expect(cmd.contains("gcloud compute target-tcp-proxies create tcp-proxy"))
+    #expect(cmd.contains("--backend-service=tcp-backend"))
+}
+
+@Test func testTargetProxySSL() {
+    let proxy = GoogleCloudTargetProxy(
+        name: "ssl-proxy",
+        projectID: "test-project",
+        type: .ssl,
+        sslCertificates: ["my-cert"],
+        backendService: "ssl-backend"
+    )
+
+    let cmd = proxy.createCommand
+    #expect(cmd.contains("gcloud compute target-ssl-proxies create ssl-proxy"))
+    #expect(cmd.contains("--backend-service=ssl-backend"))
+    #expect(cmd.contains("--ssl-certificates=my-cert"))
+}
+
+@Test func testTargetProxyGRPC() {
+    let proxy = GoogleCloudTargetProxy(
+        name: "grpc-proxy",
+        projectID: "test-project",
+        type: .grpc,
+        urlMap: "grpc-url-map"
+    )
+
+    let cmd = proxy.createCommand
+    #expect(cmd.contains("gcloud compute target-grpc-proxies create grpc-proxy"))
+    #expect(cmd.contains("--url-map=grpc-url-map"))
+}
+
+@Test func testTargetProxyRegional() {
+    let proxy = GoogleCloudTargetProxy(
+        name: "regional-proxy",
+        projectID: "test-project",
+        type: .http,
+        urlMap: "regional-url-map",
+        isGlobal: false,
+        region: "us-central1"
+    )
+
+    let cmd = proxy.createCommand
+    #expect(cmd.contains("--region=us-central1"))
+}
+
+@Test func testTargetProxyDeleteCommand() {
+    let proxy = GoogleCloudTargetProxy(
+        name: "to-delete",
+        projectID: "test-project",
+        type: .https,
+        urlMap: "url-map",
+        sslCertificates: ["cert"]
+    )
+
+    let cmd = proxy.deleteCommand
+    #expect(cmd.contains("gcloud compute target-https-proxies delete to-delete"))
+    #expect(cmd.contains("--quiet"))
+}
+
+// MARK: Forwarding Rule Tests
+
+@Test func testGoogleCloudForwardingRule() {
+    let rule = GoogleCloudForwardingRule(
+        name: "https-rule",
+        projectID: "test-project",
+        ipProtocol: .tcp,
+        portRange: "443",
+        target: "https-proxy",
+        loadBalancingScheme: .external
+    )
+
+    #expect(rule.name == "https-rule")
+    #expect(rule.ipProtocol == .tcp)
+    #expect(rule.portRange == "443")
+    #expect(rule.resourceName == "projects/test-project/global/forwardingRules/https-rule")
+}
+
+@Test func testForwardingRuleCreateCommand() {
+    let rule = GoogleCloudForwardingRule(
+        name: "api-https-rule",
+        projectID: "my-project",
+        ipAddress: "34.120.0.1",
+        ipProtocol: .tcp,
+        portRange: "443",
+        target: "https-proxy",
+        loadBalancingScheme: .externalManaged,
+        description: "HTTPS forwarding rule",
+        networkTier: .premium
+    )
+
+    let cmd = rule.createCommand
+    #expect(cmd.contains("gcloud compute forwarding-rules create api-https-rule"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--global"))
+    #expect(cmd.contains("--address=34.120.0.1"))
+    #expect(cmd.contains("--ports=443"))
+    #expect(cmd.contains("--load-balancing-scheme=EXTERNAL_MANAGED"))
+    #expect(cmd.contains("--network-tier=PREMIUM"))
+}
+
+@Test func testForwardingRuleHTTP() {
+    let rule = GoogleCloudForwardingRule(
+        name: "http-rule",
+        projectID: "test-project",
+        portRange: "80",
+        target: "http-proxy"
+    )
+
+    let cmd = rule.createCommand
+    #expect(cmd.contains("--ports=80"))
+}
+
+@Test func testForwardingRuleRegional() {
+    let rule = GoogleCloudForwardingRule(
+        name: "regional-rule",
+        projectID: "test-project",
+        target: "regional-proxy",
+        loadBalancingScheme: .internal,
+        network: "my-vpc",
+        subnetwork: "my-subnet",
+        isGlobal: false,
+        region: "us-central1",
+        allowGlobalAccess: true
+    )
+
+    #expect(rule.resourceName == "projects/test-project/regions/us-central1/forwardingRules/regional-rule")
+
+    let cmd = rule.createCommand
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(cmd.contains("--network=my-vpc"))
+    #expect(cmd.contains("--subnet=my-subnet"))
+    #expect(cmd.contains("--allow-global-access"))
+}
+
+@Test func testForwardingRuleWithPorts() {
+    let rule = GoogleCloudForwardingRule(
+        name: "multi-port-rule",
+        projectID: "test-project",
+        ports: ["80", "443", "8080"],
+        target: "proxy",
+        loadBalancingScheme: .internal,
+        isGlobal: false,
+        region: "us-central1"
+    )
+
+    let cmd = rule.createCommand
+    #expect(cmd.contains("--ports=80,443,8080"))
+}
+
+@Test func testForwardingRuleDeleteCommand() {
+    let rule = GoogleCloudForwardingRule(
+        name: "to-delete",
+        projectID: "test-project",
+        target: "proxy"
+    )
+
+    let cmd = rule.deleteCommand
+    #expect(cmd.contains("gcloud compute forwarding-rules delete to-delete"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testForwardingRuleDescribeCommand() {
+    let rule = GoogleCloudForwardingRule(
+        name: "describe-rule",
+        projectID: "test-project",
+        target: "proxy"
+    )
+
+    let cmd = rule.describeCommand
+    #expect(cmd.contains("gcloud compute forwarding-rules describe describe-rule"))
+}
+
+@Test func testForwardingRuleListCommand() {
+    let cmd = GoogleCloudForwardingRule.listCommand(projectID: "test-project", global: true)
+    #expect(cmd.contains("gcloud compute forwarding-rules list"))
+    #expect(cmd.contains("--global"))
+}
+
+@Test func testForwardingRuleNetworkTierStandard() {
+    let rule = GoogleCloudForwardingRule(
+        name: "standard-tier-rule",
+        projectID: "test-project",
+        target: "proxy",
+        networkTier: .standard
+    )
+
+    let cmd = rule.createCommand
+    #expect(cmd.contains("--network-tier=STANDARD"))
+}
+
+// MARK: SSL Certificate Tests
+
+@Test func testGoogleCloudSSLCertificateManaged() {
+    let cert = GoogleCloudSSLCertificate(
+        name: "my-cert",
+        projectID: "test-project",
+        type: .managed,
+        domains: ["example.com", "www.example.com"],
+        description: "Managed certificate"
+    )
+
+    #expect(cert.name == "my-cert")
+    #expect(cert.type == .managed)
+    #expect(cert.domains.count == 2)
+    #expect(cert.resourceName == "projects/test-project/global/sslCertificates/my-cert")
+}
+
+@Test func testSSLCertificateManagedCreateCommand() {
+    let cert = GoogleCloudSSLCertificate(
+        name: "api-cert",
+        projectID: "my-project",
+        type: .managed,
+        domains: ["api.example.com", "www.api.example.com"],
+        description: "API certificate"
+    )
+
+    let cmd = cert.createCommand
+    #expect(cmd.contains("gcloud compute ssl-certificates create api-cert"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--global"))
+    #expect(cmd.contains("--domains=api.example.com,www.api.example.com"))
+}
+
+@Test func testSSLCertificateSelfManaged() {
+    let cert = GoogleCloudSSLCertificate(
+        name: "self-cert",
+        projectID: "test-project",
+        type: .selfManaged,
+        certificatePath: "/path/to/cert.pem",
+        privateKeyPath: "/path/to/key.pem"
+    )
+
+    let cmd = cert.createCommand
+    #expect(cmd.contains("gcloud compute ssl-certificates create self-cert"))
+    #expect(cmd.contains("--certificate=/path/to/cert.pem"))
+    #expect(cmd.contains("--private-key=/path/to/key.pem"))
+}
+
+@Test func testSSLCertificateRegional() {
+    let cert = GoogleCloudSSLCertificate(
+        name: "regional-cert",
+        projectID: "test-project",
+        type: .managed,
+        domains: ["example.com"],
+        isGlobal: false,
+        region: "us-central1"
+    )
+
+    #expect(cert.resourceName == "projects/test-project/regions/us-central1/sslCertificates/regional-cert")
+
+    let cmd = cert.createCommand
+    #expect(cmd.contains("--region=us-central1"))
+}
+
+@Test func testSSLCertificateDeleteCommand() {
+    let cert = GoogleCloudSSLCertificate(
+        name: "to-delete",
+        projectID: "test-project",
+        type: .managed,
+        domains: ["example.com"]
+    )
+
+    let cmd = cert.deleteCommand
+    #expect(cmd.contains("gcloud compute ssl-certificates delete to-delete"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testSSLCertificateDescribeCommand() {
+    let cert = GoogleCloudSSLCertificate(
+        name: "describe-cert",
+        projectID: "test-project",
+        type: .managed,
+        domains: ["example.com"]
+    )
+
+    let cmd = cert.describeCommand
+    #expect(cmd.contains("gcloud compute ssl-certificates describe describe-cert"))
+}
+
+@Test func testSSLCertificateListCommand() {
+    let cmd = GoogleCloudSSLCertificate.listCommand(projectID: "test-project", global: true)
+    #expect(cmd.contains("gcloud compute ssl-certificates list"))
+    #expect(cmd.contains("--global"))
+}
+
+// MARK: SSL Policy Tests
+
+@Test func testGoogleCloudSSLPolicy() {
+    let policy = GoogleCloudSSLPolicy(
+        name: "my-ssl-policy",
+        projectID: "test-project",
+        minTlsVersion: .tls12,
+        profile: .modern,
+        description: "Modern SSL policy"
+    )
+
+    #expect(policy.name == "my-ssl-policy")
+    #expect(policy.minTlsVersion == .tls12)
+    #expect(policy.profile == .modern)
+    #expect(policy.resourceName == "projects/test-project/global/sslPolicies/my-ssl-policy")
+}
+
+@Test func testSSLPolicyCreateCommand() {
+    let policy = GoogleCloudSSLPolicy(
+        name: "secure-policy",
+        projectID: "my-project",
+        minTlsVersion: .tls12,
+        profile: .modern,
+        description: "Secure TLS policy"
+    )
+
+    let cmd = policy.createCommand
+    #expect(cmd.contains("gcloud compute ssl-policies create secure-policy"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--min-tls-version=TLS_1_2"))
+    #expect(cmd.contains("--profile=MODERN"))
+}
+
+@Test func testSSLPolicyRestricted() {
+    let policy = GoogleCloudSSLPolicy(
+        name: "restricted-policy",
+        projectID: "test-project",
+        minTlsVersion: .tls13,
+        profile: .restricted
+    )
+
+    let cmd = policy.createCommand
+    #expect(cmd.contains("--min-tls-version=TLS_1_3"))
+    #expect(cmd.contains("--profile=RESTRICTED"))
+}
+
+@Test func testSSLPolicyCustom() {
+    let policy = GoogleCloudSSLPolicy(
+        name: "custom-policy",
+        projectID: "test-project",
+        minTlsVersion: .tls12,
+        profile: .custom,
+        customFeatures: ["TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"]
+    )
+
+    let cmd = policy.createCommand
+    #expect(cmd.contains("--profile=CUSTOM"))
+    #expect(cmd.contains("--custom-features=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"))
+}
+
+@Test func testSSLPolicyCompatible() {
+    let policy = GoogleCloudSSLPolicy(
+        name: "compat-policy",
+        projectID: "test-project",
+        minTlsVersion: .tls10,
+        profile: .compatible
+    )
+
+    let cmd = policy.createCommand
+    #expect(cmd.contains("--min-tls-version=TLS_1_0"))
+    #expect(cmd.contains("--profile=COMPATIBLE"))
+}
+
+@Test func testSSLPolicyDeleteCommand() {
+    let policy = GoogleCloudSSLPolicy(
+        name: "to-delete",
+        projectID: "test-project",
+        minTlsVersion: .tls12,
+        profile: .modern
+    )
+
+    let cmd = policy.deleteCommand
+    #expect(cmd.contains("gcloud compute ssl-policies delete to-delete"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testSSLPolicyDescribeCommand() {
+    let policy = GoogleCloudSSLPolicy(
+        name: "describe-policy",
+        projectID: "test-project",
+        minTlsVersion: .tls12,
+        profile: .modern
+    )
+
+    let cmd = policy.describeCommand
+    #expect(cmd.contains("gcloud compute ssl-policies describe describe-policy"))
+}
+
+@Test func testSSLPolicyListCommand() {
+    let cmd = GoogleCloudSSLPolicy.listCommand(projectID: "test-project")
+    #expect(cmd.contains("gcloud compute ssl-policies list"))
+}
+
+// MARK: Network Endpoint Group Tests
+
+@Test func testGoogleCloudNEGZonalGCE() {
+    let neg = GoogleCloudNetworkEndpointGroup(
+        name: "my-neg",
+        projectID: "test-project",
+        type: .zonalGCE,
+        network: "my-vpc",
+        subnetwork: "my-subnet",
+        defaultPort: 8080,
+        zone: "us-central1-a"
+    )
+
+    #expect(neg.name == "my-neg")
+    #expect(neg.type == .zonalGCE)
+    #expect(neg.resourceName == "projects/test-project/zones/us-central1-a/networkEndpointGroups/my-neg")
+}
+
+@Test func testNEGZonalGCECreateCommand() {
+    let neg = GoogleCloudNetworkEndpointGroup(
+        name: "gce-neg",
+        projectID: "my-project",
+        type: .zonalGCE,
+        network: "my-vpc",
+        subnetwork: "my-subnet",
+        defaultPort: 80,
+        zone: "us-central1-a",
+        description: "GCE VM NEG"
+    )
+
+    let cmd = neg.createCommand
+    #expect(cmd.contains("gcloud compute network-endpoint-groups create gce-neg"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--zone=us-central1-a"))
+    #expect(cmd.contains("--network-endpoint-type=GCE_VM_IP_PORT"))
+    #expect(cmd.contains("--network=my-vpc"))
+    #expect(cmd.contains("--subnet=my-subnet"))
+    #expect(cmd.contains("--default-port=80"))
+}
+
+@Test func testNEGZonalNonGCP() {
+    let neg = GoogleCloudNetworkEndpointGroup(
+        name: "external-neg",
+        projectID: "test-project",
+        type: .zonalNonGCP,
+        network: "my-vpc",
+        zone: "us-central1-a"
+    )
+
+    let cmd = neg.createCommand
+    #expect(cmd.contains("--network-endpoint-type=NON_GCP_PRIVATE_IP_PORT"))
+}
+
+@Test func testNEGServerlessCloudRun() {
+    let neg = GoogleCloudNetworkEndpointGroup(
+        name: "cloudrun-neg",
+        projectID: "test-project",
+        type: .serverless,
+        region: "us-central1",
+        cloudRunService: "my-service"
+    )
+
+    #expect(neg.resourceName == "projects/test-project/regions/us-central1/networkEndpointGroups/cloudrun-neg")
+
+    let cmd = neg.createCommand
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(cmd.contains("--network-endpoint-type=SERVERLESS"))
+    #expect(cmd.contains("--cloud-run-service=my-service"))
+}
+
+@Test func testNEGServerlessCloudFunctions() {
+    let neg = GoogleCloudNetworkEndpointGroup(
+        name: "functions-neg",
+        projectID: "test-project",
+        type: .serverless,
+        region: "us-central1",
+        cloudFunction: "my-function"
+    )
+
+    let cmd = neg.createCommand
+    #expect(cmd.contains("--cloud-function-name=my-function"))
+}
+
+@Test func testNEGServerlessAppEngine() {
+    let neg = GoogleCloudNetworkEndpointGroup(
+        name: "appengine-neg",
+        projectID: "test-project",
+        type: .serverless,
+        region: "us-central1",
+        appEngineService: "default"
+    )
+
+    let cmd = neg.createCommand
+    #expect(cmd.contains("--app-engine-service=default"))
+}
+
+@Test func testNEGInternet() {
+    let neg = GoogleCloudNetworkEndpointGroup(
+        name: "internet-neg",
+        projectID: "test-project",
+        type: .internet
+    )
+
+    #expect(neg.resourceName == "projects/test-project/global/networkEndpointGroups/internet-neg")
+
+    let cmd = neg.createCommand
+    #expect(cmd.contains("--global"))
+    #expect(cmd.contains("--network-endpoint-type=INTERNET_FQDN_PORT"))
+}
+
+@Test func testNEGPrivateServiceConnect() {
+    let neg = GoogleCloudNetworkEndpointGroup(
+        name: "psc-neg",
+        projectID: "test-project",
+        type: .privateServiceConnect,
+        subnetwork: "target-service-attachment",
+        region: "us-central1"
+    )
+
+    let cmd = neg.createCommand
+    #expect(cmd.contains("--network-endpoint-type=PRIVATE_SERVICE_CONNECT"))
+    #expect(cmd.contains("--psc-target-service=target-service-attachment"))
+}
+
+@Test func testNEGDeleteCommand() {
+    let neg = GoogleCloudNetworkEndpointGroup(
+        name: "to-delete",
+        projectID: "test-project",
+        type: .serverless,
+        region: "us-central1"
+    )
+
+    let cmd = neg.deleteCommand
+    #expect(cmd.contains("gcloud compute network-endpoint-groups delete to-delete"))
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testNEGDeleteZonal() {
+    let neg = GoogleCloudNetworkEndpointGroup(
+        name: "zonal-neg",
+        projectID: "test-project",
+        type: .zonalGCE,
+        zone: "us-central1-a"
+    )
+
+    let cmd = neg.deleteCommand
+    #expect(cmd.contains("--zone=us-central1-a"))
+}
+
+@Test func testNEGDeleteGlobal() {
+    let neg = GoogleCloudNetworkEndpointGroup(
+        name: "global-neg",
+        projectID: "test-project",
+        type: .internet
+    )
+
+    let cmd = neg.deleteCommand
+    #expect(cmd.contains("--global"))
+}
+
+@Test func testNEGListCommand() {
+    let cmd = GoogleCloudNetworkEndpointGroup.listCommand(projectID: "test-project", zone: "us-central1-a")
+    #expect(cmd.contains("gcloud compute network-endpoint-groups list"))
+    #expect(cmd.contains("--zones=us-central1-a"))
+}
+
+@Test func testNEGListCommandRegional() {
+    let cmd = GoogleCloudNetworkEndpointGroup.listCommand(projectID: "test-project", region: "us-central1")
+    #expect(cmd.contains("--regions=us-central1"))
+}
+
+// MARK: DAIS Load Balancing Template Tests
+
+@Test func testDAISLoadBalancingTemplateHTTPHealthCheck() {
+    let healthCheck = DAISLoadBalancingTemplate.httpHealthCheck(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        port: 8080,
+        path: "/health"
+    )
+
+    #expect(healthCheck.name == "dais-prod-http-hc")
+    #expect(healthCheck.type == .http)
+    #expect(healthCheck.httpHealthCheck?.port == 8080)
+    #expect(healthCheck.httpHealthCheck?.requestPath == "/health")
+    #expect(healthCheck.description == "HTTP health check for dais-prod")
+}
+
+@Test func testDAISLoadBalancingTemplateGRPCHealthCheck() {
+    let healthCheck = DAISLoadBalancingTemplate.grpcHealthCheck(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        port: 9090
+    )
+
+    #expect(healthCheck.name == "dais-prod-grpc-hc")
+    #expect(healthCheck.type == .grpc)
+    #expect(healthCheck.grpcHealthCheck?.port == 9090)
+    #expect(healthCheck.grpcHealthCheck?.grpcServiceName == "grpc.health.v1.Health")
+}
+
+@Test func testDAISLoadBalancingTemplateHTTPBackendService() {
+    let backendService = DAISLoadBalancingTemplate.httpBackendService(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        healthCheckName: "dais-prod-http-hc"
+    )
+
+    #expect(backendService.name == "dais-prod-http-backend")
+    #expect(backendService.protocol == .http)
+    #expect(backendService.portName == "http")
+    #expect(backendService.healthChecks.contains("dais-prod-http-hc"))
+    #expect(backendService.loadBalancingScheme == .externalManaged)
+    #expect(backendService.logConfig?.enable == true)
+}
+
+@Test func testDAISLoadBalancingTemplateGRPCBackendService() {
+    let backendService = DAISLoadBalancingTemplate.grpcBackendService(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        healthCheckName: "dais-prod-grpc-hc"
+    )
+
+    #expect(backendService.name == "dais-prod-grpc-backend")
+    #expect(backendService.protocol == .grpc)
+    #expect(backendService.portName == "grpc")
+    #expect(backendService.timeoutSec == 60)
+}
+
+@Test func testDAISLoadBalancingTemplateURLMap() {
+    let urlMap = DAISLoadBalancingTemplate.urlMap(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        defaultBackendService: "dais-prod-http-backend"
+    )
+
+    #expect(urlMap.name == "dais-prod-url-map")
+    #expect(urlMap.defaultService == "dais-prod-http-backend")
+    #expect(urlMap.description == "URL map for dais-prod")
+}
+
+@Test func testDAISLoadBalancingTemplateSSLCertificate() {
+    let cert = DAISLoadBalancingTemplate.sslCertificate(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        domains: ["api.example.com", "www.example.com"]
+    )
+
+    #expect(cert.name == "dais-prod-cert")
+    #expect(cert.type == .managed)
+    #expect(cert.domains.count == 2)
+    #expect(cert.domains.contains("api.example.com"))
+}
+
+@Test func testDAISLoadBalancingTemplateSSLPolicy() {
+    let policy = DAISLoadBalancingTemplate.sslPolicy(
+        projectID: "test-project",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(policy.name == "dais-prod-ssl-policy")
+    #expect(policy.minTlsVersion == .tls12)
+    #expect(policy.profile == .modern)
+}
+
+@Test func testDAISLoadBalancingTemplateHTTPSTargetProxy() {
+    let proxy = DAISLoadBalancingTemplate.httpsTargetProxy(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        urlMapName: "dais-prod-url-map",
+        sslCertificateName: "dais-prod-cert",
+        sslPolicyName: "dais-prod-ssl-policy"
+    )
+
+    #expect(proxy.name == "dais-prod-https-proxy")
+    #expect(proxy.type == .https)
+    #expect(proxy.urlMap == "dais-prod-url-map")
+    #expect(proxy.sslCertificates.contains("dais-prod-cert"))
+    #expect(proxy.sslPolicy == "dais-prod-ssl-policy")
+}
+
+@Test func testDAISLoadBalancingTemplateHTTPTargetProxy() {
+    let proxy = DAISLoadBalancingTemplate.httpTargetProxy(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        urlMapName: "dais-prod-url-map"
+    )
+
+    #expect(proxy.name == "dais-prod-http-proxy")
+    #expect(proxy.type == .http)
+    #expect(proxy.description == "HTTP proxy for dais-prod (redirect)")
+}
+
+@Test func testDAISLoadBalancingTemplateHTTPSForwardingRule() {
+    let rule = DAISLoadBalancingTemplate.httpsForwardingRule(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        targetProxyName: "dais-prod-https-proxy",
+        ipAddress: "34.120.0.1"
+    )
+
+    #expect(rule.name == "dais-prod-https-rule")
+    #expect(rule.portRange == "443")
+    #expect(rule.target == "dais-prod-https-proxy")
+    #expect(rule.ipAddress == "34.120.0.1")
+    #expect(rule.loadBalancingScheme == .externalManaged)
+    #expect(rule.networkTier == .premium)
+}
+
+@Test func testDAISLoadBalancingTemplateHTTPForwardingRule() {
+    let rule = DAISLoadBalancingTemplate.httpForwardingRule(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        targetProxyName: "dais-prod-http-proxy"
+    )
+
+    #expect(rule.name == "dais-prod-http-rule")
+    #expect(rule.portRange == "80")
+}
+
+@Test func testDAISLoadBalancingTemplateCloudRunNEG() {
+    let neg = DAISLoadBalancingTemplate.cloudRunNEG(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        region: "us-central1",
+        cloudRunServiceName: "my-service"
+    )
+
+    #expect(neg.name == "dais-prod-cloudrun-neg")
+    #expect(neg.type == .serverless)
+    #expect(neg.region == "us-central1")
+    #expect(neg.cloudRunService == "my-service")
+    #expect(neg.description == "Serverless NEG for Cloud Run service")
+}
+
+@Test func testDAISLoadBalancingTemplateSetupScript() {
+    let script = DAISLoadBalancingTemplate.setupScript(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        domains: ["api.example.com"],
+        cloudRunServiceName: "api-service",
+        region: "us-central1"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("DAIS Load Balancer Setup Script"))
+    #expect(script.contains("dais-prod"))
+    #expect(script.contains("api.example.com"))
+    #expect(script.contains("gcloud compute addresses create dais-prod-ip"))
+    #expect(script.contains("gcloud compute network-endpoint-groups create dais-prod-cloudrun-neg"))
+    #expect(script.contains("gcloud compute health-checks create http dais-prod-http-hc"))
+    #expect(script.contains("gcloud compute backend-services create dais-prod-http-backend"))
+    #expect(script.contains("gcloud compute url-maps create dais-prod-url-map"))
+    #expect(script.contains("gcloud compute ssl-certificates create dais-prod-cert"))
+    #expect(script.contains("gcloud compute ssl-policies create dais-prod-ssl-policy"))
+    #expect(script.contains("gcloud compute target-https-proxies create dais-prod-https-proxy"))
+    #expect(script.contains("Load Balancer Setup Complete!"))
+}
+
+@Test func testDAISLoadBalancingTemplateTeardownScript() {
+    let script = DAISLoadBalancingTemplate.teardownScript(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        region: "us-central1"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("DAIS Load Balancer Teardown Script"))
+    #expect(script.contains("Deleting forwarding rules"))
+    #expect(script.contains("gcloud compute forwarding-rules delete dais-prod-https-rule"))
+    #expect(script.contains("Deleting target proxies"))
+    #expect(script.contains("Deleting SSL policy"))
+    #expect(script.contains("Deleting SSL certificate"))
+    #expect(script.contains("Deleting URL map"))
+    #expect(script.contains("Deleting backend service"))
+    #expect(script.contains("Deleting health checks"))
+    #expect(script.contains("Deleting serverless NEG"))
+    #expect(script.contains("Releasing static IP"))
+    #expect(script.contains("Load balancer teardown complete!"))
+}
+
+// MARK: Load Balancing Codable Tests
+
+@Test func testHealthCheckCodable() throws {
+    let healthCheck = GoogleCloudHealthCheck(
+        name: "test-hc",
+        projectID: "test-project",
+        type: .http,
+        httpHealthCheck: .init(port: 8080, requestPath: "/health")
+    )
+    let data = try JSONEncoder().encode(healthCheck)
+    let decoded = try JSONDecoder().decode(GoogleCloudHealthCheck.self, from: data)
+
+    #expect(decoded.name == healthCheck.name)
+    #expect(decoded.type == healthCheck.type)
+    #expect(decoded.httpHealthCheck?.port == 8080)
+}
+
+@Test func testBackendServiceCodable() throws {
+    let backendService = GoogleCloudBackendService(
+        name: "test-backend",
+        projectID: "test-project",
+        protocol: .http,
+        healthChecks: ["test-hc"]
+    )
+    let data = try JSONEncoder().encode(backendService)
+    let decoded = try JSONDecoder().decode(GoogleCloudBackendService.self, from: data)
+
+    #expect(decoded.name == backendService.name)
+    #expect(decoded.protocol == .http)
+}
+
+@Test func testURLMapCodable() throws {
+    let urlMap = GoogleCloudURLMap(
+        name: "test-url-map",
+        projectID: "test-project",
+        defaultService: "default-backend"
+    )
+    let data = try JSONEncoder().encode(urlMap)
+    let decoded = try JSONDecoder().decode(GoogleCloudURLMap.self, from: data)
+
+    #expect(decoded.name == urlMap.name)
+    #expect(decoded.defaultService == urlMap.defaultService)
+}
+
+@Test func testTargetProxyCodable() throws {
+    let proxy = GoogleCloudTargetProxy(
+        name: "test-proxy",
+        projectID: "test-project",
+        type: .https,
+        urlMap: "test-url-map",
+        sslCertificates: ["test-cert"]
+    )
+    let data = try JSONEncoder().encode(proxy)
+    let decoded = try JSONDecoder().decode(GoogleCloudTargetProxy.self, from: data)
+
+    #expect(decoded.name == proxy.name)
+    #expect(decoded.type == .https)
+}
+
+@Test func testForwardingRuleCodable() throws {
+    let rule = GoogleCloudForwardingRule(
+        name: "test-rule",
+        projectID: "test-project",
+        portRange: "443",
+        target: "test-proxy"
+    )
+    let data = try JSONEncoder().encode(rule)
+    let decoded = try JSONDecoder().decode(GoogleCloudForwardingRule.self, from: data)
+
+    #expect(decoded.name == rule.name)
+    #expect(decoded.portRange == "443")
+}
+
+@Test func testSSLCertificateCodable() throws {
+    let cert = GoogleCloudSSLCertificate(
+        name: "test-cert",
+        projectID: "test-project",
+        type: .managed,
+        domains: ["example.com"]
+    )
+    let data = try JSONEncoder().encode(cert)
+    let decoded = try JSONDecoder().decode(GoogleCloudSSLCertificate.self, from: data)
+
+    #expect(decoded.name == cert.name)
+    #expect(decoded.type == .managed)
+    #expect(decoded.domains == ["example.com"])
+}
+
+@Test func testSSLPolicyCodable() throws {
+    let policy = GoogleCloudSSLPolicy(
+        name: "test-policy",
+        projectID: "test-project",
+        minTlsVersion: .tls12,
+        profile: .modern
+    )
+    let data = try JSONEncoder().encode(policy)
+    let decoded = try JSONDecoder().decode(GoogleCloudSSLPolicy.self, from: data)
+
+    #expect(decoded.name == policy.name)
+    #expect(decoded.minTlsVersion == .tls12)
+    #expect(decoded.profile == .modern)
+}
+
+@Test func testNEGCodable() throws {
+    let neg = GoogleCloudNetworkEndpointGroup(
+        name: "test-neg",
+        projectID: "test-project",
+        type: .serverless,
+        region: "us-central1",
+        cloudRunService: "my-service"
+    )
+    let data = try JSONEncoder().encode(neg)
+    let decoded = try JSONDecoder().decode(GoogleCloudNetworkEndpointGroup.self, from: data)
+
+    #expect(decoded.name == neg.name)
+    #expect(decoded.type == .serverless)
+    #expect(decoded.cloudRunService == "my-service")
+}

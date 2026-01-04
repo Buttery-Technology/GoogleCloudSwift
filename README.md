@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 18 Google Cloud services:
+GoogleCloudSwift provides models for 19 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -103,6 +103,7 @@ GoogleCloudSwift provides models for 18 Google Cloud services:
 | **Cloud Monitoring** | Metrics, alerts, and uptime checks | `GoogleCloudAlertPolicy`, `GoogleCloudUptimeCheck` |
 | **VPC Networks** | Virtual Private Cloud networking | `GoogleCloudVPCNetwork`, `GoogleCloudSubnet`, `GoogleCloudFirewallRule` |
 | **Cloud DNS** | Domain name system management | `GoogleCloudManagedZone`, `GoogleCloudDNSRecord`, `GoogleCloudDNSPolicy` |
+| **Cloud Load Balancing** | Global and regional load balancing | `GoogleCloudHealthCheck`, `GoogleCloudBackendService`, `GoogleCloudURLMap` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -1833,6 +1834,344 @@ let teardownScript = DAISDNSTemplate.teardownScript(
 | `public` | Publicly resolvable zone |
 | `private` | Only accessible within VPC networks |
 
+### GoogleCloudHealthCheck (Cloud Load Balancing API)
+
+Cloud Load Balancing provides global and regional load balancing for HTTP(S), TCP, SSL, and gRPC traffic:
+
+```swift
+// Create an HTTP health check
+let healthCheck = GoogleCloudHealthCheck(
+    name: "api-health-check",
+    projectID: "my-project",
+    type: .http,
+    checkIntervalSec: 5,
+    timeoutSec: 5,
+    healthyThreshold: 2,
+    unhealthyThreshold: 3,
+    httpHealthCheck: .init(port: 8080, requestPath: "/health")
+)
+print(healthCheck.createCommand)
+print(healthCheck.resourceName)
+
+// gRPC health check
+let grpcHealthCheck = GoogleCloudHealthCheck(
+    name: "grpc-health-check",
+    projectID: "my-project",
+    type: .grpc,
+    grpcHealthCheck: .init(port: 9090, grpcServiceName: "grpc.health.v1.Health")
+)
+```
+
+**Backend Services:**
+
+```swift
+// Create a backend service with CDN and logging
+let backendService = GoogleCloudBackendService(
+    name: "api-backend",
+    projectID: "my-project",
+    protocol: .http,
+    portName: "http",
+    timeoutSec: 30,
+    healthChecks: ["api-health-check"],
+    loadBalancingScheme: .externalManaged,
+    sessionAffinity: .clientIp,
+    enableCDN: true,
+    cdnPolicy: .init(cacheMode: .cacheAllStatic, defaultTtl: 3600),
+    logConfig: .init(enable: true, sampleRate: 1.0)
+)
+print(backendService.createCommand)
+
+// Add a backend (instance group or NEG)
+let backend = GoogleCloudBackendService.Backend(
+    group: .instanceGroup(name: "my-ig", zone: "us-central1-a"),
+    balancingMode: .rate,
+    maxRatePerInstance: 100.0
+)
+print(backendService.addBackendCommand(backend: backend))
+
+// Serverless NEG for Cloud Run
+let serverlessBackend = GoogleCloudBackendService.Backend(
+    group: .serverlessNEG(name: "cloudrun-neg", region: "us-central1")
+)
+```
+
+**URL Maps and Routing:**
+
+```swift
+// Create a URL map with path-based routing
+let urlMap = GoogleCloudURLMap(
+    name: "api-url-map",
+    projectID: "my-project",
+    defaultService: "default-backend",
+    description: "API routing"
+)
+print(urlMap.createCommand)
+
+// Add path matcher for versioned APIs
+let pathMatcher = GoogleCloudURLMap.PathMatcher(
+    name: "api-paths",
+    defaultService: "api-backend",
+    pathRules: [
+        .init(paths: ["/api/v1/*"], service: "api-v1-backend"),
+        .init(paths: ["/api/v2/*"], service: "api-v2-backend")
+    ]
+)
+print(urlMap.addPathMatcherCommand(pathMatcher: pathMatcher, hosts: ["api.example.com"]))
+```
+
+**Target Proxies:**
+
+```swift
+// HTTPS target proxy with SSL certificate
+let httpsProxy = GoogleCloudTargetProxy(
+    name: "https-proxy",
+    projectID: "my-project",
+    type: .https,
+    urlMap: "api-url-map",
+    sslCertificates: ["my-cert"],
+    sslPolicy: "modern-ssl-policy"
+)
+print(httpsProxy.createCommand)
+
+// TCP proxy for non-HTTP traffic
+let tcpProxy = GoogleCloudTargetProxy(
+    name: "tcp-proxy",
+    projectID: "my-project",
+    type: .tcp,
+    backendService: "tcp-backend"
+)
+
+// gRPC proxy
+let grpcProxy = GoogleCloudTargetProxy(
+    name: "grpc-proxy",
+    projectID: "my-project",
+    type: .grpc,
+    urlMap: "grpc-url-map"
+)
+```
+
+**Forwarding Rules:**
+
+```swift
+// Global HTTPS forwarding rule
+let httpsRule = GoogleCloudForwardingRule(
+    name: "https-rule",
+    projectID: "my-project",
+    ipAddress: "34.120.0.1",
+    ipProtocol: .tcp,
+    portRange: "443",
+    target: "https-proxy",
+    loadBalancingScheme: .externalManaged,
+    networkTier: .premium
+)
+print(httpsRule.createCommand)
+
+// Regional internal load balancer
+let internalRule = GoogleCloudForwardingRule(
+    name: "internal-lb",
+    projectID: "my-project",
+    target: "internal-proxy",
+    loadBalancingScheme: .internal,
+    network: "my-vpc",
+    subnetwork: "my-subnet",
+    isGlobal: false,
+    region: "us-central1",
+    allowGlobalAccess: true
+)
+```
+
+**SSL Certificates:**
+
+```swift
+// Managed SSL certificate (auto-renewed)
+let managedCert = GoogleCloudSSLCertificate(
+    name: "api-cert",
+    projectID: "my-project",
+    type: .managed,
+    domains: ["api.example.com", "www.api.example.com"]
+)
+print(managedCert.createCommand)
+
+// Self-managed certificate
+let selfManagedCert = GoogleCloudSSLCertificate(
+    name: "custom-cert",
+    projectID: "my-project",
+    type: .selfManaged,
+    certificatePath: "/path/to/cert.pem",
+    privateKeyPath: "/path/to/key.pem"
+)
+```
+
+**SSL Policies:**
+
+```swift
+// Modern SSL policy with TLS 1.2+
+let sslPolicy = GoogleCloudSSLPolicy(
+    name: "modern-policy",
+    projectID: "my-project",
+    minTlsVersion: .tls12,
+    profile: .modern
+)
+print(sslPolicy.createCommand)
+
+// Restricted policy for compliance (TLS 1.3 only)
+let restrictedPolicy = GoogleCloudSSLPolicy(
+    name: "restricted-policy",
+    projectID: "my-project",
+    minTlsVersion: .tls13,
+    profile: .restricted
+)
+
+// Custom cipher suite
+let customPolicy = GoogleCloudSSLPolicy(
+    name: "custom-policy",
+    projectID: "my-project",
+    minTlsVersion: .tls12,
+    profile: .custom,
+    customFeatures: [
+        "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+    ]
+)
+```
+
+**Network Endpoint Groups (NEGs):**
+
+```swift
+// Serverless NEG for Cloud Run
+let cloudRunNEG = GoogleCloudNetworkEndpointGroup(
+    name: "cloudrun-neg",
+    projectID: "my-project",
+    type: .serverless,
+    region: "us-central1",
+    cloudRunService: "my-api"
+)
+print(cloudRunNEG.createCommand)
+
+// Cloud Functions NEG
+let functionsNEG = GoogleCloudNetworkEndpointGroup(
+    name: "functions-neg",
+    projectID: "my-project",
+    type: .serverless,
+    region: "us-central1",
+    cloudFunction: "my-function"
+)
+
+// Zonal NEG for VMs
+let zonalNEG = GoogleCloudNetworkEndpointGroup(
+    name: "vm-neg",
+    projectID: "my-project",
+    type: .zonalGCE,
+    network: "my-vpc",
+    subnetwork: "my-subnet",
+    defaultPort: 8080,
+    zone: "us-central1-a"
+)
+```
+
+**DAIS Load Balancing Templates:**
+
+```swift
+// Complete HTTPS load balancer for DAIS
+let healthCheck = DAISLoadBalancingTemplate.httpHealthCheck(
+    projectID: "my-project",
+    deploymentName: "dais-prod"
+)
+
+let backendService = DAISLoadBalancingTemplate.httpBackendService(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    healthCheckName: "dais-prod-http-hc"
+)
+
+let urlMap = DAISLoadBalancingTemplate.urlMap(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    defaultBackendService: "dais-prod-http-backend"
+)
+
+let cert = DAISLoadBalancingTemplate.sslCertificate(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    domains: ["api.example.com"]
+)
+
+let sslPolicy = DAISLoadBalancingTemplate.sslPolicy(
+    projectID: "my-project",
+    deploymentName: "dais-prod"
+)
+
+let proxy = DAISLoadBalancingTemplate.httpsTargetProxy(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    urlMapName: "dais-prod-url-map",
+    sslCertificateName: "dais-prod-cert",
+    sslPolicyName: "dais-prod-ssl-policy"
+)
+
+// Serverless NEG for Cloud Run backend
+let neg = DAISLoadBalancingTemplate.cloudRunNEG(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    region: "us-central1",
+    cloudRunServiceName: "dais-api"
+)
+
+// Complete setup and teardown scripts
+let setupScript = DAISLoadBalancingTemplate.setupScript(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    domains: ["api.example.com"],
+    cloudRunServiceName: "dais-api",
+    region: "us-central1"
+)
+
+let teardownScript = DAISLoadBalancingTemplate.teardownScript(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    region: "us-central1"
+)
+```
+
+**Health Check Types:**
+
+| Type | Use Case |
+|------|----------|
+| `http` | HTTP services |
+| `https` | HTTPS services |
+| `tcp` | TCP services, databases |
+| `ssl` | SSL/TLS services |
+| `grpc` | gRPC services |
+| `http2` | HTTP/2 services |
+
+**Load Balancing Schemes:**
+
+| Scheme | Description |
+|--------|-------------|
+| `external` | Internet-facing, classic LB |
+| `externalManaged` | Internet-facing, global LB |
+| `internal` | Internal traffic only |
+| `internalManaged` | Internal regional HTTP(S) LB |
+
+**SSL Policy Profiles:**
+
+| Profile | Description |
+|---------|-------------|
+| `compatible` | Broad compatibility (TLS 1.0+) |
+| `modern` | Modern browsers (TLS 1.2+) |
+| `restricted` | Strictest security (TLS 1.3) |
+| `custom` | Custom cipher suites |
+
+**Network Endpoint Group Types:**
+
+| Type | Description |
+|------|-------------|
+| `zonalGCE` | VM instances in a zone |
+| `zonalNonGCP` | Non-GCP private IPs |
+| `serverless` | Cloud Run, Functions, App Engine |
+| `internet` | External FQDN endpoints |
+| `privateServiceConnect` | PSC endpoints |
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -2424,6 +2763,13 @@ MIT License
 - [Cloud DNS Documentation](https://cloud.google.com/dns/docs)
 - [DNSSEC Documentation](https://cloud.google.com/dns/docs/dnssec)
 - [DNS Response Policies](https://cloud.google.com/dns/docs/zones/manage-response-policies)
+- [Cloud Load Balancing Documentation](https://cloud.google.com/load-balancing/docs)
+- [HTTP(S) Load Balancing](https://cloud.google.com/load-balancing/docs/https)
+- [TCP/SSL Proxy Load Balancing](https://cloud.google.com/load-balancing/docs/tcp)
+- [Network Endpoint Groups](https://cloud.google.com/load-balancing/docs/negs)
+- [Serverless NEGs](https://cloud.google.com/load-balancing/docs/negs/serverless-neg-concepts)
+- [SSL Certificates](https://cloud.google.com/load-balancing/docs/ssl-certificates)
+- [SSL Policies](https://cloud.google.com/load-balancing/docs/ssl-policies-concepts)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
