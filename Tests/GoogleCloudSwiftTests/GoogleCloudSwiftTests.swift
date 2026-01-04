@@ -17890,3 +17890,515 @@ import Testing
     #expect(decoded.diskType == .pdSsd)
     #expect(decoded.spot == true)
 }
+
+// MARK: - Cloud Spanner Instance Tests
+
+@Test func testSpannerInstanceBasicInit() {
+    let instance = GoogleCloudSpannerInstance(
+        name: "my-instance",
+        projectID: "my-project",
+        config: "regional-us-central1"
+    )
+
+    #expect(instance.name == "my-instance")
+    #expect(instance.projectID == "my-project")
+    #expect(instance.config == "regional-us-central1")
+}
+
+@Test func testSpannerInstanceResourceName() {
+    let instance = GoogleCloudSpannerInstance(
+        name: "my-instance",
+        projectID: "my-project",
+        config: "regional-us-central1"
+    )
+
+    #expect(instance.resourceName == "projects/my-project/instances/my-instance")
+}
+
+@Test func testSpannerInstanceCreateCommandWithNodes() {
+    let instance = GoogleCloudSpannerInstance(
+        name: "my-instance",
+        projectID: "my-project",
+        displayName: "My Instance",
+        config: "regional-us-central1",
+        nodeCount: 3,
+        labels: ["env": "prod"]
+    )
+
+    let cmd = instance.createCommand
+    #expect(cmd.contains("gcloud spanner instances create my-instance"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--config=regional-us-central1"))
+    #expect(cmd.contains("--nodes=3"))
+    #expect(cmd.contains("--description='My Instance'"))
+    #expect(cmd.contains("--labels="))
+}
+
+@Test func testSpannerInstanceCreateCommandWithProcessingUnits() {
+    let instance = GoogleCloudSpannerInstance(
+        name: "my-instance",
+        projectID: "my-project",
+        config: "regional-us-central1",
+        processingUnits: 100
+    )
+
+    let cmd = instance.createCommand
+    #expect(cmd.contains("--processing-units=100"))
+    #expect(!cmd.contains("--nodes="))
+}
+
+@Test func testSpannerInstanceDeleteCommand() {
+    let instance = GoogleCloudSpannerInstance(
+        name: "my-instance",
+        projectID: "my-project",
+        config: "regional-us-central1"
+    )
+
+    let cmd = instance.deleteCommand
+    #expect(cmd.contains("gcloud spanner instances delete my-instance"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testSpannerInstanceDescribeCommand() {
+    let instance = GoogleCloudSpannerInstance(
+        name: "my-instance",
+        projectID: "my-project",
+        config: "regional-us-central1"
+    )
+
+    let cmd = instance.describeCommand
+    #expect(cmd.contains("gcloud spanner instances describe my-instance"))
+}
+
+@Test func testSpannerInstanceUpdateCommand() {
+    let instance = GoogleCloudSpannerInstance(
+        name: "my-instance",
+        projectID: "my-project",
+        config: "regional-us-central1"
+    )
+
+    let cmd = instance.updateCommand(nodeCount: 5, displayName: "Updated Instance")
+    #expect(cmd.contains("gcloud spanner instances update my-instance"))
+    #expect(cmd.contains("--nodes=5"))
+    #expect(cmd.contains("--description='Updated Instance'"))
+}
+
+@Test func testSpannerInstanceListCommand() {
+    let cmd = GoogleCloudSpannerInstance.listCommand(projectID: "my-project")
+    #expect(cmd.contains("gcloud spanner instances list"))
+    #expect(cmd.contains("--project=my-project"))
+}
+
+@Test func testSpannerInstanceStateValues() {
+    #expect(GoogleCloudSpannerInstance.InstanceState.creating.rawValue == "CREATING")
+    #expect(GoogleCloudSpannerInstance.InstanceState.ready.rawValue == "READY")
+}
+
+// MARK: - Cloud Spanner Database Tests
+
+@Test func testSpannerDatabaseBasicInit() {
+    let database = GoogleCloudSpannerDatabase(
+        name: "my-db",
+        instanceName: "my-instance",
+        projectID: "my-project"
+    )
+
+    #expect(database.name == "my-db")
+    #expect(database.instanceName == "my-instance")
+}
+
+@Test func testSpannerDatabaseResourceName() {
+    let database = GoogleCloudSpannerDatabase(
+        name: "my-db",
+        instanceName: "my-instance",
+        projectID: "my-project"
+    )
+
+    #expect(database.resourceName == "projects/my-project/instances/my-instance/databases/my-db")
+}
+
+@Test func testSpannerDatabaseCreateCommand() {
+    let database = GoogleCloudSpannerDatabase(
+        name: "my-db",
+        instanceName: "my-instance",
+        projectID: "my-project",
+        enableDropProtection: true
+    )
+
+    let cmd = database.createCommand
+    #expect(cmd.contains("gcloud spanner databases create my-db"))
+    #expect(cmd.contains("--instance=my-instance"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--enable-drop-protection"))
+}
+
+@Test func testSpannerDatabaseCreateCommandPostgreSQL() {
+    let database = GoogleCloudSpannerDatabase(
+        name: "my-pg-db",
+        instanceName: "my-instance",
+        projectID: "my-project",
+        databaseDialect: .postgresql
+    )
+
+    let cmd = database.createCommand
+    #expect(cmd.contains("--database-dialect=POSTGRESQL"))
+}
+
+@Test func testSpannerDatabaseCreateCommandWithDDL() {
+    let database = GoogleCloudSpannerDatabase(
+        name: "my-db",
+        instanceName: "my-instance",
+        projectID: "my-project",
+        ddl: ["CREATE TABLE users (id INT64 NOT NULL) PRIMARY KEY (id)"]
+    )
+
+    let cmd = database.createCommand
+    #expect(cmd.contains("--ddl="))
+}
+
+@Test func testSpannerDatabaseDeleteCommand() {
+    let database = GoogleCloudSpannerDatabase(
+        name: "my-db",
+        instanceName: "my-instance",
+        projectID: "my-project"
+    )
+
+    let cmd = database.deleteCommand
+    #expect(cmd.contains("gcloud spanner databases delete my-db"))
+    #expect(cmd.contains("--instance=my-instance"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testSpannerDatabaseUpdateDdlCommand() {
+    let database = GoogleCloudSpannerDatabase(
+        name: "my-db",
+        instanceName: "my-instance",
+        projectID: "my-project"
+    )
+
+    let cmd = database.updateDdlCommand(statements: ["ALTER TABLE users ADD COLUMN name STRING(255)"])
+    #expect(cmd.contains("gcloud spanner databases ddl update my-db"))
+    #expect(cmd.contains("--ddl="))
+}
+
+@Test func testSpannerDatabaseExecuteSqlCommand() {
+    let database = GoogleCloudSpannerDatabase(
+        name: "my-db",
+        instanceName: "my-instance",
+        projectID: "my-project"
+    )
+
+    let cmd = database.executeSqlCommand(sql: "SELECT * FROM users")
+    #expect(cmd.contains("gcloud spanner databases execute-sql my-db"))
+    #expect(cmd.contains("--sql='SELECT * FROM users'"))
+}
+
+@Test func testSpannerDatabaseListCommand() {
+    let cmd = GoogleCloudSpannerDatabase.listCommand(instanceName: "my-instance", projectID: "my-project")
+    #expect(cmd.contains("gcloud spanner databases list"))
+    #expect(cmd.contains("--instance=my-instance"))
+}
+
+@Test func testSpannerDatabaseDialectValues() {
+    #expect(GoogleCloudSpannerDatabase.DatabaseDialect.googleStandardSql.rawValue == "GOOGLE_STANDARD_SQL")
+    #expect(GoogleCloudSpannerDatabase.DatabaseDialect.postgresql.rawValue == "POSTGRESQL")
+}
+
+@Test func testSpannerDatabaseStateValues() {
+    #expect(GoogleCloudSpannerDatabase.DatabaseState.creating.rawValue == "CREATING")
+    #expect(GoogleCloudSpannerDatabase.DatabaseState.ready.rawValue == "READY")
+    #expect(GoogleCloudSpannerDatabase.DatabaseState.readyOptimizing.rawValue == "READY_OPTIMIZING")
+}
+
+// MARK: - Cloud Spanner Backup Tests
+
+@Test func testSpannerBackupBasicInit() {
+    let backup = GoogleCloudSpannerBackup(
+        name: "my-backup",
+        instanceName: "my-instance",
+        projectID: "my-project",
+        databaseName: "my-db"
+    )
+
+    #expect(backup.name == "my-backup")
+    #expect(backup.databaseName == "my-db")
+}
+
+@Test func testSpannerBackupResourceName() {
+    let backup = GoogleCloudSpannerBackup(
+        name: "my-backup",
+        instanceName: "my-instance",
+        projectID: "my-project",
+        databaseName: "my-db"
+    )
+
+    #expect(backup.resourceName == "projects/my-project/instances/my-instance/backups/my-backup")
+}
+
+@Test func testSpannerBackupCreateCommand() {
+    let backup = GoogleCloudSpannerBackup(
+        name: "my-backup",
+        instanceName: "my-instance",
+        projectID: "my-project",
+        databaseName: "my-db"
+    )
+
+    let cmd = backup.createCommand(expirationDate: "2024-12-31")
+    #expect(cmd.contains("gcloud spanner backups create my-backup"))
+    #expect(cmd.contains("--instance=my-instance"))
+    #expect(cmd.contains("--database=my-db"))
+    #expect(cmd.contains("--expiration-date=2024-12-31"))
+}
+
+@Test func testSpannerBackupCreateCommandWithRetention() {
+    let backup = GoogleCloudSpannerBackup(
+        name: "my-backup",
+        instanceName: "my-instance",
+        projectID: "my-project",
+        databaseName: "my-db"
+    )
+
+    let cmd = backup.createCommandWithRetention(retentionPeriod: "7d")
+    #expect(cmd.contains("--retention-period=7d"))
+}
+
+@Test func testSpannerBackupDeleteCommand() {
+    let backup = GoogleCloudSpannerBackup(
+        name: "my-backup",
+        instanceName: "my-instance",
+        projectID: "my-project",
+        databaseName: "my-db"
+    )
+
+    let cmd = backup.deleteCommand
+    #expect(cmd.contains("gcloud spanner backups delete my-backup"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testSpannerBackupRestoreCommand() {
+    let backup = GoogleCloudSpannerBackup(
+        name: "my-backup",
+        instanceName: "my-instance",
+        projectID: "my-project",
+        databaseName: "my-db"
+    )
+
+    let cmd = backup.restoreCommand(newDatabaseName: "restored-db")
+    #expect(cmd.contains("gcloud spanner databases restore"))
+    #expect(cmd.contains("--source-backup=my-backup"))
+    #expect(cmd.contains("--destination-database=restored-db"))
+}
+
+@Test func testSpannerBackupListCommand() {
+    let cmd = GoogleCloudSpannerBackup.listCommand(instanceName: "my-instance", projectID: "my-project")
+    #expect(cmd.contains("gcloud spanner backups list"))
+    #expect(cmd.contains("--instance=my-instance"))
+}
+
+@Test func testSpannerBackupStateValues() {
+    #expect(GoogleCloudSpannerBackup.BackupState.creating.rawValue == "CREATING")
+    #expect(GoogleCloudSpannerBackup.BackupState.ready.rawValue == "READY")
+}
+
+// MARK: - Spanner Instance Config Tests
+
+@Test func testSpannerInstanceConfigConstants() {
+    #expect(GoogleCloudSpannerInstanceConfig.regionalUSCentral1 == "regional-us-central1")
+    #expect(GoogleCloudSpannerInstanceConfig.regionalUSEast1 == "regional-us-east1")
+    #expect(GoogleCloudSpannerInstanceConfig.nam3 == "nam3")
+    #expect(GoogleCloudSpannerInstanceConfig.eur3 == "eur3")
+}
+
+@Test func testSpannerInstanceConfigListCommand() {
+    let cmd = GoogleCloudSpannerInstanceConfig.listCommand(projectID: "my-project")
+    #expect(cmd.contains("gcloud spanner instance-configs list"))
+}
+
+@Test func testSpannerInstanceConfigDescribeCommand() {
+    let cmd = GoogleCloudSpannerInstanceConfig.describeCommand(configName: "regional-us-central1", projectID: "my-project")
+    #expect(cmd.contains("gcloud spanner instance-configs describe regional-us-central1"))
+}
+
+@Test func testSpannerReplicaInfoInit() {
+    let replica = GoogleCloudSpannerInstanceConfig.ReplicaInfo(
+        location: "us-central1",
+        type: .readWrite,
+        defaultLeaderLocation: true
+    )
+
+    #expect(replica.location == "us-central1")
+    #expect(replica.type == .readWrite)
+    #expect(replica.defaultLeaderLocation == true)
+}
+
+@Test func testSpannerReplicaTypeValues() {
+    #expect(GoogleCloudSpannerInstanceConfig.ReplicaInfo.ReplicaType.readWrite.rawValue == "READ_WRITE")
+    #expect(GoogleCloudSpannerInstanceConfig.ReplicaInfo.ReplicaType.readOnly.rawValue == "READ_ONLY")
+    #expect(GoogleCloudSpannerInstanceConfig.ReplicaInfo.ReplicaType.witness.rawValue == "WITNESS")
+}
+
+// MARK: - Spanner Operations Tests
+
+@Test func testSpannerOperationsEnableAPI() {
+    #expect(SpannerOperations.enableAPICommand == "gcloud services enable spanner.googleapis.com")
+}
+
+@Test func testSpannerOperationsQueryCommand() {
+    let cmd = SpannerOperations.queryCommand(
+        database: "my-db",
+        instance: "my-instance",
+        projectID: "my-project",
+        sql: "SELECT * FROM users"
+    )
+    #expect(cmd.contains("gcloud spanner databases execute-sql my-db"))
+    #expect(cmd.contains("--instance=my-instance"))
+    #expect(cmd.contains("--sql='SELECT * FROM users'"))
+}
+
+@Test func testSpannerOperationsGetDdlCommand() {
+    let cmd = SpannerOperations.getDdlCommand(
+        database: "my-db",
+        instance: "my-instance",
+        projectID: "my-project"
+    )
+    #expect(cmd.contains("gcloud spanner databases ddl describe my-db"))
+}
+
+@Test func testSpannerOperationsListSessionsCommand() {
+    let cmd = SpannerOperations.listSessionsCommand(
+        database: "my-db",
+        instance: "my-instance",
+        projectID: "my-project"
+    )
+    #expect(cmd.contains("gcloud spanner databases sessions list"))
+    #expect(cmd.contains("--database=my-db"))
+}
+
+@Test func testSpannerOperationsSetIAMPolicyCommand() {
+    let cmd = SpannerOperations.setIAMPolicyCommand(
+        instance: "my-instance",
+        projectID: "my-project",
+        member: "user:test@example.com",
+        role: "roles/spanner.databaseAdmin"
+    )
+    #expect(cmd.contains("gcloud spanner instances add-iam-policy-binding my-instance"))
+    #expect(cmd.contains("--member=user:test@example.com"))
+    #expect(cmd.contains("--role=roles/spanner.databaseAdmin"))
+}
+
+// MARK: - DAIS Spanner Template Tests
+
+@Test func testDAISSpannerTemplateBasicInit() {
+    let template = DAISSpannerTemplate(projectID: "my-project")
+
+    #expect(template.projectID == "my-project")
+    #expect(template.instanceName == "dais-spanner")
+    #expect(template.databaseName == "dais-db")
+}
+
+@Test func testDAISSpannerTemplateDevelopmentInstance() {
+    let template = DAISSpannerTemplate(projectID: "my-project")
+    let instance = template.developmentInstance
+
+    #expect(instance.name == "dais-spanner")
+    #expect(instance.processingUnits == 100)
+    #expect(instance.labels?["environment"] == "development")
+}
+
+@Test func testDAISSpannerTemplateProductionInstance() {
+    let template = DAISSpannerTemplate(projectID: "my-project")
+    let instance = template.productionInstance
+
+    #expect(instance.name == "dais-spanner-prod")
+    #expect(instance.nodeCount == 3)
+    #expect(instance.config == GoogleCloudSpannerInstanceConfig.nam3)
+}
+
+@Test func testDAISSpannerTemplateMainDatabase() {
+    let template = DAISSpannerTemplate(projectID: "my-project")
+    let database = template.mainDatabase
+
+    #expect(database.name == "dais-db")
+    #expect(database.enableDropProtection == true)
+    #expect(database.ddl?.isEmpty == false)
+}
+
+@Test func testDAISSpannerTemplatePostgresDatabase() {
+    let template = DAISSpannerTemplate(projectID: "my-project")
+    let database = template.postgresDatabase
+
+    #expect(database.name == "dais-db-pg")
+    #expect(database.databaseDialect == .postgresql)
+}
+
+@Test func testDAISSpannerTemplateSetupScript() {
+    let template = DAISSpannerTemplate(projectID: "my-project")
+    let script = template.setupScript
+
+    #expect(script.contains("gcloud services enable spanner.googleapis.com"))
+    #expect(script.contains("gcloud spanner instances create"))
+    #expect(script.contains("gcloud spanner databases create"))
+}
+
+@Test func testDAISSpannerTemplateTeardownScript() {
+    let template = DAISSpannerTemplate(projectID: "my-project")
+    let script = template.teardownScript
+
+    #expect(script.contains("gcloud spanner instances delete"))
+}
+
+@Test func testDAISSpannerTemplateSchema() {
+    let template = DAISSpannerTemplate(projectID: "my-project")
+    let schema = template.daisSchema
+
+    #expect(schema.count > 0)
+    #expect(schema.first?.contains("CREATE TABLE agents") == true)
+}
+
+// MARK: - Spanner Codable Tests
+
+@Test func testSpannerInstanceCodable() throws {
+    let instance = GoogleCloudSpannerInstance(
+        name: "test-instance",
+        projectID: "my-project",
+        config: "regional-us-central1",
+        nodeCount: 3
+    )
+
+    let data = try JSONEncoder().encode(instance)
+    let decoded = try JSONDecoder().decode(GoogleCloudSpannerInstance.self, from: data)
+
+    #expect(decoded.name == "test-instance")
+    #expect(decoded.nodeCount == 3)
+}
+
+@Test func testSpannerDatabaseCodable() throws {
+    let database = GoogleCloudSpannerDatabase(
+        name: "test-db",
+        instanceName: "my-instance",
+        projectID: "my-project",
+        databaseDialect: .postgresql
+    )
+
+    let data = try JSONEncoder().encode(database)
+    let decoded = try JSONDecoder().decode(GoogleCloudSpannerDatabase.self, from: data)
+
+    #expect(decoded.name == "test-db")
+    #expect(decoded.databaseDialect == .postgresql)
+}
+
+@Test func testSpannerBackupCodable() throws {
+    let backup = GoogleCloudSpannerBackup(
+        name: "test-backup",
+        instanceName: "my-instance",
+        projectID: "my-project",
+        databaseName: "my-db"
+    )
+
+    let data = try JSONEncoder().encode(backup)
+    let decoded = try JSONDecoder().decode(GoogleCloudSpannerBackup.self, from: data)
+
+    #expect(decoded.name == "test-backup")
+    #expect(decoded.databaseName == "my-db")
+}

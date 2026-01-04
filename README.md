@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 37 Google Cloud services:
+GoogleCloudSwift provides models for 38 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -117,6 +117,7 @@ GoogleCloudSwift provides models for 37 Google Cloud services:
 | **Cloud Filestore** | Managed NFS file shares | `GoogleCloudFilestoreInstance`, `GoogleCloudFilestoreBackup`, `GoogleCloudFilestoreSnapshot` |
 | **Cloud VPN** | Secure network connectivity | `GoogleCloudVPNGateway`, `GoogleCloudVPNTunnel`, `GoogleCloudExternalVPNGateway` |
 | **BigQuery** | Data warehouse and analytics | `GoogleCloudBigQueryDataset`, `GoogleCloudBigQueryTable`, `GoogleCloudBigQueryJob`, `GoogleCloudBigQueryView` |
+| **Cloud Spanner** | Globally distributed relational database | `GoogleCloudSpannerInstance`, `GoogleCloudSpannerDatabase`, `GoogleCloudSpannerBackup`, `DAISSpannerTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -4209,6 +4210,153 @@ let script = DAISBigQueryTemplate.setupScript(
 | `MONTH` | Monthly partitions |
 | `YEAR` | Yearly partitions |
 
+### GoogleCloudSpannerInstance (Cloud Spanner API)
+
+Cloud Spanner is a globally distributed, horizontally scalable relational database:
+
+```swift
+// Create a Spanner instance with processing units (for development)
+let devInstance = GoogleCloudSpannerInstance(
+    name: "my-instance",
+    projectID: "my-project",
+    displayName: "My Spanner Instance",
+    config: "regional-us-central1",
+    processingUnits: 100,
+    labels: ["environment": "development"]
+)
+
+print(devInstance.createCommand)
+print(devInstance.resourceName)  // projects/my-project/instances/my-instance
+```
+
+**Production Instance with Nodes:**
+
+```swift
+// Create a production instance with nodes (1 node = 1000 processing units)
+let prodInstance = GoogleCloudSpannerInstance(
+    name: "prod-instance",
+    projectID: "my-project",
+    displayName: "Production Instance",
+    config: GoogleCloudSpannerInstanceConfig.nam3,  // Multi-region
+    nodeCount: 3,
+    labels: ["environment": "production"]
+)
+```
+
+**Databases:**
+
+```swift
+// Create a database with schema
+let database = GoogleCloudSpannerDatabase(
+    name: "my-db",
+    instanceName: "my-instance",
+    projectID: "my-project",
+    ddl: [
+        "CREATE TABLE users (user_id STRING(36) NOT NULL, name STRING(255)) PRIMARY KEY (user_id)",
+        "CREATE INDEX users_by_name ON users (name)"
+    ],
+    enableDropProtection: true
+)
+
+print(database.createCommand)
+print(database.resourceName)  // projects/my-project/instances/my-instance/databases/my-db
+
+// Execute SQL
+print(database.executeSqlCommand(sql: "SELECT * FROM users"))
+
+// Update schema
+print(database.updateDdlCommand(statements: ["ALTER TABLE users ADD COLUMN email STRING(255)"]))
+```
+
+**PostgreSQL-Compatible Database:**
+
+```swift
+let pgDatabase = GoogleCloudSpannerDatabase(
+    name: "my-pg-db",
+    instanceName: "my-instance",
+    projectID: "my-project",
+    databaseDialect: .postgresql
+)
+```
+
+**Backups:**
+
+```swift
+// Create a backup with expiration date
+let backup = GoogleCloudSpannerBackup(
+    name: "daily-backup",
+    instanceName: "my-instance",
+    projectID: "my-project",
+    databaseName: "my-db"
+)
+
+print(backup.createCommand(expirationDate: "2024-12-31"))
+print(backup.createCommandWithRetention(retentionPeriod: "7d"))
+
+// Restore from backup
+print(backup.restoreCommand(newDatabaseName: "restored-db"))
+```
+
+**Spanner Operations:**
+
+```swift
+// Query execution
+print(SpannerOperations.queryCommand(
+    database: "my-db",
+    instance: "my-instance",
+    projectID: "my-project",
+    sql: "SELECT * FROM users WHERE status = 'active'"
+))
+
+// Get database DDL
+print(SpannerOperations.getDdlCommand(
+    database: "my-db",
+    instance: "my-instance",
+    projectID: "my-project"
+))
+
+// List instance configs
+print(GoogleCloudSpannerInstanceConfig.listCommand(projectID: "my-project"))
+
+// Enable API
+print(SpannerOperations.enableAPICommand)
+```
+
+**DAIS Spanner Templates:**
+
+```swift
+let template = DAISSpannerTemplate(
+    projectID: "my-project",
+    instanceName: "dais-spanner",
+    databaseName: "dais-db"
+)
+
+// Development instance (100 processing units)
+let devInstance = template.developmentInstance
+
+// Production instance (multi-region, 3 nodes)
+let prodInstance = template.productionInstance
+
+// Database with DAIS schema
+let mainDb = template.mainDatabase
+
+// PostgreSQL-compatible database
+let pgDb = template.postgresDatabase
+
+// Setup script
+print(template.setupScript)
+```
+
+**Instance Configuration Options:**
+
+| Config | Description |
+|--------|-------------|
+| `regional-us-central1` | Single region (Iowa) |
+| `regional-us-east1` | Single region (S. Carolina) |
+| `nam3` | Multi-region (Iowa, Virginia, Oregon) |
+| `nam6` | Multi-region (6 US regions) |
+| `eur3` | Multi-region (Belgium, London, Finland) |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -5625,6 +5773,16 @@ MIT License
 - [Loading Data](https://cloud.google.com/bigquery/docs/loading-data)
 - [Exporting Data](https://cloud.google.com/bigquery/docs/exporting-data)
 - [bq Command-Line Tool](https://cloud.google.com/bigquery/docs/bq-command-line-tool)
+
+### Cloud Spanner
+- [Cloud Spanner Documentation](https://cloud.google.com/spanner/docs)
+- [Spanner Instances](https://cloud.google.com/spanner/docs/instances)
+- [Spanner Databases](https://cloud.google.com/spanner/docs/databases)
+- [Schema Design Best Practices](https://cloud.google.com/spanner/docs/schema-design)
+- [Spanner SQL Reference](https://cloud.google.com/spanner/docs/reference/standard-sql/query-syntax)
+- [PostgreSQL Interface](https://cloud.google.com/spanner/docs/postgresql-interface)
+- [Backup and Restore](https://cloud.google.com/spanner/docs/backup)
+- [Multi-Region Configurations](https://cloud.google.com/spanner/docs/instance-configurations)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)
