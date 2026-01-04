@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 21 Google Cloud services:
+GoogleCloudSwift provides models for 22 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -106,6 +106,7 @@ GoogleCloudSwift provides models for 21 Google Cloud services:
 | **Cloud Load Balancing** | Global and regional load balancing | `GoogleCloudHealthCheck`, `GoogleCloudBackendService`, `GoogleCloudURLMap` |
 | **Artifact Registry** | Container and package management | `GoogleCloudArtifactRegistryRepository`, `GoogleCloudDockerImage` |
 | **Cloud Build** | CI/CD pipelines | `GoogleCloudBuild`, `GoogleCloudBuildTrigger`, `GoogleCloudBuildWorkerPool` |
+| **Cloud Armor** | WAF & DDoS protection | `GoogleCloudSecurityPolicy`, `SecurityPolicyRule`, `WAFRule` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -2764,6 +2765,158 @@ let workerPool = DAISCloudBuildTemplate.workerPool(
 | `N1_HIGHCPU_8` | 8 | 7.2 GB | Legacy workloads |
 | `N1_HIGHCPU_32` | 32 | 28.8 GB | Legacy large builds |
 
+### GoogleCloudSecurityPolicy (Cloud Armor API)
+
+Protect your applications with Cloud Armor WAF and DDoS protection:
+
+```swift
+// Create a security policy
+let policy = GoogleCloudSecurityPolicy(
+    name: "dais-waf-policy",
+    projectID: "my-project",
+    type: .cloudArmor,
+    rules: [
+        SecurityPolicyRule(
+            priority: 1000,
+            match: .expression(SecurityExpressions.blockCountries(["CN", "RU", "KP"])),
+            action: .deny403,
+            description: "Block high-risk countries"
+        ),
+        SecurityPolicyRule(
+            priority: 2000,
+            match: .expression(WAFRule.sqli.expression),
+            action: .deny403,
+            description: "Block SQL injection attacks"
+        ),
+        SecurityPolicyRule(
+            priority: 2147483647,
+            match: .ipRanges(["*"]),
+            action: .allow,
+            description: "Default allow rule"
+        )
+    ],
+    adaptiveProtectionConfig: AdaptiveProtectionConfig(layer7DdosDefenseEnabled: true)
+)
+
+print(policy.createCommand)
+// Output: gcloud compute security-policies create dais-waf-policy --project=my-project --type=CLOUD_ARMOR
+
+// Add rules to policy
+for rule in policy.rules {
+    print(rule.addRuleCommand(policyName: "dais-waf-policy", projectID: "my-project"))
+}
+```
+
+**Rate Limiting:**
+
+```swift
+// Create rate limit rule
+let rateLimitRule = SecurityPolicyRule(
+    priority: 500,
+    match: .expression("request.path.matches('/api/.*')"),
+    action: .throttle,
+    description: "API rate limiting",
+    rateLimitOptions: RateLimitOptions(
+        rateLimitThreshold: RateLimitThreshold(count: 100, intervalSec: 60),
+        conformAction: "allow",
+        exceedAction: "deny(429)",
+        enforceOnKey: .ip
+    )
+)
+
+// Or use Cloud Armor Operations helper
+let rateLimitCmd = CloudArmorOperations.createRateLimitRule(
+    policyName: "dais-waf-policy",
+    projectID: "my-project",
+    priority: 500,
+    requestsPerMinute: 100,
+    enforceOnKey: .ip
+)
+```
+
+**WAF Rules (OWASP ModSecurity Core Rule Set):**
+
+```swift
+// Add WAF protection
+let wafCmd = CloudArmorOperations.addWAFRule(
+    policyName: "dais-waf-policy",
+    projectID: "my-project",
+    wafRule: .sqli,
+    priority: 2000
+)
+
+// Available WAF rules
+let rules: [WAFRule] = [.sqli, .xss, .lfi, .rfi, .rce, .cve202144228]
+for rule in rules {
+    print("\(rule.rawValue): \(rule.description)")
+}
+```
+
+**Attach to Backend Service:**
+
+```swift
+// Attach policy to load balancer backend
+let attachCmd = CloudArmorOperations.attachToBackendService(
+    policyName: "dais-waf-policy",
+    backendServiceName: "dais-backend",
+    projectID: "my-project"
+)
+```
+
+**DAIS Templates:**
+
+```swift
+// Complete security policy for production
+let policy = DAISCloudArmorTemplate.securityPolicy(
+    projectID: "my-project",
+    deploymentName: "dais-prod"
+)
+
+// Pre-configured protection rules
+let owaspRule = DAISCloudArmorTemplate.owaspProtectionRule(priority: 1000)
+let rceRule = DAISCloudArmorTemplate.rceProtectionRule(priority: 1100)
+let log4jRule = DAISCloudArmorTemplate.log4jProtectionRule(priority: 1200)
+let rateLimitRule = DAISCloudArmorTemplate.apiRateLimitRule(
+    priority: 500,
+    pathPattern: "/api/v1/.*",
+    requestsPerMinute: 100
+)
+
+// Geographic blocking
+let geoRule = DAISCloudArmorTemplate.geoBlockRule(
+    priority: 100,
+    countryCodes: ["CN", "RU", "KP", "IR"]
+)
+
+// Complete setup script
+let setupScript = DAISCloudArmorTemplate.setupScript(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    backendServiceName: "dais-backend"
+)
+```
+
+**WAF Rules Reference:**
+
+| Rule | Description | Sensitivity |
+|------|-------------|-------------|
+| `sqli` | SQL Injection protection | 1-4 |
+| `xss` | Cross-site scripting protection | 1-2 |
+| `lfi` | Local file inclusion protection | 1-2 |
+| `rfi` | Remote file inclusion protection | 1-2 |
+| `rce` | Remote code execution protection | 1-3 |
+| `cve202144228` | Log4j vulnerability (Log4Shell) | 1-3 |
+
+**Security Expression Helpers:**
+
+| Expression | Description |
+|------------|-------------|
+| `blockCountries(codes)` | Block requests from specific countries |
+| `allowOnlyCountries(codes)` | Allow only requests from specific countries |
+| `blockPaths(patterns)` | Block specific URL paths |
+| `blockUserAgents(patterns)` | Block specific user agents |
+| `matchAPIPaths(version)` | Match API endpoint paths |
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -3373,6 +3526,11 @@ MIT License
 - [Cloud Build Worker Pools](https://cloud.google.com/build/docs/private-pools/private-pools-overview)
 - [Cloud Build GitHub Integration](https://cloud.google.com/build/docs/automating-builds/github/connect-repo-github)
 - [cloudbuild.yaml Reference](https://cloud.google.com/build/docs/build-config-file-schema)
+- [Cloud Armor Documentation](https://cloud.google.com/armor/docs)
+- [Cloud Armor Security Policies](https://cloud.google.com/armor/docs/security-policy-overview)
+- [Cloud Armor WAF Rules](https://cloud.google.com/armor/docs/waf-rules)
+- [Cloud Armor Rate Limiting](https://cloud.google.com/armor/docs/rate-limiting-overview)
+- [Cloud Armor Adaptive Protection](https://cloud.google.com/armor/docs/adaptive-protection-overview)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
