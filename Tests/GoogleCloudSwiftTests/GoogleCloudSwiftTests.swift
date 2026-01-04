@@ -16883,3 +16883,334 @@ import Testing
     #expect(decoded.name == "test-gateway")
     #expect(decoded.state == .active)
 }
+
+// MARK: - Cloud DLP Tests
+
+@Test func testDLPInfoTypeBasicInit() {
+    let infoType = GoogleCloudDLPInfoType(name: "CUSTOM_TYPE")
+    #expect(infoType.name == "CUSTOM_TYPE")
+}
+
+@Test func testDLPInfoTypeBuiltIn() {
+    #expect(GoogleCloudDLPInfoType.creditCardNumber.name == "CREDIT_CARD_NUMBER")
+    #expect(GoogleCloudDLPInfoType.emailAddress.name == "EMAIL_ADDRESS")
+    #expect(GoogleCloudDLPInfoType.phoneNumber.name == "PHONE_NUMBER")
+    #expect(GoogleCloudDLPInfoType.usSSN.name == "US_SOCIAL_SECURITY_NUMBER")
+    #expect(GoogleCloudDLPInfoType.ipAddress.name == "IP_ADDRESS")
+}
+
+@Test func testDLPInfoTypeAllPII() {
+    let pii = GoogleCloudDLPInfoType.allPII
+    #expect(pii.count > 5)
+    #expect(pii.contains(where: { $0.name == "CREDIT_CARD_NUMBER" }))
+    #expect(pii.contains(where: { $0.name == "EMAIL_ADDRESS" }))
+}
+
+@Test func testDLPInfoTypeFinancial() {
+    let financial = GoogleCloudDLPInfoType.financial
+    #expect(financial.contains(where: { $0.name == "CREDIT_CARD_NUMBER" }))
+    #expect(financial.contains(where: { $0.name == "IBAN_CODE" }))
+}
+
+@Test func testDLPInfoTypeHealthcare() {
+    let healthcare = GoogleCloudDLPInfoType.healthcare
+    #expect(healthcare.contains(where: { $0.name == "MEDICAL_RECORD_NUMBER" }))
+}
+
+@Test func testDLPInspectConfigBasic() {
+    let config = GoogleCloudDLPInspectConfig(
+        infoTypes: [.emailAddress, .phoneNumber],
+        minLikelihood: .likely,
+        includeQuote: true
+    )
+
+    #expect(config.infoTypes?.count == 2)
+    #expect(config.minLikelihood == .likely)
+    #expect(config.includeQuote == true)
+}
+
+@Test func testDLPInspectConfigLikelihoodValues() {
+    #expect(GoogleCloudDLPInspectConfig.Likelihood.veryUnlikely.rawValue == "VERY_UNLIKELY")
+    #expect(GoogleCloudDLPInspectConfig.Likelihood.likely.rawValue == "LIKELY")
+    #expect(GoogleCloudDLPInspectConfig.Likelihood.veryLikely.rawValue == "VERY_LIKELY")
+}
+
+@Test func testDLPInspectConfigFindingLimits() {
+    let limits = GoogleCloudDLPInspectConfig.FindingLimits(
+        maxFindingsPerItem: 50,
+        maxFindingsPerRequest: 500
+    )
+
+    #expect(limits.maxFindingsPerItem == 50)
+    #expect(limits.maxFindingsPerRequest == 500)
+}
+
+@Test func testDLPDeidentifyConfigRedact() {
+    let config = GoogleCloudDLPDeidentifyConfig(
+        infoTypeTransformations: GoogleCloudDLPDeidentifyConfig.InfoTypeTransformations(
+            transformations: [
+                GoogleCloudDLPDeidentifyConfig.InfoTypeTransformations.InfoTypeTransformation(
+                    primitiveTransformation: .redact
+                )
+            ]
+        )
+    )
+
+    #expect(config.infoTypeTransformations?.transformations.count == 1)
+}
+
+@Test func testPrimitiveTransformationRedact() {
+    let transform = PrimitiveTransformation.redact
+    #expect(transform.redactConfig != nil)
+}
+
+@Test func testPrimitiveTransformationReplace() {
+    let transform = PrimitiveTransformation.replace(with: "[REDACTED]")
+    #expect(transform.replaceConfig?.newValue.stringValue == "[REDACTED]")
+}
+
+@Test func testPrimitiveTransformationMask() {
+    let transform = PrimitiveTransformation.mask(character: "#", numberToMask: 4)
+    #expect(transform.characterMaskConfig?.maskingCharacter == "#")
+    #expect(transform.characterMaskConfig?.numberToMask == 4)
+}
+
+@Test func testPrimitiveTransformationReplaceWithInfoType() {
+    let transform = PrimitiveTransformation.replaceWithInfoType
+    #expect(transform.replaceWithInfoTypeConfig != nil)
+}
+
+@Test func testDLPInspectTemplateBasicInit() {
+    let template = GoogleCloudDLPInspectTemplate(
+        name: "my-template",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Template",
+        inspectConfig: GoogleCloudDLPInspectConfig(infoTypes: [.emailAddress])
+    )
+
+    #expect(template.name == "my-template")
+    #expect(template.location == "us-central1")
+}
+
+@Test func testDLPInspectTemplateResourceName() {
+    let template = GoogleCloudDLPInspectTemplate(
+        name: "my-template",
+        projectID: "my-project",
+        location: "global",
+        inspectConfig: GoogleCloudDLPInspectConfig()
+    )
+
+    #expect(template.resourceName == "projects/my-project/locations/global/inspectTemplates/my-template")
+}
+
+@Test func testDLPInspectTemplateCreateCommand() {
+    let template = GoogleCloudDLPInspectTemplate(
+        name: "my-template",
+        projectID: "my-project",
+        displayName: "My Template",
+        inspectConfig: GoogleCloudDLPInspectConfig()
+    )
+
+    let cmd = template.createCommand
+    #expect(cmd.contains("gcloud dlp inspect-templates create my-template"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--display-name='My Template'"))
+}
+
+@Test func testDLPDeidentifyTemplateBasicInit() {
+    let template = GoogleCloudDLPDeidentifyTemplate(
+        name: "my-deidentify-template",
+        projectID: "my-project",
+        displayName: "My Deidentify Template",
+        deidentifyConfig: GoogleCloudDLPDeidentifyConfig()
+    )
+
+    #expect(template.name == "my-deidentify-template")
+}
+
+@Test func testDLPDeidentifyTemplateResourceName() {
+    let template = GoogleCloudDLPDeidentifyTemplate(
+        name: "my-template",
+        projectID: "my-project",
+        location: "us-east1",
+        deidentifyConfig: GoogleCloudDLPDeidentifyConfig()
+    )
+
+    #expect(template.resourceName == "projects/my-project/locations/us-east1/deidentifyTemplates/my-template")
+}
+
+@Test func testDLPJobTriggerBasicInit() {
+    let trigger = GoogleCloudDLPJobTrigger(
+        name: "my-trigger",
+        projectID: "my-project",
+        displayName: "My Trigger"
+    )
+
+    #expect(trigger.name == "my-trigger")
+    #expect(trigger.displayName == "My Trigger")
+}
+
+@Test func testDLPJobTriggerResourceName() {
+    let trigger = GoogleCloudDLPJobTrigger(
+        name: "my-trigger",
+        projectID: "my-project",
+        location: "global"
+    )
+
+    #expect(trigger.resourceName == "projects/my-project/locations/global/jobTriggers/my-trigger")
+}
+
+@Test func testDLPJobTriggerSchedule() {
+    let hourly = GoogleCloudDLPJobTrigger.Trigger.Schedule.hours(1)
+    #expect(hourly.recurrencePeriodDuration == "3600s")
+
+    let daily = GoogleCloudDLPJobTrigger.Trigger.Schedule.days(1)
+    #expect(daily.recurrencePeriodDuration == "86400s")
+}
+
+@Test func testDLPJobTriggerStatusValues() {
+    #expect(GoogleCloudDLPJobTrigger.Status.healthy.rawValue == "HEALTHY")
+    #expect(GoogleCloudDLPJobTrigger.Status.paused.rawValue == "PAUSED")
+}
+
+@Test func testDLPJobTriggerCommands() {
+    let trigger = GoogleCloudDLPJobTrigger(
+        name: "my-trigger",
+        projectID: "my-project",
+        location: "global"
+    )
+
+    #expect(trigger.describeCommand.contains("gcloud dlp job-triggers describe"))
+    #expect(trigger.deleteCommand.contains("gcloud dlp job-triggers delete"))
+    #expect(trigger.activateCommand.contains("gcloud dlp job-triggers activate"))
+    #expect(trigger.pauseCommand.contains("gcloud dlp job-triggers pause"))
+}
+
+@Test func testDLPOperationsInspectContent() {
+    let cmd = DLPOperations.inspectContentCommand(
+        projectID: "my-project",
+        content: "test",
+        infoTypes: [.emailAddress, .phoneNumber]
+    )
+
+    #expect(cmd.contains("gcloud dlp text inspect"))
+    #expect(cmd.contains("--info-types=EMAIL_ADDRESS,PHONE_NUMBER"))
+}
+
+@Test func testDLPOperationsInspectFile() {
+    let cmd = DLPOperations.inspectFileCommand(
+        projectID: "my-project",
+        file: "data.txt",
+        infoTypes: [.creditCardNumber]
+    )
+
+    #expect(cmd.contains("--content-file=data.txt"))
+    #expect(cmd.contains("CREDIT_CARD_NUMBER"))
+}
+
+@Test func testDLPOperationsListCommands() {
+    #expect(DLPOperations.listInspectTemplatesCommand(projectID: "my-project")
+        .contains("gcloud dlp inspect-templates list"))
+
+    #expect(DLPOperations.listDeidentifyTemplatesCommand(projectID: "my-project")
+        .contains("gcloud dlp deidentify-templates list"))
+
+    #expect(DLPOperations.listJobTriggersCommand(projectID: "my-project")
+        .contains("gcloud dlp job-triggers list"))
+}
+
+@Test func testDLPOperationsEnableAPI() {
+    #expect(DLPOperations.enableAPICommand == "gcloud services enable dlp.googleapis.com")
+}
+
+@Test func testDAISDLPTemplatePIIInspectConfig() {
+    let template = DAISDLPTemplate(projectID: "my-project")
+    let config = template.piiInspectConfig
+
+    #expect(config.infoTypes?.isEmpty == false)
+    #expect(config.minLikelihood == .likely)
+}
+
+@Test func testDAISDLPTemplateFinancialInspectConfig() {
+    let template = DAISDLPTemplate(projectID: "my-project")
+    let config = template.financialInspectConfig
+
+    #expect(config.infoTypes?.contains(where: { $0.name == "CREDIT_CARD_NUMBER" }) == true)
+}
+
+@Test func testDAISDLPTemplateRedactionConfig() {
+    let template = DAISDLPTemplate(projectID: "my-project")
+    let config = template.redactionDeidentifyConfig
+
+    #expect(config.infoTypeTransformations != nil)
+}
+
+@Test func testDAISDLPTemplateMaskingConfig() {
+    let template = DAISDLPTemplate(projectID: "my-project")
+    let config = template.maskingDeidentifyConfig
+
+    #expect(config.infoTypeTransformations?.transformations.count ?? 0 > 0)
+}
+
+@Test func testDAISDLPTemplatePIIInspectTemplate() {
+    let template = DAISDLPTemplate(projectID: "my-project")
+    let inspectTemplate = template.piiInspectTemplate
+
+    #expect(inspectTemplate.name == "dais-pii-inspect")
+    #expect(inspectTemplate.displayName == "DAIS PII Inspection Template")
+}
+
+@Test func testDAISDLPTemplateRedactionDeidentifyTemplate() {
+    let template = DAISDLPTemplate(projectID: "my-project")
+    let deidentifyTemplate = template.redactionDeidentifyTemplate
+
+    #expect(deidentifyTemplate.name == "dais-redaction-deidentify")
+}
+
+@Test func testDAISDLPTemplateSetupScript() {
+    let template = DAISDLPTemplate(projectID: "my-project")
+    let script = template.setupScript
+
+    #expect(script.contains("gcloud services enable dlp.googleapis.com"))
+}
+
+@Test func testDLPInfoTypeCodable() throws {
+    let infoType = GoogleCloudDLPInfoType(
+        name: "CUSTOM_TYPE",
+        sensitivityScore: .sensitivityHigh
+    )
+
+    let data = try JSONEncoder().encode(infoType)
+    let decoded = try JSONDecoder().decode(GoogleCloudDLPInfoType.self, from: data)
+
+    #expect(decoded.name == "CUSTOM_TYPE")
+    #expect(decoded.sensitivityScore == .sensitivityHigh)
+}
+
+@Test func testDLPInspectConfigCodable() throws {
+    let config = GoogleCloudDLPInspectConfig(
+        infoTypes: [.emailAddress],
+        minLikelihood: .likely
+    )
+
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(GoogleCloudDLPInspectConfig.self, from: data)
+
+    #expect(decoded.infoTypes?.first?.name == "EMAIL_ADDRESS")
+    #expect(decoded.minLikelihood == .likely)
+}
+
+@Test func testDLPInspectTemplateCodable() throws {
+    let template = GoogleCloudDLPInspectTemplate(
+        name: "test-template",
+        projectID: "my-project",
+        displayName: "Test",
+        inspectConfig: GoogleCloudDLPInspectConfig(infoTypes: [.creditCardNumber])
+    )
+
+    let data = try JSONEncoder().encode(template)
+    let decoded = try JSONDecoder().decode(GoogleCloudDLPInspectTemplate.self, from: data)
+
+    #expect(decoded.name == "test-template")
+}
