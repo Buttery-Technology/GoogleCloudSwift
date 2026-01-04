@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 41 Google Cloud services:
+GoogleCloudSwift provides models for 42 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -121,6 +121,7 @@ GoogleCloudSwift provides models for 41 Google Cloud services:
 | **Firestore** | NoSQL document database | `GoogleCloudFirestoreDatabase`, `GoogleCloudFirestoreIndex`, `GoogleCloudFirestoreExport`, `DAISFirestoreTemplate` |
 | **Vertex AI** | Machine learning platform | `GoogleCloudVertexAIModel`, `GoogleCloudVertexAIEndpoint`, `GoogleCloudVertexAICustomJob`, `DAISVertexAITemplate` |
 | **Cloud Trace** | Distributed tracing | `GoogleCloudTraceSpan`, `GoogleCloudTraceSink`, `TraceOperations`, `DAISTraceTemplate` |
+| **Cloud Profiler** | Continuous profiling | `GoogleCloudProfilerProfile`, `GoogleCloudProfilerAgentConfig`, `ProfilerOperations`, `DAISProfilerTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -4804,6 +4805,164 @@ print(template.setupScript)
 | `roles/cloudtrace.agent` | Write traces |
 | `roles/cloudtrace.user` | Read traces |
 
+### GoogleCloudProfilerProfile (Cloud Profiler API)
+
+Cloud Profiler is a continuous profiling tool for analyzing application performance:
+
+```swift
+// Create a profiler profile reference
+let profile = GoogleCloudProfilerProfile(
+    name: "profile-abc123",
+    projectID: "my-project",
+    profileType: .cpu,
+    deployment: GoogleCloudProfilerProfile.Deployment(
+        projectID: "my-project",
+        target: "api-server",
+        labels: ["env": "production"]
+    ),
+    duration: "60s"
+)
+
+print(profile.resourceName)  // projects/my-project/profiles/profile-abc123
+```
+
+**Profiler Agent Configuration:**
+
+```swift
+// Configure the profiler agent
+let config = GoogleCloudProfilerAgentConfig(
+    projectID: "my-project",
+    service: "my-api",
+    serviceVersion: "1.0.0",
+    zone: "us-central1-a",
+    cpuProfilingEnabled: true,
+    heapProfilingEnabled: true,
+    allocationProfilingEnabled: false,
+    mutexProfilingEnabled: false
+)
+
+// Get environment variables
+let envVars = config.environmentVariables
+// GOOGLE_CLOUD_PROJECT=my-project
+// GAE_SERVICE=my-api
+// GAE_VERSION=1.0.0
+
+// Docker run with profiler
+print(config.dockerRunCommand(image: "my-image:latest"))
+```
+
+**Profiler Operations:**
+
+```swift
+// Enable API
+print(ProfilerOperations.enableAPICommand)
+
+// List profiles
+print(ProfilerOperations.listProfilesCommand(projectID: "my-project"))
+
+// Get a specific profile
+print(ProfilerOperations.getProfileCommand(projectID: "my-project", profileName: "profile-123"))
+
+// Delete a profile
+print(ProfilerOperations.deleteProfileCommand(projectID: "my-project", profileName: "profile-123"))
+```
+
+**Language-Specific Configurations:**
+
+```swift
+// Go profiler
+let goConfig = ProfilerLanguageConfig.Go(
+    projectID: "my-project",
+    service: "my-service",
+    serviceVersion: "1.0.0"
+)
+print(goConfig.initCode)  // Go initialization code
+
+// Python profiler
+let pythonConfig = ProfilerLanguageConfig.Python(
+    projectID: "my-project",
+    service: "my-service",
+    serviceVersion: "1.0.0"
+)
+print(pythonConfig.initCode)
+
+// Node.js profiler
+let nodeConfig = ProfilerLanguageConfig.NodeJS(
+    projectID: "my-project",
+    service: "my-service",
+    serviceVersion: "1.0.0"
+)
+print(nodeConfig.initCode)
+
+// Java profiler
+let javaConfig = ProfilerLanguageConfig.Java(
+    projectID: "my-project",
+    service: "my-service",
+    serviceVersion: "1.0.0"
+)
+print(javaConfig.jvmArgument)
+print(javaConfig.dockerfileSnippet)
+```
+
+**Profiler Query:**
+
+```swift
+// Query profiles
+let query = GoogleCloudProfilerQuery(
+    projectID: "my-project",
+    profileType: .cpu,
+    service: "api-server",
+    version: "2.0.0"
+)
+
+print(query.queryString)
+```
+
+**DAIS Profiler Templates:**
+
+```swift
+let template = DAISProfilerTemplate(
+    projectID: "my-project",
+    service: "dais-api",
+    serviceVersion: "1.0.0",
+    serviceAccount: "sa@my-project.iam.gserviceaccount.com"
+)
+
+// Agent configuration
+let agentConfig = template.agentConfig
+
+// Language-specific configs
+let goConfig = template.goConfig
+let pythonConfig = template.pythonConfig
+let nodeConfig = template.nodeJSConfig
+let javaConfig = template.javaConfig
+
+// Query for recent profiles
+let query = template.recentProfilesQuery
+
+// Setup script
+print(template.setupScript)
+```
+
+**Profile Types:**
+
+| Type | Description |
+|------|-------------|
+| `CPU` | CPU time profiling |
+| `HEAP` | Heap memory profiling |
+| `HEAP_ALLOC` | Heap allocation profiling |
+| `THREADS` | Thread profiling |
+| `CONTENTION` | Lock contention profiling |
+| `PEAK_HEAP` | Peak heap usage |
+| `WALL` | Wall-clock time profiling |
+
+**IAM Roles:**
+
+| Role | Description |
+|------|-------------|
+| `roles/cloudprofiler.agent` | Write profiles |
+| `roles/cloudprofiler.user` | View profiles |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -6259,6 +6418,16 @@ MIT License
 - [W3C Trace Context](https://cloud.google.com/trace/docs/trace-context)
 - [Latency Explorer](https://cloud.google.com/trace/docs/latency-explorer)
 - [Trace IAM Roles](https://cloud.google.com/trace/docs/iam)
+
+### Cloud Profiler
+- [Cloud Profiler Documentation](https://cloud.google.com/profiler/docs)
+- [Profiling Concepts](https://cloud.google.com/profiler/docs/concepts-profiling)
+- [Go Profiler](https://cloud.google.com/profiler/docs/profiling-go)
+- [Python Profiler](https://cloud.google.com/profiler/docs/profiling-python)
+- [Node.js Profiler](https://cloud.google.com/profiler/docs/profiling-nodejs)
+- [Java Profiler](https://cloud.google.com/profiler/docs/profiling-java)
+- [Using the Interface](https://cloud.google.com/profiler/docs/using-profiler)
+- [Profiler IAM Roles](https://cloud.google.com/profiler/docs/iam)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)

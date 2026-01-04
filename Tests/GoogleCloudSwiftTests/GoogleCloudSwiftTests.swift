@@ -19682,3 +19682,368 @@ import Testing
     #expect(decoded.sampleRate == 0.25)
     #expect(decoded.spanAttributeLimit == 64)
 }
+
+// MARK: - Cloud Profiler Tests
+
+@Test func testProfilerProfileBasicInit() {
+    let profile = GoogleCloudProfilerProfile(
+        name: "profile-123",
+        projectID: "my-project",
+        profileType: .cpu
+    )
+
+    #expect(profile.name == "profile-123")
+    #expect(profile.projectID == "my-project")
+    #expect(profile.profileType == .cpu)
+}
+
+@Test func testProfilerProfileResourceName() {
+    let profile = GoogleCloudProfilerProfile(
+        name: "profile-456",
+        projectID: "my-project",
+        profileType: .heap
+    )
+
+    #expect(profile.resourceName == "projects/my-project/profiles/profile-456")
+}
+
+@Test func testProfilerProfileTypes() {
+    let types: [GoogleCloudProfilerProfile.ProfileType] = [
+        .cpu, .heap, .heapAlloc, .threads, .contention, .peakHeap, .wallTime
+    ]
+
+    #expect(types.count == 7)
+    #expect(GoogleCloudProfilerProfile.ProfileType.cpu.rawValue == "CPU")
+    #expect(GoogleCloudProfilerProfile.ProfileType.heap.rawValue == "HEAP")
+    #expect(GoogleCloudProfilerProfile.ProfileType.wallTime.rawValue == "WALL")
+}
+
+@Test func testProfilerProfileWithDeployment() {
+    let deployment = GoogleCloudProfilerProfile.Deployment(
+        projectID: "my-project",
+        target: "api-server",
+        labels: ["env": "production"]
+    )
+
+    let profile = GoogleCloudProfilerProfile(
+        name: "profile-789",
+        projectID: "my-project",
+        profileType: .cpu,
+        deployment: deployment
+    )
+
+    #expect(profile.deployment?.target == "api-server")
+    #expect(profile.deployment?.labels?["env"] == "production")
+}
+
+@Test func testProfilerAgentConfigBasicInit() {
+    let config = GoogleCloudProfilerAgentConfig(
+        projectID: "my-project",
+        service: "my-service"
+    )
+
+    #expect(config.projectID == "my-project")
+    #expect(config.service == "my-service")
+    #expect(config.cpuProfilingEnabled == true)
+    #expect(config.heapProfilingEnabled == true)
+}
+
+@Test func testProfilerAgentConfigEnvironmentVariables() {
+    let config = GoogleCloudProfilerAgentConfig(
+        projectID: "my-project",
+        service: "my-service",
+        serviceVersion: "1.0.0",
+        zone: "us-central1-a",
+        cpuProfilingEnabled: true,
+        heapProfilingEnabled: true
+    )
+
+    let vars = config.environmentVariables
+    #expect(vars["GOOGLE_CLOUD_PROJECT"] == "my-project")
+    #expect(vars["GAE_SERVICE"] == "my-service")
+    #expect(vars["GAE_VERSION"] == "1.0.0")
+    #expect(vars["GCLOUD_ZONE"] == "us-central1-a")
+}
+
+@Test func testProfilerAgentConfigDockerRun() {
+    let config = GoogleCloudProfilerAgentConfig(
+        projectID: "my-project",
+        service: "my-service"
+    )
+
+    let cmd = config.dockerRunCommand(image: "my-image:latest")
+    #expect(cmd.contains("docker run"))
+    #expect(cmd.contains("GOOGLE_CLOUD_PROJECT=my-project"))
+    #expect(cmd.contains("my-image:latest"))
+}
+
+@Test func testProfilerOperationsEnableAPI() {
+    #expect(ProfilerOperations.enableAPICommand == "gcloud services enable cloudprofiler.googleapis.com")
+}
+
+@Test func testProfilerOperationsRoles() {
+    #expect(ProfilerOperations.Roles.agent == "roles/cloudprofiler.agent")
+    #expect(ProfilerOperations.Roles.user == "roles/cloudprofiler.user")
+}
+
+@Test func testProfilerOperationsListProfiles() {
+    let cmd = ProfilerOperations.listProfilesCommand(projectID: "my-project")
+    #expect(cmd.contains("cloudprofiler.googleapis.com"))
+    #expect(cmd.contains("projects/my-project/profiles"))
+}
+
+@Test func testProfilerOperationsListProfilesWithPageSize() {
+    let cmd = ProfilerOperations.listProfilesCommand(projectID: "my-project", pageSize: 50)
+    #expect(cmd.contains("pageSize=50"))
+}
+
+@Test func testProfilerOperationsGetProfile() {
+    let cmd = ProfilerOperations.getProfileCommand(projectID: "my-project", profileName: "profile-123")
+    #expect(cmd.contains("projects/my-project/profiles/profile-123"))
+    #expect(cmd.contains("GET"))
+}
+
+@Test func testProfilerOperationsDeleteProfile() {
+    let cmd = ProfilerOperations.deleteProfileCommand(projectID: "my-project", profileName: "profile-123")
+    #expect(cmd.contains("projects/my-project/profiles/profile-123"))
+    #expect(cmd.contains("DELETE"))
+}
+
+@Test func testProfilerOperationsAddAgentRole() {
+    let cmd = ProfilerOperations.addAgentRoleCommand(
+        projectID: "my-project",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com"
+    )
+
+    #expect(cmd.contains("add-iam-policy-binding"))
+    #expect(cmd.contains("roles/cloudprofiler.agent"))
+    #expect(cmd.contains("sa@my-project.iam.gserviceaccount.com"))
+}
+
+@Test func testProfilerQueryBasicInit() {
+    let query = GoogleCloudProfilerQuery(
+        projectID: "my-project",
+        service: "my-service",
+        version: "1.0.0"
+    )
+
+    #expect(query.projectID == "my-project")
+    #expect(query.service == "my-service")
+    #expect(query.version == "1.0.0")
+}
+
+@Test func testProfilerQueryQueryString() {
+    let query = GoogleCloudProfilerQuery(
+        projectID: "my-project",
+        profileType: .cpu,
+        service: "api-server",
+        version: "2.0.0"
+    )
+
+    let queryStr = query.queryString
+    #expect(queryStr.contains("deployment.labels.service=api-server"))
+    #expect(queryStr.contains("deployment.labels.version=2.0.0"))
+    #expect(queryStr.contains("profile_type=CPU"))
+}
+
+@Test func testProfilerGoConfigBasicInit() {
+    let config = ProfilerLanguageConfig.Go(
+        projectID: "my-project",
+        service: "my-service",
+        serviceVersion: "1.0.0"
+    )
+
+    #expect(config.projectID == "my-project")
+    #expect(config.service == "my-service")
+    #expect(config.serviceVersion == "1.0.0")
+}
+
+@Test func testProfilerGoConfigInitCode() {
+    let config = ProfilerLanguageConfig.Go(
+        projectID: "my-project",
+        service: "my-service",
+        serviceVersion: "1.0.0"
+    )
+
+    let code = config.initCode
+    #expect(code.contains("profiler.Start"))
+    #expect(code.contains("my-service"))
+    #expect(code.contains("my-project"))
+}
+
+@Test func testProfilerGoModuleDependency() {
+    #expect(ProfilerLanguageConfig.Go.moduleDependency == "cloud.google.com/go/profiler")
+}
+
+@Test func testProfilerPythonConfigInitCode() {
+    let config = ProfilerLanguageConfig.Python(
+        projectID: "my-project",
+        service: "my-service",
+        serviceVersion: "1.0.0"
+    )
+
+    let code = config.initCode
+    #expect(code.contains("googlecloudprofiler.start"))
+    #expect(code.contains("my-service"))
+    #expect(code.contains("my-project"))
+}
+
+@Test func testProfilerPythonPipInstall() {
+    #expect(ProfilerLanguageConfig.Python.pipInstallCommand == "pip install google-cloud-profiler")
+}
+
+@Test func testProfilerNodeJSConfigInitCode() {
+    let config = ProfilerLanguageConfig.NodeJS(
+        projectID: "my-project",
+        service: "my-service",
+        serviceVersion: "1.0.0"
+    )
+
+    let code = config.initCode
+    #expect(code.contains("@google-cloud/profiler"))
+    #expect(code.contains("my-service"))
+    #expect(code.contains("my-project"))
+}
+
+@Test func testProfilerNodeJSNpmInstall() {
+    #expect(ProfilerLanguageConfig.NodeJS.npmInstallCommand == "npm install @google-cloud/profiler")
+}
+
+@Test func testProfilerJavaConfigJVMArgument() {
+    let config = ProfilerLanguageConfig.Java(
+        projectID: "my-project",
+        service: "my-service",
+        serviceVersion: "1.0.0"
+    )
+
+    let arg = config.jvmArgument
+    #expect(arg.contains("-agentpath"))
+    #expect(arg.contains("profiler_java_agent.so"))
+    #expect(arg.contains("my-service"))
+}
+
+@Test func testProfilerJavaConfigDockerfile() {
+    let config = ProfilerLanguageConfig.Java(
+        projectID: "my-project",
+        service: "my-service",
+        serviceVersion: "1.0.0"
+    )
+
+    let snippet = config.dockerfileSnippet
+    #expect(snippet.contains("cloud-profiler"))
+    #expect(snippet.contains("JAVA_TOOL_OPTIONS"))
+}
+
+@Test func testDAISProfilerTemplateBasicInit() {
+    let template = DAISProfilerTemplate(
+        projectID: "my-project",
+        service: "dais-api"
+    )
+
+    #expect(template.projectID == "my-project")
+    #expect(template.service == "dais-api")
+}
+
+@Test func testDAISProfilerTemplateAgentConfig() {
+    let template = DAISProfilerTemplate(
+        projectID: "my-project",
+        service: "dais-api",
+        serviceVersion: "2.0.0"
+    )
+
+    let config = template.agentConfig
+    #expect(config.service == "dais-api")
+    #expect(config.cpuProfilingEnabled == true)
+    #expect(config.heapProfilingEnabled == true)
+}
+
+@Test func testDAISProfilerTemplateLanguageConfigs() {
+    let template = DAISProfilerTemplate(
+        projectID: "my-project",
+        service: "dais-api"
+    )
+
+    #expect(template.goConfig.service == "dais-api")
+    #expect(template.pythonConfig.service == "dais-api")
+    #expect(template.nodeJSConfig.service == "dais-api")
+    #expect(template.javaConfig.service == "dais-api")
+}
+
+@Test func testDAISProfilerTemplateRecentProfilesQuery() {
+    let template = DAISProfilerTemplate(
+        projectID: "my-project",
+        service: "dais-api",
+        serviceVersion: "1.0.0"
+    )
+
+    let query = template.recentProfilesQuery
+    #expect(query.service == "dais-api")
+    #expect(query.version == "1.0.0")
+}
+
+@Test func testDAISProfilerTemplateSetupScript() {
+    let template = DAISProfilerTemplate(
+        projectID: "my-project",
+        service: "dais-api",
+        serviceVersion: "1.0.0",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com"
+    )
+
+    let script = template.setupScript
+    #expect(script.contains("cloudprofiler.googleapis.com"))
+    #expect(script.contains("cloudprofiler.agent"))
+    #expect(script.contains("GOOGLE_CLOUD_PROJECT"))
+}
+
+@Test func testProfilerProfileCodable() throws {
+    let deployment = GoogleCloudProfilerProfile.Deployment(
+        projectID: "my-project",
+        target: "api-server"
+    )
+
+    let profile = GoogleCloudProfilerProfile(
+        name: "profile-123",
+        projectID: "my-project",
+        profileType: .cpu,
+        deployment: deployment,
+        duration: "60s"
+    )
+
+    let data = try JSONEncoder().encode(profile)
+    let decoded = try JSONDecoder().decode(GoogleCloudProfilerProfile.self, from: data)
+
+    #expect(decoded.name == "profile-123")
+    #expect(decoded.profileType == .cpu)
+    #expect(decoded.duration == "60s")
+}
+
+@Test func testProfilerAgentConfigCodable() throws {
+    let config = GoogleCloudProfilerAgentConfig(
+        projectID: "my-project",
+        service: "my-service",
+        serviceVersion: "1.0.0",
+        cpuProfilingEnabled: true,
+        heapProfilingEnabled: false
+    )
+
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(GoogleCloudProfilerAgentConfig.self, from: data)
+
+    #expect(decoded.service == "my-service")
+    #expect(decoded.cpuProfilingEnabled == true)
+    #expect(decoded.heapProfilingEnabled == false)
+}
+
+@Test func testProfilerQueryCodable() throws {
+    let query = GoogleCloudProfilerQuery(
+        projectID: "my-project",
+        profileType: .heap,
+        service: "api-server"
+    )
+
+    let data = try JSONEncoder().encode(query)
+    let decoded = try JSONDecoder().decode(GoogleCloudProfilerQuery.self, from: data)
+
+    #expect(decoded.service == "api-server")
+    #expect(decoded.profileType == .heap)
+}
