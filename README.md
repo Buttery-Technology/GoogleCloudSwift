@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 48 Google Cloud services:
+GoogleCloudSwift provides models for 49 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -128,6 +128,7 @@ GoogleCloudSwift provides models for 48 Google Cloud services:
 | **Cloud Composer** | Managed Apache Airflow | `GoogleCloudComposerEnvironment`, `GoogleCloudComposerDAG`, `ComposerOperations`, `DAISComposerTemplate` |
 | **Document AI** | Intelligent document processing | `GoogleCloudDocumentAIProcessor`, `GoogleCloudDocument`, `DocumentAIOperations`, `DAISDocumentAITemplate` |
 | **Vision AI** | Image analysis and understanding | `GoogleCloudVisionRequest`, `GoogleCloudVisionResponse`, `VisionOperations`, `DAISVisionAITemplate` |
+| **Speech-to-Text** | Audio transcription | `GoogleCloudSpeechRecognitionRequest`, `GoogleCloudSpeechRecognizer`, `SpeechToTextOperations`, `DAISSpeechToTextTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -6080,6 +6081,167 @@ print(template.pythonProcessingScript)
 | `roles/ml.developer` | Full access to Vision API |
 | `roles/ml.viewer` | Read-only access |
 
+### GoogleCloudSpeechRecognitionRequest (Speech-to-Text API)
+
+Speech-to-Text converts audio to text using powerful neural network models:
+
+```swift
+// Create a recognition config
+let config = GoogleCloudSpeechRecognitionConfig(
+    encoding: .linear16,
+    sampleRateHertz: 16000,
+    languageCode: "en-US",
+    enableAutomaticPunctuation: true,
+    enableWordTimeOffsets: true,
+    model: .latest_long,
+    useEnhanced: true
+)
+
+// Create a request
+let request = GoogleCloudSpeechRecognitionRequest(
+    projectID: "my-project",
+    config: config,
+    audio: GoogleCloudSpeechRecognitionAudio.fromGCS("gs://my-bucket/audio.flac")
+)
+
+print(request.recognizeCommand(audioFile: "audio.wav"))
+print(request.longRunningRecognizeCommand(gcsUri: "gs://bucket/audio.flac"))
+```
+
+**Recognition Models:**
+
+```swift
+// Phone call transcription
+let phoneConfig = GoogleCloudSpeechRecognitionConfig(
+    encoding: .mulaw,
+    sampleRateHertz: 8000,
+    languageCode: "en-US",
+    model: .phone_call,
+    useEnhanced: true
+)
+
+// Video transcription
+let videoConfig = GoogleCloudSpeechRecognitionConfig(
+    encoding: .linear16,
+    sampleRateHertz: 16000,
+    languageCode: "en-US",
+    model: .video
+)
+
+// Medical dictation
+let medicalConfig = GoogleCloudSpeechRecognitionConfig(
+    encoding: .linear16,
+    sampleRateHertz: 16000,
+    languageCode: "en-US",
+    model: .medical_dictation
+)
+```
+
+**Speech Adaptation:**
+
+```swift
+// Boost recognition of specific phrases
+let context = GoogleCloudSpeechRecognitionConfig.SpeechContext(
+    phrases: ["DAIS", "distributed AI", "agent cluster"],
+    boost: 10.0
+)
+
+// Create phrase set for V2 API
+let phraseSet = GoogleCloudSpeechPhraseSet(
+    name: "domain-phrases",
+    projectID: "my-project",
+    location: "global",
+    phrases: [
+        GoogleCloudSpeechPhraseSet.Phrase(value: "custom term", boost: 5.0)
+    ]
+)
+
+print(phraseSet.resourceName)
+print(phraseSet.createCommand)
+```
+
+**V2 Recognizers:**
+
+```swift
+let recognizer = GoogleCloudSpeechRecognizer(
+    name: "my-recognizer",
+    projectID: "my-project",
+    location: "us-central1",
+    displayName: "Production Recognizer",
+    model: "latest_long",
+    languageCodes: ["en-US", "es-ES"]
+)
+
+print(recognizer.resourceName)
+print(recognizer.createCommand)
+print(recognizer.describeCommand)
+```
+
+**Speech-to-Text Operations:**
+
+```swift
+// Enable API
+print(SpeechToTextOperations.enableAPICommand)
+
+// Recognize from local file
+print(SpeechToTextOperations.recognizeCommand(
+    audioFile: "audio.wav",
+    languageCode: "en-US",
+    projectID: "my-project"
+))
+
+// Long-running recognition from GCS
+print(SpeechToTextOperations.recognizeLongRunningCommand(
+    gcsUri: "gs://bucket/audio.flac",
+    languageCode: "en-US",
+    projectID: "my-project"
+))
+```
+
+**DAIS Speech-to-Text Template:**
+
+```swift
+let template = DAISSpeechToTextTemplate(
+    projectID: "my-project",
+    location: "global",
+    serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+    audioBucket: "my-project-audio"
+)
+
+// Pre-configured recognition configs
+let englishConfig = template.englishConfig  // Enhanced English
+let phoneConfig = template.phoneCallConfig  // Phone call optimized
+let videoConfig = template.videoConfig  // Video transcription
+let multiLangConfig = template.multiLanguageConfig  // Multi-language
+
+// Setup and teardown
+print(template.setupScript)
+print(template.teardownScript)
+print(template.pythonProcessingScript)
+```
+
+**Audio Encodings:**
+
+| Encoding | Description |
+|----------|-------------|
+| `LINEAR16` | Uncompressed 16-bit PCM |
+| `FLAC` | Free Lossless Audio Codec |
+| `MP3` | MP3 audio |
+| `OGG_OPUS` | Ogg Opus |
+| `MULAW` | μ-law (telephony) |
+| `AMR` | Adaptive Multi-Rate |
+
+**Recognition Models:**
+
+| Model | Use Case |
+|-------|----------|
+| `latest_long` | Long-form content (podcasts, meetings) |
+| `latest_short` | Short utterances |
+| `phone_call` | Phone conversations |
+| `video` | Video transcription |
+| `medical_dictation` | Medical dictation |
+| `telephony` | Telephony optimized |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -7611,6 +7773,16 @@ MIT License
 - [Product Search](https://cloud.google.com/vision/docs/product-search)
 - [Batch Processing](https://cloud.google.com/vision/docs/batch)
 - [Vision AI Client Libraries](https://cloud.google.com/vision/docs/libraries)
+
+### Speech-to-Text
+- [Speech-to-Text Documentation](https://cloud.google.com/speech-to-text/docs)
+- [Transcription Models](https://cloud.google.com/speech-to-text/docs/transcription-model)
+- [Speech Adaptation](https://cloud.google.com/speech-to-text/docs/adaptation)
+- [Long-Running Recognition](https://cloud.google.com/speech-to-text/docs/async-recognize)
+- [Streaming Recognition](https://cloud.google.com/speech-to-text/docs/streaming-recognize)
+- [Class Tokens](https://cloud.google.com/speech-to-text/docs/class-tokens)
+- [Multi-Channel Recognition](https://cloud.google.com/speech-to-text/docs/multi-channel)
+- [Speech-to-Text Client Libraries](https://cloud.google.com/speech-to-text/docs/libraries)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)
