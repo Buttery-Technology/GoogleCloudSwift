@@ -16055,3 +16055,422 @@ import Testing
     #expect(GoogleCloudDeployTarget.ExecutionConfig.Usage.deploy.rawValue == "DEPLOY")
     #expect(GoogleCloudDeployTarget.ExecutionConfig.Usage.verify.rawValue == "VERIFY")
 }
+
+// MARK: - Cloud Workflows Tests
+
+@Test func testWorkflowBasicInit() {
+    let workflow = GoogleCloudWorkflow(
+        name: "my-workflow",
+        projectID: "my-project",
+        location: "us-central1",
+        description: "Test workflow"
+    )
+
+    #expect(workflow.name == "my-workflow")
+    #expect(workflow.projectID == "my-project")
+    #expect(workflow.location == "us-central1")
+    #expect(workflow.description == "Test workflow")
+}
+
+@Test func testWorkflowResourceName() {
+    let workflow = GoogleCloudWorkflow(
+        name: "my-workflow",
+        projectID: "my-project",
+        location: "us-west1"
+    )
+
+    #expect(workflow.resourceName == "projects/my-project/locations/us-west1/workflows/my-workflow")
+}
+
+@Test func testWorkflowCreateCommand() {
+    let workflow = GoogleCloudWorkflow(
+        name: "my-workflow",
+        projectID: "my-project",
+        location: "us-central1",
+        description: "Test workflow",
+        serviceAccount: "workflow-sa@my-project.iam.gserviceaccount.com",
+        callLogLevel: .logAllCalls
+    )
+
+    let cmd = workflow.createCommand
+    #expect(cmd.contains("gcloud workflows deploy my-workflow"))
+    #expect(cmd.contains("--location=us-central1"))
+    #expect(cmd.contains("--description='Test workflow'"))
+    #expect(cmd.contains("--service-account=workflow-sa@my-project.iam.gserviceaccount.com"))
+    #expect(cmd.contains("--call-log-level="))
+}
+
+@Test func testWorkflowDeleteCommand() {
+    let workflow = GoogleCloudWorkflow(
+        name: "my-workflow",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(workflow.deleteCommand == "gcloud workflows delete my-workflow --location=us-central1 --quiet")
+}
+
+@Test func testWorkflowDescribeCommand() {
+    let workflow = GoogleCloudWorkflow(
+        name: "my-workflow",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(workflow.describeCommand == "gcloud workflows describe my-workflow --location=us-central1")
+}
+
+@Test func testWorkflowExecuteCommand() {
+    let workflow = GoogleCloudWorkflow(
+        name: "my-workflow",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let cmd = workflow.executeCommand(data: "{\"key\": \"value\"}")
+    #expect(cmd.contains("gcloud workflows run my-workflow"))
+    #expect(cmd.contains("--location=us-central1"))
+    #expect(cmd.contains("--data="))
+}
+
+@Test func testWorkflowListRevisionsCommand() {
+    let workflow = GoogleCloudWorkflow(
+        name: "my-workflow",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(workflow.listRevisionsCommand == "gcloud workflows revisions list --workflow=my-workflow --location=us-central1")
+}
+
+@Test func testWorkflowStateValues() {
+    #expect(GoogleCloudWorkflow.WorkflowState.active.rawValue == "ACTIVE")
+    #expect(GoogleCloudWorkflow.WorkflowState.unavailable.rawValue == "UNAVAILABLE")
+}
+
+@Test func testWorkflowCallLogLevelValues() {
+    #expect(GoogleCloudWorkflow.CallLogLevel.logAllCalls.rawValue == "LOG_ALL_CALLS")
+    #expect(GoogleCloudWorkflow.CallLogLevel.logErrorsOnly.rawValue == "LOG_ERRORS_ONLY")
+    #expect(GoogleCloudWorkflow.CallLogLevel.logNone.rawValue == "LOG_NONE")
+}
+
+@Test func testWorkflowExecutionBasicInit() {
+    let execution = GoogleCloudWorkflowExecution(
+        name: "exec-123",
+        workflowName: "my-workflow",
+        projectID: "my-project",
+        location: "us-central1",
+        state: .succeeded
+    )
+
+    #expect(execution.name == "exec-123")
+    #expect(execution.workflowName == "my-workflow")
+    #expect(execution.state == .succeeded)
+}
+
+@Test func testWorkflowExecutionResourceName() {
+    let execution = GoogleCloudWorkflowExecution(
+        name: "exec-123",
+        workflowName: "my-workflow",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(execution.resourceName == "projects/my-project/locations/us-central1/workflows/my-workflow/executions/exec-123")
+}
+
+@Test func testWorkflowExecutionDescribeCommand() {
+    let execution = GoogleCloudWorkflowExecution(
+        name: "exec-123",
+        workflowName: "my-workflow",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(execution.describeCommand == "gcloud workflows executions describe exec-123 --workflow=my-workflow --location=us-central1")
+}
+
+@Test func testWorkflowExecutionCancelCommand() {
+    let execution = GoogleCloudWorkflowExecution(
+        name: "exec-123",
+        workflowName: "my-workflow",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(execution.cancelCommand == "gcloud workflows executions cancel exec-123 --workflow=my-workflow --location=us-central1")
+}
+
+@Test func testWorkflowExecutionWaitCommand() {
+    let execution = GoogleCloudWorkflowExecution(
+        name: "exec-123",
+        workflowName: "my-workflow",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(execution.waitCommand == "gcloud workflows executions wait exec-123 --workflow=my-workflow --location=us-central1")
+}
+
+@Test func testWorkflowExecutionStateValues() {
+    #expect(GoogleCloudWorkflowExecution.ExecutionState.active.rawValue == "ACTIVE")
+    #expect(GoogleCloudWorkflowExecution.ExecutionState.succeeded.rawValue == "SUCCEEDED")
+    #expect(GoogleCloudWorkflowExecution.ExecutionState.failed.rawValue == "FAILED")
+    #expect(GoogleCloudWorkflowExecution.ExecutionState.cancelled.rawValue == "CANCELLED")
+    #expect(GoogleCloudWorkflowExecution.ExecutionState.queued.rawValue == "QUEUED")
+}
+
+@Test func testWorkflowYAMLBuilderBasic() {
+    var builder = WorkflowYAMLBuilder()
+    builder.addStep("init", .assign(variables: [("project", "my-project")]))
+    builder.addStep("returnResult", .return(value: "${project}"))
+
+    let yaml = builder.build()
+    #expect(yaml.contains("main:"))
+    #expect(yaml.contains("steps:"))
+    #expect(yaml.contains("- init:"))
+    #expect(yaml.contains("- returnResult:"))
+}
+
+@Test func testWorkflowStepAssign() {
+    let step = WorkflowStep.assign(variables: [("x", "1"), ("y", "2")])
+    let yaml = step.toYAML(indent: 8)
+
+    #expect(yaml.contains("assign:"))
+    #expect(yaml.contains("- x: 1"))
+    #expect(yaml.contains("- y: 2"))
+}
+
+@Test func testWorkflowStepHTTPGet() {
+    let step = WorkflowStep.httpGet(url: "https://api.example.com/data", result: "response")
+    let yaml = step.toYAML(indent: 8)
+
+    #expect(yaml.contains("call: http.get"))
+    #expect(yaml.contains("url: https://api.example.com/data"))
+    #expect(yaml.contains("result: response"))
+}
+
+@Test func testWorkflowStepHTTPPost() {
+    let step = WorkflowStep.httpPost(
+        url: "https://api.example.com/submit",
+        body: ["key": "value"],
+        result: "postResult"
+    )
+    let yaml = step.toYAML(indent: 8)
+
+    #expect(yaml.contains("call: http.post"))
+    #expect(yaml.contains("url: https://api.example.com/submit"))
+    #expect(yaml.contains("body:"))
+    #expect(yaml.contains("key: value"))
+    #expect(yaml.contains("result: postResult"))
+}
+
+@Test func testWorkflowStepReturn() {
+    let step = WorkflowStep.return(value: "${result}")
+    let yaml = step.toYAML(indent: 8)
+
+    #expect(yaml.contains("return: ${result}"))
+}
+
+@Test func testWorkflowStepLog() {
+    let step = WorkflowStep.log(text: "Processing started", severity: "INFO")
+    let yaml = step.toYAML(indent: 8)
+
+    #expect(yaml.contains("call: sys.log"))
+    #expect(yaml.contains("text: Processing started"))
+    #expect(yaml.contains("severity: INFO"))
+}
+
+@Test func testWorkflowStepSleep() {
+    let step = WorkflowStep.sleep(seconds: 30)
+    let yaml = step.toYAML(indent: 8)
+
+    #expect(yaml.contains("call: sys.sleep"))
+    #expect(yaml.contains("seconds: 30"))
+}
+
+@Test func testWorkflowStepRaise() {
+    let step = WorkflowStep.raise(error: "Error occurred")
+    let yaml = step.toYAML(indent: 8)
+
+    #expect(yaml.contains("raise: Error occurred"))
+}
+
+@Test func testWorkflowStepCallConnector() {
+    let step = WorkflowStep.callConnector(
+        connector: "googleapis.bigquery.v2.jobs",
+        method: "query",
+        args: ["projectId": "my-project"],
+        result: "queryResult"
+    )
+    let yaml = step.toYAML(indent: 8)
+
+    #expect(yaml.contains("call: googleapis.bigquery.v2.jobs.query"))
+    #expect(yaml.contains("projectId: my-project"))
+    #expect(yaml.contains("result: queryResult"))
+}
+
+@Test func testWorkflowOperationsListCommand() {
+    let cmd = WorkflowOperations.listCommand(location: "us-east1")
+    #expect(cmd == "gcloud workflows list --location=us-east1")
+}
+
+@Test func testWorkflowOperationsListAllCommand() {
+    #expect(WorkflowOperations.listAllCommand == "gcloud workflows list --location=-")
+}
+
+@Test func testWorkflowOperationsListExecutionsCommand() {
+    let cmd = WorkflowOperations.listExecutionsCommand(workflow: "my-workflow", location: "us-central1", limit: 10)
+    #expect(cmd.contains("gcloud workflows executions list"))
+    #expect(cmd.contains("--workflow=my-workflow"))
+    #expect(cmd.contains("--limit=10"))
+}
+
+@Test func testWorkflowOperationsRunWithJSONCommand() {
+    let cmd = WorkflowOperations.runWithJSONCommand(workflow: "my-workflow", location: "us-central1", jsonFile: "input.json")
+    #expect(cmd.contains("gcloud workflows run my-workflow"))
+    #expect(cmd.contains("--data-file=input.json"))
+}
+
+@Test func testWorkflowOperationsEnableAPICommand() {
+    #expect(WorkflowOperations.enableAPICommand == "gcloud services enable workflows.googleapis.com")
+}
+
+@Test func testWorkflowConnectorsBigQueryQuery() {
+    let step = WorkflowConnectors.BigQuery.query(query: "SELECT * FROM table", projectID: "my-project")
+
+    if case .callConnector(let connector, let method, let args, _) = step {
+        #expect(connector == "googleapis.bigquery.v2.jobs")
+        #expect(method == "query")
+        #expect(args["projectId"] == "my-project")
+    }
+}
+
+@Test func testWorkflowConnectorsStorageListObjects() {
+    let step = WorkflowConnectors.Storage.listObjects(bucket: "my-bucket")
+
+    if case .callConnector(let connector, let method, let args, _) = step {
+        #expect(connector == "googleapis.storage.v1.objects")
+        #expect(method == "list")
+        #expect(args["bucket"] == "my-bucket")
+    }
+}
+
+@Test func testWorkflowConnectorsPubSubPublish() {
+    let step = WorkflowConnectors.PubSub.publish(topic: "my-topic", message: "Hello")
+
+    if case .callConnector(let connector, let method, _, _) = step {
+        #expect(connector == "googleapis.pubsub.v1.projects.topics")
+        #expect(method == "publish")
+    }
+}
+
+@Test func testWorkflowConnectorsSecretManagerAccess() {
+    let step = WorkflowConnectors.SecretManager.accessSecret(secret: "my-secret", version: "1")
+
+    if case .callConnector(let connector, let method, let args, _) = step {
+        #expect(connector == "googleapis.secretmanager.v1.projects.secrets.versions")
+        #expect(method == "access")
+        #expect(args["name"] == "my-secret/versions/1")
+    }
+}
+
+@Test func testDAISWorkflowsTemplateDataProcessing() {
+    let template = DAISWorkflowsTemplate(
+        projectID: "my-project",
+        location: "us-central1",
+        serviceAccountEmail: "workflow-sa@my-project.iam.gserviceaccount.com"
+    )
+
+    let workflow = template.dataProcessingWorkflow
+    #expect(workflow.name == "dais-data-processing")
+    #expect(workflow.labels?["app"] == "dais")
+    #expect(workflow.labels?["component"] == "data-processing")
+    #expect(workflow.serviceAccount == "workflow-sa@my-project.iam.gserviceaccount.com")
+    #expect(workflow.sourceContents?.contains("processData") == true)
+}
+
+@Test func testDAISWorkflowsTemplateStorageEvent() {
+    let template = DAISWorkflowsTemplate(projectID: "my-project")
+
+    let workflow = template.storageEventWorkflow
+    #expect(workflow.name == "dais-storage-event-handler")
+    #expect(workflow.sourceContents?.contains("event.data.bucket") == true)
+    #expect(workflow.sourceContents?.contains("contentType") == true)
+}
+
+@Test func testDAISWorkflowsTemplateBatchProcessing() {
+    let template = DAISWorkflowsTemplate(projectID: "my-project")
+
+    let workflow = template.batchProcessingWorkflow
+    #expect(workflow.name == "dais-batch-processing")
+    #expect(workflow.sourceContents?.contains("parallel:") == true)
+    #expect(workflow.sourceContents?.contains("processedCount") == true)
+}
+
+@Test func testDAISWorkflowsTemplateRetry() {
+    let template = DAISWorkflowsTemplate(projectID: "my-project")
+
+    let workflow = template.retryWorkflow
+    #expect(workflow.name == "dais-retry-workflow")
+    #expect(workflow.sourceContents?.contains("maxRetries") == true)
+    #expect(workflow.sourceContents?.contains("exponential") != true || workflow.sourceContents?.contains("math.pow") == true)
+}
+
+@Test func testDAISWorkflowsTemplateApproval() {
+    let template = DAISWorkflowsTemplate(projectID: "my-project")
+
+    let workflow = template.approvalWorkflow
+    #expect(workflow.name == "dais-approval-workflow")
+    #expect(workflow.sourceContents?.contains("callbacks.await") == true)
+    #expect(workflow.sourceContents?.contains("approvalTimeout") == true)
+}
+
+@Test func testDAISWorkflowsTemplateSetupScript() {
+    let template = DAISWorkflowsTemplate(
+        projectID: "my-project",
+        location: "us-central1",
+        serviceAccountEmail: "sa@my-project.iam.gserviceaccount.com"
+    )
+
+    let script = template.setupScript
+    #expect(script.contains("gcloud services enable workflows.googleapis.com"))
+    #expect(script.contains("gcloud workflows deploy dais-data-processing"))
+    #expect(script.contains("gcloud workflows deploy dais-batch-processing"))
+    #expect(script.contains("gcloud workflows list"))
+}
+
+@Test func testWorkflowCodable() throws {
+    let workflow = GoogleCloudWorkflow(
+        name: "test-workflow",
+        projectID: "my-project",
+        location: "us-central1",
+        description: "Test",
+        labels: ["env": "test"],
+        callLogLevel: .logAllCalls
+    )
+
+    let data = try JSONEncoder().encode(workflow)
+    let decoded = try JSONDecoder().decode(GoogleCloudWorkflow.self, from: data)
+
+    #expect(decoded.name == "test-workflow")
+    #expect(decoded.callLogLevel == .logAllCalls)
+}
+
+@Test func testWorkflowExecutionCodable() throws {
+    let execution = GoogleCloudWorkflowExecution(
+        name: "exec-1",
+        workflowName: "my-workflow",
+        projectID: "my-project",
+        location: "us-central1",
+        argument: "{\"key\": \"value\"}",
+        state: .succeeded
+    )
+
+    let data = try JSONEncoder().encode(execution)
+    let decoded = try JSONDecoder().decode(GoogleCloudWorkflowExecution.self, from: data)
+
+    #expect(decoded.name == "exec-1")
+    #expect(decoded.argument == "{\"key\": \"value\"}")
+    #expect(decoded.state == .succeeded)
+}
