@@ -12917,3 +12917,236 @@ import Testing
     #expect(decoded.name == "my-key")
     #expect(decoded.purpose == .encryptDecrypt)
 }
+
+// MARK: - Eventarc Tests
+
+@Test func testEventarcTriggerBasicInit() {
+    let trigger = GoogleCloudEventarcTrigger(
+        name: "my-trigger",
+        projectID: "my-project",
+        location: "us-central1",
+        destination: .cloudRun(service: "my-service", path: nil, region: nil),
+        eventFilters: [
+            EventFilter(attribute: "type", value: "google.cloud.storage.object.v1.finalized")
+        ]
+    )
+
+    #expect(trigger.name == "my-trigger")
+    #expect(trigger.location == "us-central1")
+}
+
+@Test func testEventarcTriggerResourceName() {
+    let trigger = GoogleCloudEventarcTrigger(
+        name: "my-trigger",
+        projectID: "my-project",
+        location: "us-central1",
+        destination: .cloudRun(service: "my-service", path: nil, region: nil),
+        eventFilters: []
+    )
+
+    #expect(trigger.resourceName == "projects/my-project/locations/us-central1/triggers/my-trigger")
+}
+
+@Test func testEventarcTriggerCreateCommand() {
+    let trigger = GoogleCloudEventarcTrigger(
+        name: "my-trigger",
+        projectID: "my-project",
+        location: "us-central1",
+        destination: .cloudRun(service: "my-service", path: "/events", region: "us-central1"),
+        eventFilters: [
+            EventFilter(attribute: "type", value: "google.cloud.storage.object.v1.finalized"),
+            EventFilter(attribute: "bucket", value: "my-bucket")
+        ],
+        serviceAccount: "sa@project.iam.gserviceaccount.com"
+    )
+
+    let cmd = trigger.createCommand
+    #expect(cmd.contains("eventarc triggers create my-trigger"))
+    #expect(cmd.contains("--destination-run-service=my-service"))
+    #expect(cmd.contains("--service-account=sa@project.iam.gserviceaccount.com"))
+}
+
+@Test func testEventarcTriggerDeleteCommand() {
+    let trigger = GoogleCloudEventarcTrigger(
+        name: "my-trigger",
+        projectID: "my-project",
+        location: "us-central1",
+        destination: .cloudRun(service: "my-service", path: nil, region: nil),
+        eventFilters: []
+    )
+
+    #expect(trigger.deleteCommand.contains("eventarc triggers delete my-trigger"))
+    #expect(trigger.deleteCommand.contains("--quiet"))
+}
+
+@Test func testEventarcDestinationCloudRun() {
+    let dest = GoogleCloudEventarcTrigger.Destination.cloudRun(
+        service: "my-service",
+        path: "/webhook",
+        region: "us-central1"
+    )
+
+    let flag = dest.gcloudFlag
+    #expect(flag.contains("--destination-run-service=my-service"))
+    #expect(flag.contains("--destination-run-path=/webhook"))
+}
+
+@Test func testEventarcDestinationCloudFunction() {
+    let dest = GoogleCloudEventarcTrigger.Destination.cloudFunction(
+        name: "my-function",
+        region: "us-central1"
+    )
+
+    let flag = dest.gcloudFlag
+    #expect(flag.contains("--destination-function=my-function"))
+}
+
+@Test func testEventarcDestinationWorkflow() {
+    let dest = GoogleCloudEventarcTrigger.Destination.workflow(
+        name: "my-workflow",
+        region: "us-central1"
+    )
+
+    let flag = dest.gcloudFlag
+    #expect(flag.contains("--destination-workflow=my-workflow"))
+}
+
+@Test func testEventFilterBasic() {
+    let filter = EventFilter(attribute: "type", value: "google.cloud.storage.object.v1.finalized")
+
+    #expect(filter.gcloudFlag.contains("--event-filters="))
+    #expect(filter.gcloudFlag.contains("type=google.cloud.storage.object.v1.finalized"))
+}
+
+@Test func testEventFilterPathPattern() {
+    let filter = EventFilter(
+        attribute: "document",
+        value: "users/{userId}",
+        operator: .pathPattern
+    )
+
+    #expect(filter.gcloudFlag.contains("--event-filters-path-pattern="))
+}
+
+@Test func testEventarcChannelCreateCommand() {
+    let channel = GoogleCloudEventarcChannel(
+        name: "my-channel",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let cmd = channel.createCommand
+    #expect(cmd.contains("eventarc channels create my-channel"))
+    #expect(cmd.contains("--location=us-central1"))
+}
+
+@Test func testEventarcChannelWithCryptoKey() {
+    let channel = GoogleCloudEventarcChannel(
+        name: "my-channel",
+        projectID: "my-project",
+        location: "us-central1",
+        cryptoKeyName: "projects/my-project/locations/us-central1/keyRings/my-ring/cryptoKeys/my-key"
+    )
+
+    let cmd = channel.createCommand
+    #expect(cmd.contains("--crypto-key="))
+}
+
+@Test func testGoogleCloudEventTypeValues() {
+    #expect(GoogleCloudEventType.storageObjectFinalize.rawValue == "google.cloud.storage.object.v1.finalized")
+    #expect(GoogleCloudEventType.pubsubMessagePublish.rawValue == "google.cloud.pubsub.topic.v1.messagePublished")
+    #expect(GoogleCloudEventType.cloudBuildComplete.rawValue == "google.cloud.cloudbuild.build.v1.statusChanged")
+}
+
+@Test func testGoogleCloudEventTypeDescriptions() {
+    #expect(GoogleCloudEventType.storageObjectFinalize.description.contains("Cloud Storage"))
+    #expect(GoogleCloudEventType.pubsubMessagePublish.description.contains("Pub/Sub"))
+}
+
+@Test func testEventarcOperationsListProviders() {
+    let cmd = EventarcOperations.listProvidersCommand(projectID: "my-project", location: "us-central1")
+    #expect(cmd.contains("eventarc providers list"))
+}
+
+@Test func testEventarcOperationsCreateStorageTrigger() {
+    let cmd = EventarcOperations.createStorageTrigger(
+        name: "storage-trigger",
+        projectID: "my-project",
+        location: "us-central1",
+        bucket: "my-bucket",
+        eventType: .storageObjectFinalize,
+        destinationService: "my-service",
+        serviceAccount: "sa@project.iam.gserviceaccount.com"
+    )
+
+    #expect(cmd.contains("eventarc triggers create storage-trigger"))
+    #expect(cmd.contains("bucket=my-bucket"))
+}
+
+@Test func testDAISEventarcTemplateStorageUploadTrigger() {
+    let trigger = DAISEventarcTemplate.storageUploadTrigger(
+        projectID: "my-project",
+        location: "us-central1",
+        deploymentName: "dais-prod",
+        bucket: "dais-uploads",
+        destinationService: "dais-api",
+        serviceAccountEmail: "sa@project.iam.gserviceaccount.com"
+    )
+
+    #expect(trigger.name == "dais-prod-storage-upload")
+    #expect(trigger.eventFilters.count == 2)
+}
+
+@Test func testDAISEventarcTemplatePubsubTrigger() {
+    let trigger = DAISEventarcTemplate.pubsubMessageTrigger(
+        projectID: "my-project",
+        location: "us-central1",
+        deploymentName: "dais-prod",
+        destinationService: "dais-api",
+        serviceAccountEmail: "sa@project.iam.gserviceaccount.com"
+    )
+
+    #expect(trigger.name == "dais-prod-pubsub-events")
+}
+
+@Test func testDAISEventarcTemplateSetupScript() {
+    let script = DAISEventarcTemplate.setupScript(
+        projectID: "my-project",
+        location: "us-central1",
+        deploymentName: "dais-prod",
+        serviceAccountEmail: "sa@project.iam.gserviceaccount.com"
+    )
+
+    #expect(script.contains("eventarc.googleapis.com"))
+    #expect(script.contains("eventarc.eventReceiver"))
+}
+
+@Test func testEventarcTriggerCodable() throws {
+    let trigger = GoogleCloudEventarcTrigger(
+        name: "my-trigger",
+        projectID: "my-project",
+        location: "us-central1",
+        destination: .cloudRun(service: "my-service", path: nil, region: nil),
+        eventFilters: [
+            EventFilter(attribute: "type", value: "test-event")
+        ]
+    )
+
+    let data = try JSONEncoder().encode(trigger)
+    let decoded = try JSONDecoder().decode(GoogleCloudEventarcTrigger.self, from: data)
+
+    #expect(decoded.name == "my-trigger")
+}
+
+@Test func testEventarcChannelCodable() throws {
+    let channel = GoogleCloudEventarcChannel(
+        name: "my-channel",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let data = try JSONEncoder().encode(channel)
+    let decoded = try JSONDecoder().decode(GoogleCloudEventarcChannel.self, from: data)
+
+    #expect(decoded.name == "my-channel")
+}
