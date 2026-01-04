@@ -19266,3 +19266,419 @@ import Testing
     #expect(decoded.name == "test-job")
     #expect(decoded.workerPoolSpecs.count == 1)
 }
+
+// MARK: - Cloud Trace Tests
+
+@Test func testTraceSpanBasicInit() {
+    let span = GoogleCloudTraceSpan(
+        traceID: "abc123",
+        spanID: "span456",
+        projectID: "my-project",
+        displayName: "ProcessRequest"
+    )
+
+    #expect(span.traceID == "abc123")
+    #expect(span.spanID == "span456")
+    #expect(span.projectID == "my-project")
+    #expect(span.displayName == "ProcessRequest")
+    #expect(span.parentSpanID == nil)
+}
+
+@Test func testTraceSpanResourceName() {
+    let span = GoogleCloudTraceSpan(
+        traceID: "trace123",
+        spanID: "span789",
+        projectID: "my-project",
+        displayName: "test"
+    )
+
+    #expect(span.resourceName == "projects/my-project/traces/trace123/spans/span789")
+    #expect(span.traceResourceName == "projects/my-project/traces/trace123")
+}
+
+@Test func testTraceSpanWithStatus() {
+    let span = GoogleCloudTraceSpan(
+        traceID: "trace123",
+        spanID: "span789",
+        projectID: "my-project",
+        displayName: "ErrorSpan",
+        status: GoogleCloudTraceSpan.SpanStatus(code: .internal, message: "Internal error")
+    )
+
+    #expect(span.status?.code == .internal)
+    #expect(span.status?.message == "Internal error")
+}
+
+@Test func testTraceSpanWithAttributes() {
+    let span = GoogleCloudTraceSpan(
+        traceID: "trace123",
+        spanID: "span789",
+        projectID: "my-project",
+        displayName: "HTTPRequest",
+        attributes: ["http.method": "GET", "http.status_code": "200"]
+    )
+
+    #expect(span.attributes?["http.method"] == "GET")
+    #expect(span.attributes?["http.status_code"] == "200")
+}
+
+@Test func testTraceSpanWithLinks() {
+    let link = GoogleCloudTraceSpan.SpanLink(
+        traceID: "other-trace",
+        spanID: "other-span",
+        type: .childLinkedSpan
+    )
+
+    let span = GoogleCloudTraceSpan(
+        traceID: "trace123",
+        spanID: "span789",
+        projectID: "my-project",
+        displayName: "LinkedSpan",
+        links: [link]
+    )
+
+    #expect(span.links?.count == 1)
+    #expect(span.links?.first?.traceID == "other-trace")
+    #expect(span.links?.first?.type == .childLinkedSpan)
+}
+
+@Test func testTraceSpanListTracesCommand() {
+    let cmd = GoogleCloudTraceSpan.listTracesCommand(projectID: "my-project")
+    #expect(cmd == "gcloud trace traces list --project=my-project")
+}
+
+@Test func testTraceSpanListTracesCommandWithFilter() {
+    let cmd = GoogleCloudTraceSpan.listTracesCommand(projectID: "my-project", filter: "latency:>1s", limit: 100)
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--filter='latency:>1s'"))
+    #expect(cmd.contains("--limit=100"))
+}
+
+@Test func testTraceSpanDescribeCommand() {
+    let cmd = GoogleCloudTraceSpan.describeTraceCommand(traceID: "trace123", projectID: "my-project")
+    #expect(cmd == "gcloud trace traces describe trace123 --project=my-project")
+}
+
+@Test func testTraceSpanStatusCodes() {
+    let codes: [GoogleCloudTraceSpan.SpanStatus.StatusCode] = [
+        .ok, .cancelled, .unknown, .invalidArgument, .deadlineExceeded,
+        .notFound, .alreadyExists, .permissionDenied, .resourceExhausted,
+        .failedPrecondition, .aborted, .outOfRange, .unimplemented,
+        .internal, .unavailable, .dataLoss, .unauthenticated
+    ]
+
+    #expect(codes.count == 17)
+    #expect(GoogleCloudTraceSpan.SpanStatus.StatusCode.ok.rawValue == "OK")
+    #expect(GoogleCloudTraceSpan.SpanStatus.StatusCode.internal.rawValue == "INTERNAL")
+}
+
+@Test func testTraceSinkBasicInit() {
+    let sink = GoogleCloudTraceSink(
+        name: "my-sink",
+        projectID: "my-project",
+        destination: "bigquery.googleapis.com/projects/my-project/datasets/traces"
+    )
+
+    #expect(sink.name == "my-sink")
+    #expect(sink.projectID == "my-project")
+    #expect(sink.destination.contains("bigquery"))
+}
+
+@Test func testTraceSinkResourceName() {
+    let sink = GoogleCloudTraceSink(
+        name: "my-sink",
+        projectID: "my-project",
+        destination: "bq://traces"
+    )
+
+    #expect(sink.resourceName == "projects/my-project/traceSinks/my-sink")
+}
+
+@Test func testTraceSinkCreateAPICommand() {
+    let sink = GoogleCloudTraceSink(
+        name: "test-sink",
+        projectID: "my-project",
+        destination: "bigquery.googleapis.com/projects/my-project/datasets/traces"
+    )
+
+    #expect(sink.createAPICommand.contains("cloudtrace.googleapis.com"))
+    #expect(sink.createAPICommand.contains("projects/my-project/traceSinks"))
+    #expect(sink.createAPICommand.contains("test-sink"))
+}
+
+@Test func testTraceSinkDeleteAPICommand() {
+    let sink = GoogleCloudTraceSink(
+        name: "test-sink",
+        projectID: "my-project",
+        destination: "dest"
+    )
+
+    #expect(sink.deleteAPICommand.contains("DELETE"))
+    #expect(sink.deleteAPICommand.contains("projects/my-project/traceSinks/test-sink"))
+}
+
+@Test func testTraceSinkListCommand() {
+    let cmd = GoogleCloudTraceSink.listSinksCommand(projectID: "my-project")
+    #expect(cmd.contains("projects/my-project/traceSinks"))
+    #expect(cmd.contains("GET"))
+}
+
+@Test func testTraceConfigBasicInit() {
+    let config = GoogleCloudTraceConfig(
+        projectID: "my-project",
+        sampleRate: 0.5,
+        tracingEnabled: true
+    )
+
+    #expect(config.projectID == "my-project")
+    #expect(config.sampleRate == 0.5)
+    #expect(config.sampleRatePercentage == 50.0)
+    #expect(config.tracingEnabled == true)
+}
+
+@Test func testTraceConfigWithLimits() {
+    let config = GoogleCloudTraceConfig(
+        projectID: "my-project",
+        sampleRate: 0.1,
+        tracingEnabled: true,
+        spanAttributeLimit: 32,
+        annotationEventsPerSpanLimit: 128,
+        messageEventsPerSpanLimit: 128
+    )
+
+    #expect(config.spanAttributeLimit == 32)
+    #expect(config.annotationEventsPerSpanLimit == 128)
+    #expect(config.messageEventsPerSpanLimit == 128)
+}
+
+@Test func testTraceOperationsEnableAPI() {
+    #expect(TraceOperations.enableAPICommand == "gcloud services enable cloudtrace.googleapis.com")
+}
+
+@Test func testTraceOperationsRoles() {
+    #expect(TraceOperations.Roles.admin == "roles/cloudtrace.admin")
+    #expect(TraceOperations.Roles.agent == "roles/cloudtrace.agent")
+    #expect(TraceOperations.Roles.user == "roles/cloudtrace.user")
+}
+
+@Test func testTraceOperationsAddAgentRole() {
+    let cmd = TraceOperations.addTraceAgentRoleCommand(
+        projectID: "my-project",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com"
+    )
+
+    #expect(cmd.contains("add-iam-policy-binding"))
+    #expect(cmd.contains("roles/cloudtrace.agent"))
+    #expect(cmd.contains("sa@my-project.iam.gserviceaccount.com"))
+}
+
+@Test func testTraceOperationsW3CHeader() {
+    let header = TraceOperations.w3cTraceContextHeader(
+        traceID: "abc123",
+        spanID: "span456",
+        sampled: true
+    )
+
+    #expect(header == "traceparent: 00-abc123-span456-01")
+}
+
+@Test func testTraceOperationsGoogleHeader() {
+    let header = TraceOperations.googleTraceHeader(
+        traceID: "abc123",
+        spanID: "span456",
+        sampled: true
+    )
+
+    #expect(header == "X-Cloud-Trace-Context: abc123/span456;o=1")
+}
+
+@Test func testTraceAnalysisLatencyFilter() {
+    let filter = TraceAnalysis.latencyAnalysisFilter(serviceName: "api-server", minLatencyMs: 1000)
+    #expect(filter == "+span:api-server latency:>1000ms")
+}
+
+@Test func testTraceAnalysisErrorFilter() {
+    let filter = TraceAnalysis.errorTraceFilter(serviceName: "api-server")
+    #expect(filter == "+span:api-server status.code!=OK")
+}
+
+@Test func testTraceAnalysisErrorFilterNoService() {
+    let filter = TraceAnalysis.errorTraceFilter()
+    #expect(filter == "status.code!=OK")
+}
+
+@Test func testTraceAnalysisTimeRangeFilter() {
+    let filter = TraceAnalysis.timeRangeFilter(startTime: "2024-01-01T00:00:00Z", endTime: "2024-01-02T00:00:00Z")
+    #expect(filter.contains("start_time"))
+    #expect(filter.contains("end_time"))
+}
+
+@Test func testTraceAnalysisSpanNameFilter() {
+    let filter = TraceAnalysis.spanNameFilter(pattern: "ProcessRequest")
+    #expect(filter == "span:ProcessRequest")
+}
+
+@Test func testTraceAnalysisAttributeFilter() {
+    let filter = TraceAnalysis.attributeFilter(key: "http.method", value: "POST")
+    #expect(filter == "span.attributes.http.method:POST")
+}
+
+@Test func testTraceAnalysisHTTPMethodFilter() {
+    let filter = TraceAnalysis.httpMethodFilter(method: "GET")
+    #expect(filter == "span.attributes.http.method:GET")
+}
+
+@Test func testTraceAnalysisHTTPStatusFilter() {
+    let filter = TraceAnalysis.httpStatusFilter(statusCode: 500)
+    #expect(filter == "span.attributes.http.status_code:500")
+}
+
+@Test func testOpenTelemetryTraceConfigBasicInit() {
+    let config = OpenTelemetryTraceConfig(
+        projectID: "my-project",
+        serviceName: "my-service"
+    )
+
+    #expect(config.projectID == "my-project")
+    #expect(config.serviceName == "my-service")
+}
+
+@Test func testOpenTelemetryTraceConfigEnvironmentVariables() {
+    let config = OpenTelemetryTraceConfig(
+        projectID: "my-project",
+        serviceName: "my-service",
+        serviceVersion: "1.0.0",
+        environment: "production"
+    )
+
+    let vars = config.environmentVariables
+    #expect(vars["OTEL_SERVICE_NAME"] == "my-service")
+    #expect(vars["GOOGLE_CLOUD_PROJECT"] == "my-project")
+    #expect(vars["OTEL_SERVICE_VERSION"] == "1.0.0")
+    #expect(vars["OTEL_RESOURCE_ATTRIBUTES"]?.contains("production") == true)
+}
+
+@Test func testOpenTelemetryTraceConfigDockerRun() {
+    let config = OpenTelemetryTraceConfig(
+        projectID: "my-project",
+        serviceName: "my-service"
+    )
+
+    let cmd = config.dockerRunCommand(image: "my-image:latest")
+    #expect(cmd.contains("docker run"))
+    #expect(cmd.contains("OTEL_SERVICE_NAME=my-service"))
+    #expect(cmd.contains("my-image:latest"))
+}
+
+@Test func testDAISTraceTemplateBasicInit() {
+    let template = DAISTraceTemplate(
+        projectID: "my-project",
+        serviceName: "dais-api"
+    )
+
+    #expect(template.projectID == "my-project")
+    #expect(template.serviceName == "dais-api")
+}
+
+@Test func testDAISTraceTemplateOpenTelemetryConfig() {
+    let template = DAISTraceTemplate(
+        projectID: "my-project",
+        serviceName: "dais-api"
+    )
+
+    let otelConfig = template.openTelemetryConfig
+    #expect(otelConfig.serviceName == "dais-api")
+    #expect(otelConfig.projectID == "my-project")
+    #expect(otelConfig.serviceVersion == "1.0.0")
+    #expect(otelConfig.environment == "production")
+}
+
+@Test func testDAISTraceTemplateTraceConfig() {
+    let template = DAISTraceTemplate(projectID: "my-project")
+
+    let config = template.traceConfig
+    #expect(config.sampleRate == 0.1)  // 10% sampling
+    #expect(config.tracingEnabled == true)
+    #expect(config.spanAttributeLimit == 32)
+}
+
+@Test func testDAISTraceTemplateBigQuerySink() {
+    let template = DAISTraceTemplate(projectID: "my-project")
+
+    let sink = template.bigQuerySink(datasetID: "trace_data")
+    #expect(sink.name == "dais-trace-bq-sink")
+    #expect(sink.destination.contains("bigquery.googleapis.com"))
+    #expect(sink.destination.contains("trace_data"))
+}
+
+@Test func testDAISTraceTemplateFilters() {
+    let template = DAISTraceTemplate(
+        projectID: "my-project",
+        serviceName: "dais-api"
+    )
+
+    #expect(template.highLatencyFilter.contains("dais-api"))
+    #expect(template.highLatencyFilter.contains("1000ms"))
+    #expect(template.errorFilter.contains("dais-api"))
+    #expect(template.errorFilter.contains("status.code!=OK"))
+}
+
+@Test func testDAISTraceTemplateSetupScript() {
+    let template = DAISTraceTemplate(
+        projectID: "my-project",
+        serviceName: "dais-api",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com"
+    )
+
+    let script = template.setupScript
+    #expect(script.contains("cloudtrace.googleapis.com"))
+    #expect(script.contains("trace.agent"))
+    #expect(script.contains("OTEL_SERVICE_NAME"))
+}
+
+@Test func testTraceSpanCodable() throws {
+    let span = GoogleCloudTraceSpan(
+        traceID: "trace123",
+        spanID: "span456",
+        projectID: "my-project",
+        displayName: "TestSpan",
+        status: GoogleCloudTraceSpan.SpanStatus(code: .ok)
+    )
+
+    let data = try JSONEncoder().encode(span)
+    let decoded = try JSONDecoder().decode(GoogleCloudTraceSpan.self, from: data)
+
+    #expect(decoded.traceID == "trace123")
+    #expect(decoded.spanID == "span456")
+    #expect(decoded.status?.code == .ok)
+}
+
+@Test func testTraceSinkCodable() throws {
+    let sink = GoogleCloudTraceSink(
+        name: "test-sink",
+        projectID: "my-project",
+        destination: "bigquery://traces",
+        filter: "service:api"
+    )
+
+    let data = try JSONEncoder().encode(sink)
+    let decoded = try JSONDecoder().decode(GoogleCloudTraceSink.self, from: data)
+
+    #expect(decoded.name == "test-sink")
+    #expect(decoded.filter == "service:api")
+}
+
+@Test func testTraceConfigCodable() throws {
+    let config = GoogleCloudTraceConfig(
+        projectID: "my-project",
+        sampleRate: 0.25,
+        tracingEnabled: true,
+        spanAttributeLimit: 64
+    )
+
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(GoogleCloudTraceConfig.self, from: data)
+
+    #expect(decoded.sampleRate == 0.25)
+    #expect(decoded.spanAttributeLimit == 64)
+}
