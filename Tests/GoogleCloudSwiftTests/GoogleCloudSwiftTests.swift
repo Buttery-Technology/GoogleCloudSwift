@@ -25248,3 +25248,426 @@ import Testing
     #expect(GoogleCloudCertificateRevocationList.State.active.rawValue == "ACTIVE")
     #expect(GoogleCloudCertificateRevocationList.State.superseded.rawValue == "SUPERSEDED")
 }
+
+// MARK: - Network Intelligence Center Tests
+
+@Test func testConnectivityTestBasic() {
+    let test = GoogleCloudConnectivityTest(
+        name: "vm-to-vm-test",
+        projectID: "my-project",
+        description: "Test VM to VM connectivity",
+        source: .instance("projects/my-project/zones/us-central1-a/instances/source-vm"),
+        destination: .instance("projects/my-project/zones/us-central1-a/instances/dest-vm"),
+        networkProtocol: .tcp
+    )
+
+    #expect(test.name == "vm-to-vm-test")
+    #expect(test.projectID == "my-project")
+    #expect(test.networkProtocol == .tcp)
+}
+
+@Test func testConnectivityTestResourceName() {
+    let test = GoogleCloudConnectivityTest(
+        name: "my-test",
+        projectID: "my-project",
+        source: .instance("source-vm"),
+        destination: .instance("dest-vm")
+    )
+
+    #expect(test.resourceName == "projects/my-project/locations/global/connectivityTests/my-test")
+}
+
+@Test func testConnectivityTestCreateCommand() {
+    let test = GoogleCloudConnectivityTest(
+        name: "my-test",
+        projectID: "my-project",
+        source: .instance("projects/my-project/zones/us-central1-a/instances/vm1"),
+        destination: .ip("10.0.0.5", port: 8080),
+        networkProtocol: .tcp
+    )
+
+    let cmd = test.createCommand
+    #expect(cmd.contains("gcloud network-management connectivity-tests create my-test"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--protocol=TCP"))
+    #expect(cmd.contains("--destination-port=8080"))
+}
+
+@Test func testConnectivityTestDeleteCommand() {
+    let test = GoogleCloudConnectivityTest(
+        name: "my-test",
+        projectID: "my-project",
+        source: .instance("vm1"),
+        destination: .instance("vm2")
+    )
+
+    #expect(test.deleteCommand == "gcloud network-management connectivity-tests delete my-test --project=my-project")
+}
+
+@Test func testConnectivityTestRerunCommand() {
+    let test = GoogleCloudConnectivityTest(
+        name: "connectivity-check",
+        projectID: "test-project",
+        source: .instance("vm1"),
+        destination: .instance("vm2")
+    )
+
+    #expect(test.rerunCommand == "gcloud network-management connectivity-tests rerun connectivity-check --project=test-project")
+}
+
+@Test func testNetworkProtocolValues() {
+    #expect(GoogleCloudConnectivityTest.NetworkProtocol.tcp.rawValue == "TCP")
+    #expect(GoogleCloudConnectivityTest.NetworkProtocol.udp.rawValue == "UDP")
+    #expect(GoogleCloudConnectivityTest.NetworkProtocol.icmp.rawValue == "ICMP")
+    #expect(GoogleCloudConnectivityTest.NetworkProtocol.gre.rawValue == "GRE")
+    #expect(GoogleCloudConnectivityTest.NetworkProtocol.esp.rawValue == "ESP")
+}
+
+@Test func testReachabilityResultValues() {
+    #expect(GoogleCloudConnectivityTest.ReachabilityDetails.Result.reachable.rawValue == "REACHABLE")
+    #expect(GoogleCloudConnectivityTest.ReachabilityDetails.Result.unreachable.rawValue == "UNREACHABLE")
+    #expect(GoogleCloudConnectivityTest.ReachabilityDetails.Result.ambiguous.rawValue == "AMBIGUOUS")
+    #expect(GoogleCloudConnectivityTest.ReachabilityDetails.Result.undetermined.rawValue == "UNDETERMINED")
+}
+
+@Test func testEndpointFactories() {
+    let instanceEndpoint = Endpoint.instance("projects/p/zones/z/instances/vm1", network: "default")
+    #expect(instanceEndpoint.instance == "projects/p/zones/z/instances/vm1")
+    #expect(instanceEndpoint.network == "default")
+    #expect(instanceEndpoint.typeString == "instance")
+
+    let ipEndpoint = Endpoint.ip("10.0.0.5", port: 443)
+    #expect(ipEndpoint.ipAddress == "10.0.0.5")
+    #expect(ipEndpoint.port == 443)
+    #expect(ipEndpoint.typeString == "ip-address")
+
+    let gkeEndpoint = Endpoint.gkeMaster("projects/p/locations/us/clusters/c")
+    #expect(gkeEndpoint.gkeMasterCluster == "projects/p/locations/us/clusters/c")
+    #expect(gkeEndpoint.typeString == "gke-master-cluster")
+
+    let sqlEndpoint = Endpoint.cloudSql("projects/p/instances/db1")
+    #expect(sqlEndpoint.cloudSqlInstance == "projects/p/instances/db1")
+    #expect(sqlEndpoint.typeString == "cloud-sql-instance")
+
+    let functionEndpoint = Endpoint.cloudFunction(uri: "projects/p/locations/us/functions/fn")
+    #expect(functionEndpoint.cloudFunction?.uri == "projects/p/locations/us/functions/fn")
+    #expect(functionEndpoint.typeString == "cloud-function")
+
+    let runEndpoint = Endpoint.cloudRun(uri: "projects/p/locations/us/services/svc/revisions/rev")
+    #expect(runEndpoint.cloudRunRevision?.uri == "projects/p/locations/us/services/svc/revisions/rev")
+    #expect(runEndpoint.typeString == "cloud-run-revision")
+}
+
+@Test func testEndpointNetworkTypeValues() {
+    #expect(Endpoint.NetworkType.gcpNetwork.rawValue == "GCP_NETWORK")
+    #expect(Endpoint.NetworkType.nonGcpNetwork.rawValue == "NON_GCP_NETWORK")
+}
+
+@Test func testNetworkTopologyBasic() {
+    let resource = GoogleCloudNetworkTopology.TopologyResource(
+        name: "my-network",
+        resourceType: .network,
+        location: "global"
+    )
+
+    let topology = GoogleCloudNetworkTopology(
+        projectID: "my-project",
+        resources: [resource],
+        locations: ["us-central1", "us-east1"]
+    )
+
+    #expect(topology.projectID == "my-project")
+    #expect(topology.resources?.count == 1)
+    #expect(topology.resources?.first?.name == "my-network")
+    #expect(topology.resources?.first?.resourceType == .network)
+    #expect(topology.locations?.contains("us-central1") == true)
+}
+
+@Test func testTopologyResourceTypes() {
+    #expect(GoogleCloudNetworkTopology.TopologyResource.ResourceType.network.rawValue == "NETWORK")
+    #expect(GoogleCloudNetworkTopology.TopologyResource.ResourceType.subnetwork.rawValue == "SUBNETWORK")
+    #expect(GoogleCloudNetworkTopology.TopologyResource.ResourceType.instance.rawValue == "INSTANCE")
+    #expect(GoogleCloudNetworkTopology.TopologyResource.ResourceType.router.rawValue == "ROUTER")
+    #expect(GoogleCloudNetworkTopology.TopologyResource.ResourceType.vpnGateway.rawValue == "VPN_GATEWAY")
+    #expect(GoogleCloudNetworkTopology.TopologyResource.ResourceType.vpnTunnel.rawValue == "VPN_TUNNEL")
+    #expect(GoogleCloudNetworkTopology.TopologyResource.ResourceType.interconnectAttachment.rawValue == "INTERCONNECT_ATTACHMENT")
+    #expect(GoogleCloudNetworkTopology.TopologyResource.ResourceType.loadBalancer.rawValue == "LOAD_BALANCER")
+    #expect(GoogleCloudNetworkTopology.TopologyResource.ResourceType.nat.rawValue == "NAT")
+}
+
+@Test func testTopologyResourceConnection() {
+    let connection = GoogleCloudNetworkTopology.TopologyResource.Connection(
+        targetResource: "my-subnet",
+        connectionType: "parent"
+    )
+
+    let resource = GoogleCloudNetworkTopology.TopologyResource(
+        name: "my-network",
+        resourceType: .network,
+        connections: [connection]
+    )
+
+    #expect(resource.connections?.count == 1)
+    #expect(resource.connections?.first?.targetResource == "my-subnet")
+    #expect(resource.connections?.first?.connectionType == "parent")
+}
+
+@Test func testNetworkPerformanceConfig() {
+    let config = GoogleCloudNetworkPerformanceConfig(
+        projectID: "my-project",
+        enabledFeatures: [.latencyMonitoring, .packetLoss, .bandwidth],
+        samplePeriod: "60s"
+    )
+
+    #expect(config.projectID == "my-project")
+    #expect(config.enabledFeatures?.count == 3)
+    #expect(config.enabledFeatures?.contains(.latencyMonitoring) == true)
+    #expect(config.samplePeriod == "60s")
+}
+
+@Test func testNetworkPerformanceFeatureValues() {
+    #expect(GoogleCloudNetworkPerformanceConfig.Feature.latencyMonitoring.rawValue == "LATENCY_MONITORING")
+    #expect(GoogleCloudNetworkPerformanceConfig.Feature.packetLoss.rawValue == "PACKET_LOSS")
+    #expect(GoogleCloudNetworkPerformanceConfig.Feature.bandwidth.rawValue == "BANDWIDTH")
+    #expect(GoogleCloudNetworkPerformanceConfig.Feature.jitter.rawValue == "JITTER")
+}
+
+@Test func testFirewallInsightBasic() {
+    let ruleRef = GoogleCloudFirewallInsight.FirewallRuleReference(
+        firewallRuleName: "allow-ssh",
+        firewallRuleUri: "projects/my-project/global/firewalls/allow-ssh",
+        network: "default"
+    )
+
+    let insight = GoogleCloudFirewallInsight(
+        name: "unused-rule-insight",
+        projectID: "my-project",
+        insightType: .unusedRule,
+        severity: .medium,
+        firewallRules: [ruleRef],
+        recommendation: "Consider removing unused firewall rule"
+    )
+
+    #expect(insight.name == "unused-rule-insight")
+    #expect(insight.insightType == .unusedRule)
+    #expect(insight.severity == .medium)
+    #expect(insight.firewallRules?.count == 1)
+    #expect(insight.recommendation?.contains("removing") == true)
+}
+
+@Test func testFirewallInsightTypeValues() {
+    #expect(GoogleCloudFirewallInsight.InsightType.shadowedRule.rawValue == "SHADOWED_RULE")
+    #expect(GoogleCloudFirewallInsight.InsightType.overlyShadowed.rawValue == "OVERLY_SHADOWED")
+    #expect(GoogleCloudFirewallInsight.InsightType.redundantRule.rawValue == "REDUNDANT_RULE")
+    #expect(GoogleCloudFirewallInsight.InsightType.tooPermissive.rawValue == "TOO_PERMISSIVE")
+    #expect(GoogleCloudFirewallInsight.InsightType.unusedRule.rawValue == "UNUSED_RULE")
+}
+
+@Test func testFirewallInsightSeverityValues() {
+    #expect(GoogleCloudFirewallInsight.Severity.low.rawValue == "LOW")
+    #expect(GoogleCloudFirewallInsight.Severity.medium.rawValue == "MEDIUM")
+    #expect(GoogleCloudFirewallInsight.Severity.high.rawValue == "HIGH")
+    #expect(GoogleCloudFirewallInsight.Severity.critical.rawValue == "CRITICAL")
+}
+
+@Test func testNetworkIntelligenceOperationsEnableAPI() {
+    let ops = NetworkIntelligenceOperations(projectID: "my-project")
+    #expect(ops.enableAPICommand == "gcloud services enable networkmanagement.googleapis.com --project=my-project")
+    #expect(ops.enableRecommenderAPICommand == "gcloud services enable recommender.googleapis.com --project=my-project")
+}
+
+@Test func testNetworkIntelligenceOperationsListTests() {
+    let ops = NetworkIntelligenceOperations(projectID: "my-project")
+    #expect(ops.listTestsCommand == "gcloud network-management connectivity-tests list --project=my-project")
+}
+
+@Test func testNetworkIntelligenceOperationsVMToVMTest() {
+    let ops = NetworkIntelligenceOperations(projectID: "my-project")
+    let cmd = ops.createVMToVMTestCommand(
+        name: "my-test",
+        sourceInstance: "projects/my-project/zones/us-central1-a/instances/vm1",
+        sourceNetwork: "projects/my-project/global/networks/default",
+        destinationInstance: "projects/my-project/zones/us-central1-a/instances/vm2",
+        destinationNetwork: "projects/my-project/global/networks/default",
+        networkProtocol: .tcp,
+        port: 443
+    )
+
+    #expect(cmd.contains("gcloud network-management connectivity-tests create my-test"))
+    #expect(cmd.contains("--source-instance="))
+    #expect(cmd.contains("--destination-instance="))
+    #expect(cmd.contains("--protocol=TCP"))
+    #expect(cmd.contains("--destination-port=443"))
+}
+
+@Test func testNetworkIntelligenceOperationsExternalIPTest() {
+    let ops = NetworkIntelligenceOperations(projectID: "my-project")
+    let cmd = ops.createExternalIPTestCommand(
+        name: "internet-test",
+        sourceInstance: "projects/my-project/zones/us-central1-a/instances/vm1",
+        sourceNetwork: "projects/my-project/global/networks/default",
+        destinationIP: "8.8.8.8",
+        port: 53
+    )
+
+    #expect(cmd.contains("gcloud network-management connectivity-tests create internet-test"))
+    #expect(cmd.contains("--destination-ip-address=8.8.8.8"))
+    #expect(cmd.contains("--destination-port=53"))
+}
+
+@Test func testNetworkIntelligenceOperationsFirewallInsights() {
+    let ops = NetworkIntelligenceOperations(projectID: "my-project")
+    #expect(ops.listFirewallInsightsCommand.contains("gcloud recommender insights list"))
+    #expect(ops.listFirewallInsightsCommand.contains("--insight-type=google.compute.firewall.Insight"))
+
+    let describeCmd = ops.describeFirewallInsightCommand(insightName: "insight-123")
+    #expect(describeCmd.contains("gcloud recommender insights describe insight-123"))
+}
+
+@Test func testNetworkIntelligenceOperationsIAMRoles() {
+    #expect(NetworkIntelligenceOperations.NetworkIntelligenceRole.networkManagementAdmin.rawValue == "roles/networkmanagement.admin")
+    #expect(NetworkIntelligenceOperations.NetworkIntelligenceRole.networkManagementViewer.rawValue == "roles/networkmanagement.viewer")
+    #expect(NetworkIntelligenceOperations.NetworkIntelligenceRole.computeNetworkViewer.rawValue == "roles/compute.networkViewer")
+}
+
+@Test func testNetworkIntelligenceOperationsIAMBinding() {
+    let ops = NetworkIntelligenceOperations(projectID: "my-project")
+    let cmd = ops.addIAMBindingCommand(member: "user:admin@example.com", role: .networkManagementAdmin)
+    #expect(cmd.contains("gcloud projects add-iam-policy-binding my-project"))
+    #expect(cmd.contains("--member=user:admin@example.com"))
+    #expect(cmd.contains("--role=roles/networkmanagement.admin"))
+}
+
+@Test func testDAISNetworkIntelligenceTemplateVMToVMTest() {
+    let template = DAISNetworkIntelligenceTemplate(projectID: "my-project")
+    let test = template.vmToVMTest(
+        name: "app-to-db-test",
+        sourceInstance: "projects/my-project/zones/us-central1-a/instances/app-vm",
+        destinationInstance: "projects/my-project/zones/us-central1-a/instances/db-vm",
+        port: 5432
+    )
+
+    #expect(test.name == "app-to-db-test")
+    #expect(test.source.instance != nil)
+    #expect(test.destination.instance != nil)
+    #expect(test.networkProtocol == .tcp)
+}
+
+@Test func testDAISNetworkIntelligenceTemplateVMToInternetTest() {
+    let template = DAISNetworkIntelligenceTemplate(projectID: "my-project")
+    let test = template.vmToInternetTest(
+        name: "egress-test",
+        sourceInstance: "projects/my-project/zones/us-central1-a/instances/vm1",
+        destinationIP: "8.8.8.8",
+        port: 443
+    )
+
+    #expect(test.name == "egress-test")
+    #expect(test.source.instance != nil)
+    #expect(test.destination.ipAddress == "8.8.8.8")
+    #expect(test.destination.port == 443)
+}
+
+@Test func testDAISNetworkIntelligenceTemplateGKETest() {
+    let template = DAISNetworkIntelligenceTemplate(projectID: "my-project")
+    let test = template.gkeConnectivityTest(
+        name: "gke-egress-test",
+        clusterUri: "projects/my-project/locations/us-central1/clusters/my-cluster",
+        destinationIP: "api.example.com",
+        port: 443
+    )
+
+    #expect(test.name == "gke-egress-test")
+    #expect(test.source.gkeMasterCluster != nil)
+    #expect(test.destination.ipAddress == "api.example.com")
+}
+
+@Test func testDAISNetworkIntelligenceTemplateCloudSQLTest() {
+    let template = DAISNetworkIntelligenceTemplate(projectID: "my-project")
+    let test = template.cloudSqlConnectivityTest(
+        name: "app-to-sql-test",
+        sourceInstance: "projects/my-project/zones/us-central1-a/instances/app-vm",
+        sqlInstanceUri: "projects/my-project/instances/my-database",
+        port: 5432
+    )
+
+    #expect(test.name == "app-to-sql-test")
+    #expect(test.source.instance != nil)
+    #expect(test.destination.cloudSqlInstance != nil)
+}
+
+@Test func testDAISNetworkIntelligenceTemplateOperations() {
+    let template = DAISNetworkIntelligenceTemplate(projectID: "my-project")
+    let ops = template.operations
+
+    #expect(ops.projectID == "my-project")
+    #expect(ops.enableAPICommand.contains("networkmanagement.googleapis.com"))
+}
+
+@Test func testDAISNetworkIntelligenceTemplateScript() {
+    let template = DAISNetworkIntelligenceTemplate(projectID: "my-project")
+    let script = template.connectivityTestingScript
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("gcloud services enable networkmanagement.googleapis.com"))
+    #expect(script.contains("gcloud network-management connectivity-tests list"))
+}
+
+@Test func testConnectivityTestCodable() throws {
+    let test = GoogleCloudConnectivityTest(
+        name: "test-1",
+        projectID: "my-project",
+        source: .instance("vm1"),
+        destination: .ip("10.0.0.1", port: 80),
+        networkProtocol: .tcp
+    )
+
+    let data = try JSONEncoder().encode(test)
+    let decoded = try JSONDecoder().decode(GoogleCloudConnectivityTest.self, from: data)
+
+    #expect(decoded.name == "test-1")
+    #expect(decoded.networkProtocol == .tcp)
+    #expect(decoded.destination.ipAddress == "10.0.0.1")
+}
+
+@Test func testNetworkTopologyCodable() throws {
+    let topology = GoogleCloudNetworkTopology(
+        projectID: "my-project",
+        resources: [
+            GoogleCloudNetworkTopology.TopologyResource(
+                name: "my-network",
+                resourceType: .network
+            )
+        ]
+    )
+
+    let data = try JSONEncoder().encode(topology)
+    let decoded = try JSONDecoder().decode(GoogleCloudNetworkTopology.self, from: data)
+
+    #expect(decoded.projectID == "my-project")
+    #expect(decoded.resources?.first?.resourceType == .network)
+}
+
+@Test func testFirewallInsightCodable() throws {
+    let insight = GoogleCloudFirewallInsight(
+        name: "insight-1",
+        projectID: "my-project",
+        insightType: .shadowedRule,
+        severity: .high
+    )
+
+    let data = try JSONEncoder().encode(insight)
+    let decoded = try JSONDecoder().decode(GoogleCloudFirewallInsight.self, from: data)
+
+    #expect(decoded.name == "insight-1")
+    #expect(decoded.insightType == .shadowedRule)
+    #expect(decoded.severity == .high)
+}
+
+@Test func testTraceStepStateValues() {
+    #expect(GoogleCloudConnectivityTest.Trace.Step.State.startFromInstance.rawValue == "START_FROM_INSTANCE")
+    #expect(GoogleCloudConnectivityTest.Trace.Step.State.startFromInternet.rawValue == "START_FROM_INTERNET")
+    #expect(GoogleCloudConnectivityTest.Trace.Step.State.applyIngressFirewallRule.rawValue == "APPLY_INGRESS_FIREWALL_RULE")
+    #expect(GoogleCloudConnectivityTest.Trace.Step.State.applyRoute.rawValue == "APPLY_ROUTE")
+    #expect(GoogleCloudConnectivityTest.Trace.Step.State.arriveAtInstance.rawValue == "ARRIVE_AT_INSTANCE")
+}
