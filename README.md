@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 17 Google Cloud services:
+GoogleCloudSwift provides models for 18 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -102,6 +102,7 @@ GoogleCloudSwift provides models for 17 Google Cloud services:
 | **Cloud Logging** | Log management and analysis | `GoogleCloudLogEntry`, `GoogleCloudLogSink` |
 | **Cloud Monitoring** | Metrics, alerts, and uptime checks | `GoogleCloudAlertPolicy`, `GoogleCloudUptimeCheck` |
 | **VPC Networks** | Virtual Private Cloud networking | `GoogleCloudVPCNetwork`, `GoogleCloudSubnet`, `GoogleCloudFirewallRule` |
+| **Cloud DNS** | Domain name system management | `GoogleCloudManagedZone`, `GoogleCloudDNSRecord`, `GoogleCloudDNSPolicy` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -1570,6 +1571,268 @@ let teardownScript = DAISVPCTemplate.teardownScript(
 | `globalManagedProxy` | Proxy-only subnet for global HTTP(S) LB |
 | `privateServiceConnect` | Subnet for Private Service Connect |
 
+### GoogleCloudManagedZone (Cloud DNS API)
+
+Cloud DNS is a scalable, reliable, and managed authoritative Domain Name System (DNS) service:
+
+```swift
+// Create a public managed zone with DNSSEC
+let zone = GoogleCloudManagedZone(
+    name: "example-zone",
+    dnsName: "example.com",
+    projectID: "my-project",
+    description: "Production DNS zone",
+    visibility: .public,
+    dnssecConfig: .init(state: .on)
+)
+print(zone.createCommand)
+print(zone.resourceName)
+
+// Create a private zone for internal services
+let privateZone = GoogleCloudManagedZone(
+    name: "internal-zone",
+    dnsName: "internal.example.com",
+    projectID: "my-project",
+    visibility: .private,
+    networks: ["my-vpc"]
+)
+```
+
+**DNS Records:**
+
+```swift
+// Create various record types
+let aRecord = GoogleCloudDNSRecord(
+    name: "www.example.com",
+    type: .a,
+    ttl: 300,
+    rrdatas: ["192.0.2.1", "192.0.2.2"]
+)
+
+let cnameRecord = GoogleCloudDNSRecord(
+    name: "app.example.com",
+    type: .cname,
+    ttl: 300,
+    rrdatas: ["lb.example.com."]
+)
+
+let mxRecord = GoogleCloudDNSRecord(
+    name: "example.com",
+    type: .mx,
+    ttl: 3600,
+    rrdatas: ["10 mail.example.com."]
+)
+
+// Manage records with commands
+print(GoogleCloudDNSRecordCommands.createCommand(
+    zoneName: "example-zone",
+    projectID: "my-project",
+    record: aRecord
+))
+
+print(GoogleCloudDNSRecordCommands.listCommand(
+    zoneName: "example-zone",
+    projectID: "my-project"
+))
+```
+
+**Common DNS Records Factory:**
+
+```swift
+// A record
+let webServer = CommonDNSRecords.aRecord(
+    name: "www.example.com",
+    ipAddresses: ["192.0.2.1"]
+)
+
+// MX records for email
+let mxRecords = CommonDNSRecords.mxRecord(
+    name: "example.com",
+    mailServers: [
+        (10, "mail1.example.com"),
+        (20, "mail2.example.com")
+    ]
+)
+
+// Google Workspace MX records
+let googleMX = CommonDNSRecords.googleWorkspaceMX(domain: "example.com")
+
+// TXT record for SPF
+let spf = CommonDNSRecords.spfRecord(
+    name: "example.com",
+    spfValue: "v=spf1 include:_spf.google.com ~all"
+)
+
+// DMARC record
+let dmarc = CommonDNSRecords.dmarcRecord(
+    domain: "example.com",
+    policy: "reject",
+    rua: "dmarc@example.com"
+)
+
+// CAA record for certificate authority
+let caa = CommonDNSRecords.caaRecord(
+    name: "example.com",
+    entries: [(0, "issue", "letsencrypt.org")]
+)
+
+// SRV record for gRPC
+let grpcSrv = CommonDNSRecords.srvRecord(
+    name: "_grpc._tcp.api.example.com",
+    services: [(10, 5, 9090, "grpc.example.com")]
+)
+```
+
+**DNS Transactions:**
+
+```swift
+// Atomic updates using transactions
+var transaction = GoogleCloudDNSTransaction(
+    zoneName: "example-zone",
+    projectID: "my-project"
+)
+
+// Add records
+transaction.additions = [
+    GoogleCloudDNSRecord(name: "new.example.com", type: .a, ttl: 300, rrdatas: ["192.0.2.3"])
+]
+
+// Remove records
+transaction.deletions = [
+    GoogleCloudDNSRecord(name: "old.example.com", type: .a, ttl: 300, rrdatas: ["192.0.2.100"])
+]
+
+// Generate transaction script
+print(transaction.transactionScript)
+```
+
+**DNS Policies:**
+
+```swift
+// Create a DNS policy for private resolution
+let policy = GoogleCloudDNSPolicy(
+    name: "internal-policy",
+    projectID: "my-project",
+    enableInboundForwarding: true,
+    enableLogging: true,
+    networks: ["my-vpc"],
+    alternativeNameServerConfig: .init(targetNameServers: ["10.0.0.53"])
+)
+print(policy.createCommand)
+
+// Response policies for DNS firewall
+let responsePolicy = GoogleCloudDNSResponsePolicy(
+    name: "block-malware",
+    projectID: "my-project",
+    networks: ["my-vpc"]
+)
+
+let rule = GoogleCloudDNSResponsePolicyRule(
+    name: "block-badsite",
+    responsePolicyName: "block-malware",
+    projectID: "my-project",
+    dnsName: "malware.com",
+    behavior: .localData,
+    localData: .init(localDatas: [
+        .init(name: "malware.com.", type: .a, ttl: 300, rrdatas: ["0.0.0.0"])
+    ])
+)
+```
+
+**DNSSEC Operations:**
+
+```swift
+// Enable DNSSEC
+print(DNSSECOperations.enableCommand(zoneName: "example-zone", projectID: "my-project"))
+
+// Get DS records for domain registrar
+print(DNSSECOperations.getDSRecordsCommand(zoneName: "example-zone", projectID: "my-project"))
+
+// List DNSKEY records
+print(DNSSECOperations.listKeysCommand(zoneName: "example-zone", projectID: "my-project"))
+```
+
+**Zone Import/Export:**
+
+```swift
+// Export zone to BIND format
+print(DNSOperations.exportCommand(
+    zoneName: "example-zone",
+    projectID: "my-project",
+    outputFile: "zone.txt"
+))
+
+// Import zone from BIND format
+print(DNSOperations.importCommand(
+    zoneName: "example-zone",
+    projectID: "my-project",
+    inputFile: "zone.txt"
+))
+
+// Check DNS propagation
+print(DNSOperations.checkPropagationCommand(domain: "www.example.com", recordType: "A"))
+```
+
+**DAIS DNS Templates:**
+
+```swift
+// Create managed zone for DAIS
+let zone = DAISDNSTemplate.managedZone(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    domain: "example.com"
+)
+
+// Private zone for internal services
+let privateZone = DAISDNSTemplate.privateZone(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    domain: "internal.example.com",
+    networks: ["dais-prod-vpc"]
+)
+
+// API and gRPC endpoint records
+let apiRecord = DAISDNSTemplate.apiRecord(domain: "example.com", ipAddress: "192.0.2.1")
+let grpcRecord = DAISDNSTemplate.grpcRecord(domain: "example.com", ipAddress: "192.0.2.2")
+
+// Complete setup script
+let setupScript = DAISDNSTemplate.setupScript(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    domain: "example.com",
+    apiIP: "192.0.2.1",
+    grpcIP: "192.0.2.2"
+)
+
+// Teardown script
+let teardownScript = DAISDNSTemplate.teardownScript(
+    projectID: "my-project",
+    deploymentName: "dais-prod"
+)
+```
+
+**Record Types:**
+
+| Type | Description |
+|------|-------------|
+| `A` | IPv4 address record |
+| `AAAA` | IPv6 address record |
+| `CNAME` | Canonical name (alias) |
+| `MX` | Mail exchange record |
+| `TXT` | Text record (SPF, DKIM, etc.) |
+| `NS` | Name server record |
+| `SOA` | Start of authority |
+| `SRV` | Service location record |
+| `CAA` | Certificate authority authorization |
+| `PTR` | Pointer record (reverse DNS) |
+
+**Zone Visibility:**
+
+| Visibility | Description |
+|------------|-------------|
+| `public` | Publicly resolvable zone |
+| `private` | Only accessible within VPC networks |
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -2158,6 +2421,9 @@ MIT License
 - [Firewall Rules Documentation](https://cloud.google.com/vpc/docs/firewalls)
 - [Cloud Router Documentation](https://cloud.google.com/network-connectivity/docs/router)
 - [Cloud NAT Documentation](https://cloud.google.com/nat/docs)
+- [Cloud DNS Documentation](https://cloud.google.com/dns/docs)
+- [DNSSEC Documentation](https://cloud.google.com/dns/docs/dnssec)
+- [DNS Response Policies](https://cloud.google.com/dns/docs/zones/manage-response-policies)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
