@@ -24577,3 +24577,297 @@ import Testing
     #expect(LogsPolicy.Destination.cloudLogging.rawValue == "CLOUD_LOGGING")
     #expect(LogsPolicy.Destination.path.rawValue == "PATH")
 }
+
+// MARK: - Binary Authorization Tests
+
+@Test func testBinaryAuthorizationPolicyBasicInit() {
+    let policy = GoogleCloudBinaryAuthorizationPolicy(
+        projectID: "my-project",
+        description: "Test policy",
+        defaultAdmissionRule: .allowAll
+    )
+
+    #expect(policy.name == "projects/my-project/policy")
+    #expect(policy.projectID == "my-project")
+    #expect(policy.description == "Test policy")
+    #expect(policy.defaultAdmissionRule.evaluationMode == .alwaysAllow)
+}
+
+@Test func testAdmissionRuleRequireAttestation() {
+    let attestors = ["projects/my-project/attestors/prod-attestor"]
+    let rule = AdmissionRule.requireAttestation(attestors: attestors)
+
+    #expect(rule.evaluationMode == .requireAttestation)
+    #expect(rule.requireAttestationsBy == attestors)
+    #expect(rule.enforcementMode == .enforcedBlockAndAuditLog)
+}
+
+@Test func testAdmissionRuleDenyAll() {
+    let rule = AdmissionRule.denyAll
+
+    #expect(rule.evaluationMode == .alwaysDeny)
+    #expect(rule.enforcementMode == .enforcedBlockAndAuditLog)
+}
+
+@Test func testAdmissionWhitelistPatternGCR() {
+    let pattern = GoogleCloudBinaryAuthorizationPolicy.AdmissionWhitelistPattern.gcr(project: "my-project")
+    #expect(pattern.namePattern == "gcr.io/my-project/*")
+}
+
+@Test func testAdmissionWhitelistPatternArtifactRegistry() {
+    let pattern = GoogleCloudBinaryAuthorizationPolicy.AdmissionWhitelistPattern.artifactRegistry(
+        project: "my-project",
+        location: "us-central1",
+        repository: "my-repo"
+    )
+    #expect(pattern.namePattern == "us-central1-docker.pkg.dev/my-project/my-repo/*")
+}
+
+@Test func testAttestorBasicInit() {
+    let attestor = GoogleCloudAttestor(
+        name: "prod-attestor",
+        projectID: "my-project",
+        description: "Production attestor"
+    )
+
+    #expect(attestor.name == "prod-attestor")
+    #expect(attestor.resourceName == "projects/my-project/attestors/prod-attestor")
+    #expect(attestor.description == "Production attestor")
+}
+
+@Test func testAttestorCreateCommand() {
+    let attestor = GoogleCloudAttestor(
+        name: "prod-attestor",
+        projectID: "my-project",
+        description: "Production attestor",
+        userOwnedGrafeasNote: .init(noteReference: "projects/my-project/notes/prod-note")
+    )
+
+    let cmd = attestor.createCommand
+    #expect(cmd.contains("gcloud container binauthz attestors create prod-attestor"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--attestation-authority-note=projects/my-project/notes/prod-note"))
+}
+
+@Test func testAttestorAddKMSKeyCommand() {
+    let attestor = GoogleCloudAttestor(name: "prod-attestor", projectID: "my-project")
+    let cmd = attestor.addKMSKeyCommand(kmsKeyVersionResourceID: "projects/my-project/locations/global/keyRings/binauthz/cryptoKeys/attestor-key/cryptoKeyVersions/1")
+
+    #expect(cmd.contains("gcloud container binauthz attestors public-keys add"))
+    #expect(cmd.contains("--attestor=prod-attestor"))
+    #expect(cmd.contains("--keyversion="))
+}
+
+@Test func testAttestationCreateKMSCommand() {
+    let attestation = GoogleCloudAttestation(
+        resourceUri: "gcr.io/my-project/my-app@sha256:abc123",
+        attestorName: "prod-attestor",
+        projectID: "my-project"
+    )
+
+    let cmd = attestation.createKMSCommand(kmsKeyVersion: "projects/my-project/locations/global/keyRings/binauthz/cryptoKeys/attestor-key/cryptoKeyVersions/1")
+    #expect(cmd.contains("gcloud container binauthz attestations create"))
+    #expect(cmd.contains("--artifact-url=gcr.io/my-project/my-app@sha256:abc123"))
+    #expect(cmd.contains("--attestor=prod-attestor"))
+}
+
+@Test func testAttestationVerifyCommand() {
+    let attestation = GoogleCloudAttestation(
+        resourceUri: "gcr.io/my-project/my-app@sha256:abc123",
+        attestorName: "prod-attestor",
+        projectID: "my-project"
+    )
+
+    let cmd = attestation.verifyCommand
+    #expect(cmd.contains("gcloud container binauthz attestations verify"))
+    #expect(cmd.contains("--artifact-url=gcr.io/my-project/my-app@sha256:abc123"))
+}
+
+@Test func testContainerAnalysisNoteBasicInit() {
+    let note = ContainerAnalysisNote(
+        projectID: "my-project",
+        noteID: "prod-attestor-note",
+        shortDescription: "Production attestor note",
+        kind: .attestation
+    )
+
+    #expect(note.name == "projects/my-project/notes/prod-attestor-note")
+    #expect(note.resourceName == "projects/my-project/notes/prod-attestor-note")
+    #expect(note.kind == .attestation)
+}
+
+@Test func testContainerAnalysisNoteKindValues() {
+    #expect(ContainerAnalysisNote.NoteKind.attestation.rawValue == "ATTESTATION")
+    #expect(ContainerAnalysisNote.NoteKind.vulnerability.rawValue == "VULNERABILITY")
+    #expect(ContainerAnalysisNote.NoteKind.build.rawValue == "BUILD")
+    #expect(ContainerAnalysisNote.NoteKind.sbomReference.rawValue == "SBOM_REFERENCE")
+}
+
+@Test func testBinaryAuthorizationOperationsEnableAPI() {
+    let ops = BinaryAuthorizationOperations(projectID: "my-project")
+
+    #expect(ops.enableAPICommand == "gcloud services enable binaryauthorization.googleapis.com --project=my-project")
+    #expect(ops.enableContainerAnalysisAPICommand == "gcloud services enable containeranalysis.googleapis.com --project=my-project")
+}
+
+@Test func testBinaryAuthorizationOperationsListAttestors() {
+    let ops = BinaryAuthorizationOperations(projectID: "my-project")
+
+    #expect(ops.listAttestorsCommand == "gcloud container binauthz attestors list --project=my-project")
+}
+
+@Test func testBinaryAuthorizationOperationsCreateAttestation() {
+    let ops = BinaryAuthorizationOperations(projectID: "my-project")
+    let cmd = ops.createAttestationCommand(
+        imageUri: "gcr.io/my-project/app@sha256:abc123",
+        attestor: "prod-attestor",
+        kmsKeyVersion: "projects/my-project/locations/global/keyRings/binauthz/cryptoKeys/key/cryptoKeyVersions/1"
+    )
+
+    #expect(cmd.contains("--artifact-url=gcr.io/my-project/app@sha256:abc123"))
+    #expect(cmd.contains("--attestor=prod-attestor"))
+    #expect(cmd.contains("--keyversion="))
+}
+
+@Test func testBinaryAuthorizationRoleValues() {
+    #expect(BinaryAuthorizationOperations.BinaryAuthorizationRole.attestorViewer.rawValue == "roles/binaryauthorization.attestorsViewer")
+    #expect(BinaryAuthorizationOperations.BinaryAuthorizationRole.attestorAdmin.rawValue == "roles/binaryauthorization.attestorsAdmin")
+    #expect(BinaryAuthorizationOperations.BinaryAuthorizationRole.attestationCreator.rawValue == "roles/binaryauthorization.attestationsCreator")
+}
+
+@Test func testDAISBinaryAuthorizationTemplateAllowAllPolicy() {
+    let template = DAISBinaryAuthorizationTemplate(projectID: "my-project")
+    let policy = template.allowAllPolicy
+
+    #expect(policy.projectID == "my-project")
+    #expect(policy.defaultAdmissionRule.evaluationMode == .alwaysAllow)
+}
+
+@Test func testDAISBinaryAuthorizationTemplateDenyAllPolicy() {
+    let template = DAISBinaryAuthorizationTemplate(projectID: "my-project")
+    let policy = template.denyAllPolicy
+
+    #expect(policy.defaultAdmissionRule.evaluationMode == .alwaysDeny)
+}
+
+@Test func testDAISBinaryAuthorizationTemplateAttestationRequiredPolicy() {
+    let template = DAISBinaryAuthorizationTemplate(projectID: "my-project")
+    let policy = template.attestationRequiredPolicy(attestorNames: ["prod-attestor"])
+
+    #expect(policy.defaultAdmissionRule.evaluationMode == .requireAttestation)
+    #expect(policy.defaultAdmissionRule.requireAttestationsBy?.first == "projects/my-project/attestors/prod-attestor")
+}
+
+@Test func testDAISBinaryAuthorizationTemplateAttestor() {
+    let template = DAISBinaryAuthorizationTemplate(projectID: "my-project")
+    let attestor = template.attestor(name: "prod-attestor", description: "Production attestor")
+
+    #expect(attestor.name == "prod-attestor")
+    #expect(attestor.projectID == "my-project")
+    #expect(attestor.userOwnedGrafeasNote?.noteReference == "projects/my-project/notes/prod-attestor-note")
+}
+
+@Test func testDAISBinaryAuthorizationTemplateSetupScript() {
+    let template = DAISBinaryAuthorizationTemplate(projectID: "my-project")
+    let script = template.setupScript
+
+    #expect(script.contains("gcloud services enable binaryauthorization.googleapis.com"))
+    #expect(script.contains("gcloud services enable containeranalysis.googleapis.com"))
+    #expect(script.contains("gcloud kms keyrings create binauthz-keys"))
+    #expect(script.contains("asymmetric-signing"))
+    #expect(script.contains("gcloud container binauthz attestors create"))
+}
+
+@Test func testDAISBinaryAuthorizationTemplateCICDScript() {
+    let template = DAISBinaryAuthorizationTemplate(projectID: "my-project")
+    let script = template.cicdIntegrationScript
+
+    #expect(script.contains("gcloud container binauthz attestations create"))
+    #expect(script.contains("gcloud container binauthz attestations verify"))
+    #expect(script.contains("IMAGE_URI="))
+}
+
+@Test func testDAISBinaryAuthorizationTemplateRequireAttestationPolicyYAML() {
+    let template = DAISBinaryAuthorizationTemplate(projectID: "my-project")
+    let yaml = template.requireAttestationPolicyYAML(attestorName: "prod-attestor")
+
+    #expect(yaml.contains("evaluationMode: REQUIRE_ATTESTATION"))
+    #expect(yaml.contains("projects/my-project/attestors/prod-attestor"))
+    #expect(yaml.contains("enforcementMode: ENFORCED_BLOCK_AND_AUDIT_LOG"))
+}
+
+@Test func testDAISBinaryAuthorizationTemplateDryRunPolicyYAML() {
+    let template = DAISBinaryAuthorizationTemplate(projectID: "my-project")
+    let yaml = template.dryRunPolicyYAML(attestorName: "prod-attestor")
+
+    #expect(yaml.contains("enforcementMode: DRYRUN_AUDIT_LOG_ONLY"))
+}
+
+@Test func testContinuousValidationBasicInit() {
+    let cv = ContinuousValidation(enabled: true)
+
+    #expect(cv.enabled == true)
+}
+
+@Test func testCVCheckSetBasicInit() {
+    let checkSet = CVCheckSet(
+        name: "production-checks",
+        projectID: "my-project",
+        scope: .kubernetesNamespace("production")
+    )
+
+    #expect(checkSet.name == "production-checks")
+    #expect(checkSet.resourceName == "projects/my-project/checkSets/production-checks")
+}
+
+@Test func testCVVulnerabilityCheckSeverityValues() {
+    #expect(CVCheckSet.Check.VulnerabilityCheck.Severity.critical.rawValue == "CRITICAL")
+    #expect(CVCheckSet.Check.VulnerabilityCheck.Severity.high.rawValue == "HIGH")
+    #expect(CVCheckSet.Check.VulnerabilityCheck.Severity.medium.rawValue == "MEDIUM")
+    #expect(CVCheckSet.Check.VulnerabilityCheck.Severity.low.rawValue == "LOW")
+}
+
+@Test func testSignatureAlgorithmValues() {
+    #expect(GoogleCloudAttestor.PkixPublicKey.SignatureAlgorithm.ecdsaP256Sha256.rawValue == "ECDSA_P256_SHA256")
+    #expect(GoogleCloudAttestor.PkixPublicKey.SignatureAlgorithm.rsaPss4096Sha512.rawValue == "RSA_PSS_4096_SHA512")
+}
+
+@Test func testBinaryAuthorizationPolicyCodable() throws {
+    let policy = GoogleCloudBinaryAuthorizationPolicy(
+        projectID: "my-project",
+        description: "Test policy",
+        globalPolicyEvaluationMode: .enable,
+        defaultAdmissionRule: .requireAttestation(attestors: ["projects/my-project/attestors/prod"])
+    )
+
+    let data = try JSONEncoder().encode(policy)
+    let decoded = try JSONDecoder().decode(GoogleCloudBinaryAuthorizationPolicy.self, from: data)
+
+    #expect(decoded.projectID == "my-project")
+    #expect(decoded.globalPolicyEvaluationMode == .enable)
+    #expect(decoded.defaultAdmissionRule.evaluationMode == .requireAttestation)
+}
+
+@Test func testAttestorCodable() throws {
+    let attestor = GoogleCloudAttestor(
+        name: "prod-attestor",
+        projectID: "my-project",
+        description: "Production attestor"
+    )
+
+    let data = try JSONEncoder().encode(attestor)
+    let decoded = try JSONDecoder().decode(GoogleCloudAttestor.self, from: data)
+
+    #expect(decoded.name == "prod-attestor")
+    #expect(decoded.resourceName == "projects/my-project/attestors/prod-attestor")
+}
+
+@Test func testGlobalPolicyEvaluationModeValues() {
+    #expect(GoogleCloudBinaryAuthorizationPolicy.GlobalPolicyEvaluationMode.enable.rawValue == "ENABLE")
+    #expect(GoogleCloudBinaryAuthorizationPolicy.GlobalPolicyEvaluationMode.disable.rawValue == "DISABLE")
+}
+
+@Test func testEnforcementModeValues() {
+    #expect(AdmissionRule.EnforcementMode.enforcedBlockAndAuditLog.rawValue == "ENFORCED_BLOCK_AND_AUDIT_LOG")
+    #expect(AdmissionRule.EnforcementMode.dryrunAuditLogOnly.rawValue == "DRYRUN_AUDIT_LOG_ONLY")
+}
