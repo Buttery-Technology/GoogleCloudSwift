@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 40 Google Cloud services:
+GoogleCloudSwift provides models for 41 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -120,6 +120,7 @@ GoogleCloudSwift provides models for 40 Google Cloud services:
 | **Cloud Spanner** | Globally distributed relational database | `GoogleCloudSpannerInstance`, `GoogleCloudSpannerDatabase`, `GoogleCloudSpannerBackup`, `DAISSpannerTemplate` |
 | **Firestore** | NoSQL document database | `GoogleCloudFirestoreDatabase`, `GoogleCloudFirestoreIndex`, `GoogleCloudFirestoreExport`, `DAISFirestoreTemplate` |
 | **Vertex AI** | Machine learning platform | `GoogleCloudVertexAIModel`, `GoogleCloudVertexAIEndpoint`, `GoogleCloudVertexAICustomJob`, `DAISVertexAITemplate` |
+| **Cloud Trace** | Distributed tracing | `GoogleCloudTraceSpan`, `GoogleCloudTraceSink`, `TraceOperations`, `DAISTraceTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -4656,6 +4657,153 @@ print(template.setupScript)
 | `NVIDIA_TESLA_A100` | Latest generation GPU |
 | `NVIDIA_L4` | Inference-optimized GPU |
 
+### GoogleCloudTraceSpan (Cloud Trace API)
+
+Cloud Trace is a distributed tracing system for collecting latency data:
+
+```swift
+// Create a trace span
+let span = GoogleCloudTraceSpan(
+    traceID: "abc123def456",
+    spanID: "span789",
+    projectID: "my-project",
+    displayName: "ProcessRequest",
+    parentSpanID: "parent123",
+    status: GoogleCloudTraceSpan.SpanStatus(code: .ok),
+    attributes: ["http.method": "GET", "http.status_code": "200"]
+)
+
+print(span.resourceName)  // projects/my-project/traces/abc123def456/spans/span789
+print(span.traceResourceName)  // projects/my-project/traces/abc123def456
+```
+
+**Querying Traces:**
+
+```swift
+// List traces
+print(GoogleCloudTraceSpan.listTracesCommand(projectID: "my-project"))
+
+// List with filter
+print(GoogleCloudTraceSpan.listTracesCommand(
+    projectID: "my-project",
+    filter: "latency:>1s",
+    limit: 100
+))
+
+// Describe a specific trace
+print(GoogleCloudTraceSpan.describeTraceCommand(
+    traceID: "abc123def456",
+    projectID: "my-project"
+))
+```
+
+**Trace Sinks for Export:**
+
+```swift
+// Create a trace sink to export to BigQuery
+let sink = GoogleCloudTraceSink(
+    name: "analytics-sink",
+    projectID: "my-project",
+    destination: "bigquery.googleapis.com/projects/my-project/datasets/traces"
+)
+
+print(sink.resourceName)
+print(sink.createAPICommand)
+```
+
+**Trace Analysis Filters:**
+
+```swift
+// High latency analysis
+let latencyFilter = TraceAnalysis.latencyAnalysisFilter(
+    serviceName: "api-server",
+    minLatencyMs: 1000
+)
+
+// Error trace filter
+let errorFilter = TraceAnalysis.errorTraceFilter(serviceName: "api-server")
+
+// HTTP method filter
+let httpFilter = TraceAnalysis.httpMethodFilter(method: "POST")
+
+// HTTP status code filter
+let statusFilter = TraceAnalysis.httpStatusFilter(statusCode: 500)
+```
+
+**Trace Headers:**
+
+```swift
+// W3C Trace Context header
+let w3cHeader = TraceOperations.w3cTraceContextHeader(
+    traceID: "abc123",
+    spanID: "span456",
+    sampled: true
+)
+// Output: traceparent: 00-abc123-span456-01
+
+// Google Cloud Trace header
+let googleHeader = TraceOperations.googleTraceHeader(
+    traceID: "abc123",
+    spanID: "span456",
+    sampled: true
+)
+// Output: X-Cloud-Trace-Context: abc123/span456;o=1
+```
+
+**OpenTelemetry Integration:**
+
+```swift
+let otelConfig = OpenTelemetryTraceConfig(
+    projectID: "my-project",
+    serviceName: "my-service",
+    serviceVersion: "1.0.0",
+    environment: "production"
+)
+
+// Get environment variables for OpenTelemetry
+let envVars = otelConfig.environmentVariables
+// OTEL_SERVICE_NAME=my-service
+// OTEL_TRACES_EXPORTER=otlp
+// GOOGLE_CLOUD_PROJECT=my-project
+
+// Generate docker run command
+print(otelConfig.dockerRunCommand(image: "my-image:latest"))
+```
+
+**DAIS Trace Templates:**
+
+```swift
+let template = DAISTraceTemplate(
+    projectID: "my-project",
+    serviceName: "dais-api",
+    serviceAccount: "sa@my-project.iam.gserviceaccount.com"
+)
+
+// OpenTelemetry configuration
+let otelConfig = template.openTelemetryConfig
+
+// Trace configuration with recommended settings
+let traceConfig = template.traceConfig  // 10% sampling for production
+
+// BigQuery sink for trace analytics
+let sink = template.bigQuerySink(datasetID: "trace_analytics")
+
+// Pre-built filters
+let highLatencyFilter = template.highLatencyFilter
+let errorFilter = template.errorFilter
+
+// Setup script
+print(template.setupScript)
+```
+
+**IAM Roles:**
+
+| Role | Description |
+|------|-------------|
+| `roles/cloudtrace.admin` | Full access to Cloud Trace |
+| `roles/cloudtrace.agent` | Write traces |
+| `roles/cloudtrace.user` | Read traces |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -6101,6 +6249,16 @@ MIT License
 - [Machine Types](https://cloud.google.com/vertex-ai/docs/training/configure-compute)
 - [Accelerators (GPUs)](https://cloud.google.com/vertex-ai/docs/training/configure-compute#accelerators)
 - [Model Registry](https://cloud.google.com/vertex-ai/docs/model-registry/introduction)
+
+### Cloud Trace
+- [Cloud Trace Documentation](https://cloud.google.com/trace/docs)
+- [Trace Overview](https://cloud.google.com/trace/docs/overview)
+- [OpenTelemetry Integration](https://cloud.google.com/trace/docs/setup/opentelemetry)
+- [Trace Analysis](https://cloud.google.com/trace/docs/analysis)
+- [Trace Sinks](https://cloud.google.com/trace/docs/trace-sinks-intro)
+- [W3C Trace Context](https://cloud.google.com/trace/docs/trace-context)
+- [Latency Explorer](https://cloud.google.com/trace/docs/latency-explorer)
+- [Trace IAM Roles](https://cloud.google.com/trace/docs/iam)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)
