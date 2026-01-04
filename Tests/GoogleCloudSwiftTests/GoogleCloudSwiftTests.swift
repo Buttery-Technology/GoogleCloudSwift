@@ -16474,3 +16474,412 @@ import Testing
     #expect(decoded.argument == "{\"key\": \"value\"}")
     #expect(decoded.state == .succeeded)
 }
+
+// MARK: - API Gateway Tests
+
+@Test func testAPIGatewayAPIBasicInit() {
+    let api = GoogleCloudAPIGatewayAPI(
+        name: "my-api",
+        projectID: "my-project",
+        displayName: "My API"
+    )
+
+    #expect(api.name == "my-api")
+    #expect(api.projectID == "my-project")
+    #expect(api.displayName == "My API")
+}
+
+@Test func testAPIGatewayAPIResourceName() {
+    let api = GoogleCloudAPIGatewayAPI(
+        name: "my-api",
+        projectID: "my-project"
+    )
+
+    #expect(api.resourceName == "projects/my-project/locations/global/apis/my-api")
+}
+
+@Test func testAPIGatewayAPICreateCommand() {
+    let api = GoogleCloudAPIGatewayAPI(
+        name: "my-api",
+        projectID: "my-project",
+        displayName: "My API",
+        labels: ["env": "prod"]
+    )
+
+    let cmd = api.createCommand
+    #expect(cmd.contains("gcloud api-gateway apis create my-api"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--display-name='My API'"))
+    #expect(cmd.contains("--labels=env=prod"))
+}
+
+@Test func testAPIGatewayAPIDeleteCommand() {
+    let api = GoogleCloudAPIGatewayAPI(
+        name: "my-api",
+        projectID: "my-project"
+    )
+
+    #expect(api.deleteCommand == "gcloud api-gateway apis delete my-api --project=my-project --quiet")
+}
+
+@Test func testAPIGatewayAPIDescribeCommand() {
+    let api = GoogleCloudAPIGatewayAPI(
+        name: "my-api",
+        projectID: "my-project"
+    )
+
+    #expect(api.describeCommand == "gcloud api-gateway apis describe my-api --project=my-project")
+}
+
+@Test func testAPIGatewayAPIStateValues() {
+    #expect(GoogleCloudAPIGatewayAPI.APIState.active.rawValue == "ACTIVE")
+    #expect(GoogleCloudAPIGatewayAPI.APIState.creating.rawValue == "CREATING")
+    #expect(GoogleCloudAPIGatewayAPI.APIState.failed.rawValue == "FAILED")
+}
+
+@Test func testAPIGatewayConfigBasicInit() {
+    let config = GoogleCloudAPIGatewayConfig(
+        name: "my-config",
+        apiName: "my-api",
+        projectID: "my-project",
+        gatewayServiceAccount: "sa@my-project.iam.gserviceaccount.com"
+    )
+
+    #expect(config.name == "my-config")
+    #expect(config.apiName == "my-api")
+    #expect(config.gatewayServiceAccount == "sa@my-project.iam.gserviceaccount.com")
+}
+
+@Test func testAPIGatewayConfigResourceName() {
+    let config = GoogleCloudAPIGatewayConfig(
+        name: "my-config",
+        apiName: "my-api",
+        projectID: "my-project"
+    )
+
+    #expect(config.resourceName == "projects/my-project/locations/global/apis/my-api/configs/my-config")
+}
+
+@Test func testAPIGatewayConfigCreateCommand() {
+    let config = GoogleCloudAPIGatewayConfig(
+        name: "my-config",
+        apiName: "my-api",
+        projectID: "my-project",
+        displayName: "My Config",
+        gatewayServiceAccount: "sa@my-project.iam.gserviceaccount.com"
+    )
+
+    let cmd = config.createCommand(openAPISpec: "spec.yaml")
+    #expect(cmd.contains("gcloud api-gateway api-configs create my-config"))
+    #expect(cmd.contains("--api=my-api"))
+    #expect(cmd.contains("--openapi-spec=spec.yaml"))
+    #expect(cmd.contains("--backend-auth-service-account=sa@my-project.iam.gserviceaccount.com"))
+}
+
+@Test func testAPIGatewayConfigDeleteCommand() {
+    let config = GoogleCloudAPIGatewayConfig(
+        name: "my-config",
+        apiName: "my-api",
+        projectID: "my-project"
+    )
+
+    #expect(config.deleteCommand == "gcloud api-gateway api-configs delete my-config --api=my-api --project=my-project --quiet")
+}
+
+@Test func testAPIGatewayConfigStateValues() {
+    #expect(GoogleCloudAPIGatewayConfig.ConfigState.active.rawValue == "ACTIVE")
+    #expect(GoogleCloudAPIGatewayConfig.ConfigState.activating.rawValue == "ACTIVATING")
+}
+
+@Test func testAPIGatewayGatewayBasicInit() {
+    let gateway = GoogleCloudAPIGatewayGateway(
+        name: "my-gateway",
+        projectID: "my-project",
+        location: "us-central1",
+        apiConfig: "projects/my-project/locations/global/apis/my-api/configs/my-config"
+    )
+
+    #expect(gateway.name == "my-gateway")
+    #expect(gateway.location == "us-central1")
+    #expect(gateway.apiConfig.contains("my-config"))
+}
+
+@Test func testAPIGatewayGatewayResourceName() {
+    let gateway = GoogleCloudAPIGatewayGateway(
+        name: "my-gateway",
+        projectID: "my-project",
+        location: "us-west1",
+        apiConfig: "config"
+    )
+
+    #expect(gateway.resourceName == "projects/my-project/locations/us-west1/gateways/my-gateway")
+}
+
+@Test func testAPIGatewayGatewayCreateCommand() {
+    let gateway = GoogleCloudAPIGatewayGateway(
+        name: "my-gateway",
+        projectID: "my-project",
+        location: "us-central1",
+        apiConfig: "my-config",
+        displayName: "My Gateway",
+        labels: ["app": "dais"]
+    )
+
+    let cmd = gateway.createCommand
+    #expect(cmd.contains("gcloud api-gateway gateways create my-gateway"))
+    #expect(cmd.contains("--api-config=my-config"))
+    #expect(cmd.contains("--location=us-central1"))
+    #expect(cmd.contains("--display-name='My Gateway'"))
+}
+
+@Test func testAPIGatewayGatewayDeleteCommand() {
+    let gateway = GoogleCloudAPIGatewayGateway(
+        name: "my-gateway",
+        projectID: "my-project",
+        location: "us-central1",
+        apiConfig: "config"
+    )
+
+    #expect(gateway.deleteCommand == "gcloud api-gateway gateways delete my-gateway --location=us-central1 --project=my-project --quiet")
+}
+
+@Test func testAPIGatewayGatewayUpdateCommand() {
+    let gateway = GoogleCloudAPIGatewayGateway(
+        name: "my-gateway",
+        projectID: "my-project",
+        location: "us-central1",
+        apiConfig: "old-config"
+    )
+
+    let cmd = gateway.updateCommand(newApiConfig: "new-config")
+    #expect(cmd.contains("gcloud api-gateway gateways update my-gateway"))
+    #expect(cmd.contains("--api-config=new-config"))
+}
+
+@Test func testAPIGatewayGatewayStateValues() {
+    #expect(GoogleCloudAPIGatewayGateway.GatewayState.active.rawValue == "ACTIVE")
+    #expect(GoogleCloudAPIGatewayGateway.GatewayState.updating.rawValue == "UPDATING")
+}
+
+@Test func testOpenAPISpecBuilderBasic() {
+    var builder = OpenAPISpecBuilder(
+        title: "Test API",
+        description: "A test API",
+        version: "1.0.0"
+    )
+
+    builder.addPath("/test", method: "GET", operation: OpenAPISpecBuilder.Operation(
+        operationId: "testOp",
+        backendAddress: "https://backend.example.com/test"
+    ))
+
+    let spec = builder.build()
+    #expect(spec.contains("swagger: \"2.0\""))
+    #expect(spec.contains("title: \"Test API\""))
+    #expect(spec.contains("/test:"))
+    #expect(spec.contains("operationId: \"testOp\""))
+}
+
+@Test func testOpenAPISpecBuilderWithAPIKey() {
+    var builder = OpenAPISpecBuilder(title: "API")
+    builder.addAPIKeyAuth(name: "api_key", header: "x-api-key")
+
+    let spec = builder.build()
+    #expect(spec.contains("securityDefinitions:"))
+    #expect(spec.contains("api_key:"))
+    #expect(spec.contains("type: \"apiKey\""))
+}
+
+@Test func testOpenAPISpecBuilderWithJWT() {
+    var builder = OpenAPISpecBuilder(title: "API")
+    builder.addJWTAuth(
+        name: "jwt",
+        issuer: "https://issuer.example.com",
+        jwksURI: "https://issuer.example.com/.well-known/jwks.json",
+        audiences: ["my-app"]
+    )
+
+    let spec = builder.build()
+    #expect(spec.contains("x-google-issuer:"))
+    #expect(spec.contains("x-google-jwks_uri:"))
+}
+
+@Test func testOpenAPISpecBuilderWithFirebase() {
+    var builder = OpenAPISpecBuilder(title: "API")
+    builder.addFirebaseAuth(name: "firebase", projectID: "my-project")
+
+    let spec = builder.build()
+    #expect(spec.contains("securetoken.google.com/my-project"))
+}
+
+@Test func testOpenAPISpecBuilderWithParameters() {
+    var builder = OpenAPISpecBuilder(title: "API")
+    builder.addPath("/users/{id}", method: "GET", operation: OpenAPISpecBuilder.Operation(
+        operationId: "getUser",
+        parameters: [
+            OpenAPISpecBuilder.Parameter(name: "id", in: .path, required: true, type: "string")
+        ],
+        backendAddress: "https://backend.example.com/users/{id}"
+    ))
+
+    let spec = builder.build()
+    #expect(spec.contains("parameters:"))
+    #expect(spec.contains("name: \"id\""))
+    #expect(spec.contains("in: \"path\""))
+}
+
+@Test func testAPIGatewayOperationsListAPIs() {
+    let cmd = APIGatewayOperations.listAPIsCommand(projectID: "my-project")
+    #expect(cmd == "gcloud api-gateway apis list --project=my-project")
+}
+
+@Test func testAPIGatewayOperationsListConfigs() {
+    let cmd = APIGatewayOperations.listConfigsCommand(apiName: "my-api", projectID: "my-project")
+    #expect(cmd == "gcloud api-gateway api-configs list --api=my-api --project=my-project")
+}
+
+@Test func testAPIGatewayOperationsListGateways() {
+    let cmd = APIGatewayOperations.listGatewaysCommand(projectID: "my-project", location: "us-central1")
+    #expect(cmd.contains("gcloud api-gateway gateways list"))
+    #expect(cmd.contains("--location=us-central1"))
+}
+
+@Test func testAPIGatewayOperationsEnableAPIs() {
+    let cmd = APIGatewayOperations.enableAPIsCommand
+    #expect(cmd.contains("apigateway.googleapis.com"))
+    #expect(cmd.contains("servicemanagement.googleapis.com"))
+}
+
+@Test func testDAISAPIGatewayTemplateAPI() {
+    let template = DAISAPIGatewayTemplate(
+        projectID: "my-project",
+        backendURL: "https://my-backend.run.app"
+    )
+
+    let api = template.api
+    #expect(api.name == "dais-api")
+    #expect(api.displayName == "DAIS API")
+    #expect(api.labels?["app"] == "dais")
+}
+
+@Test func testDAISAPIGatewayTemplateConfig() {
+    let template = DAISAPIGatewayTemplate(
+        projectID: "my-project",
+        serviceAccountEmail: "sa@my-project.iam.gserviceaccount.com",
+        backendURL: "https://my-backend.run.app"
+    )
+
+    let config = template.config(version: "v2")
+    #expect(config.name == "dais-api-config-v2")
+    #expect(config.gatewayServiceAccount == "sa@my-project.iam.gserviceaccount.com")
+}
+
+@Test func testDAISAPIGatewayTemplateGateway() {
+    let template = DAISAPIGatewayTemplate(
+        projectID: "my-project",
+        location: "us-west1",
+        backendURL: "https://my-backend.run.app"
+    )
+
+    let gateway = template.gateway()
+    #expect(gateway.name == "dais-api-gateway")
+    #expect(gateway.location == "us-west1")
+}
+
+@Test func testDAISAPIGatewayTemplateOpenAPISpec() {
+    let template = DAISAPIGatewayTemplate(
+        projectID: "my-project",
+        backendURL: "https://my-backend.run.app"
+    )
+
+    let spec = template.openAPISpec
+    #expect(spec.contains("swagger: \"2.0\""))
+    #expect(spec.contains("DAIS API"))
+    #expect(spec.contains("/health"))
+    #expect(spec.contains("/api/v1/nodes"))
+    #expect(spec.contains("/api/v1/inference"))
+}
+
+@Test func testDAISAPIGatewayTemplateOpenAPISpecWithAPIKey() {
+    let template = DAISAPIGatewayTemplate(
+        projectID: "my-project",
+        backendURL: "https://my-backend.run.app"
+    )
+
+    let spec = template.openAPISpecWithAPIKey
+    #expect(spec.contains("x-api-key"))
+    #expect(spec.contains("type: \"apiKey\""))
+}
+
+@Test func testDAISAPIGatewayTemplateSetupScript() {
+    let template = DAISAPIGatewayTemplate(
+        projectID: "my-project",
+        location: "us-central1",
+        backendURL: "https://my-backend.run.app"
+    )
+
+    let script = template.setupScript
+    #expect(script.contains("gcloud services enable apigateway.googleapis.com"))
+    #expect(script.contains("gcloud api-gateway apis create"))
+    #expect(script.contains("gcloud api-gateway api-configs create"))
+    #expect(script.contains("gcloud api-gateway gateways create"))
+}
+
+@Test func testDAISAPIGatewayTemplateTeardownScript() {
+    let template = DAISAPIGatewayTemplate(
+        projectID: "my-project",
+        backendURL: "https://my-backend.run.app"
+    )
+
+    let script = template.teardownScript
+    #expect(script.contains("gcloud api-gateway gateways delete"))
+    #expect(script.contains("gcloud api-gateway api-configs delete"))
+    #expect(script.contains("gcloud api-gateway apis delete"))
+}
+
+@Test func testAPIGatewayAPICodable() throws {
+    let api = GoogleCloudAPIGatewayAPI(
+        name: "test-api",
+        projectID: "my-project",
+        displayName: "Test",
+        labels: ["env": "test"],
+        state: .active
+    )
+
+    let data = try JSONEncoder().encode(api)
+    let decoded = try JSONDecoder().decode(GoogleCloudAPIGatewayAPI.self, from: data)
+
+    #expect(decoded.name == "test-api")
+    #expect(decoded.state == .active)
+}
+
+@Test func testAPIGatewayConfigCodable() throws {
+    let config = GoogleCloudAPIGatewayConfig(
+        name: "test-config",
+        apiName: "test-api",
+        projectID: "my-project",
+        state: .active
+    )
+
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(GoogleCloudAPIGatewayConfig.self, from: data)
+
+    #expect(decoded.name == "test-config")
+    #expect(decoded.state == .active)
+}
+
+@Test func testAPIGatewayGatewayCodable() throws {
+    let gateway = GoogleCloudAPIGatewayGateway(
+        name: "test-gateway",
+        projectID: "my-project",
+        location: "us-central1",
+        apiConfig: "config",
+        state: .active
+    )
+
+    let data = try JSONEncoder().encode(gateway)
+    let decoded = try JSONDecoder().decode(GoogleCloudAPIGatewayGateway.self, from: data)
+
+    #expect(decoded.name == "test-gateway")
+    #expect(decoded.state == .active)
+}
