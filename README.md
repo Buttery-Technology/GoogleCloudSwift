@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 22 Google Cloud services:
+GoogleCloudSwift provides models for 23 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -107,6 +107,7 @@ GoogleCloudSwift provides models for 22 Google Cloud services:
 | **Artifact Registry** | Container and package management | `GoogleCloudArtifactRegistryRepository`, `GoogleCloudDockerImage` |
 | **Cloud Build** | CI/CD pipelines | `GoogleCloudBuild`, `GoogleCloudBuildTrigger`, `GoogleCloudBuildWorkerPool` |
 | **Cloud Armor** | WAF & DDoS protection | `GoogleCloudSecurityPolicy`, `SecurityPolicyRule`, `WAFRule` |
+| **Cloud CDN** | Content delivery network | `CDNCachePolicy`, `CDNBackendBucket`, `CDNCacheInvalidation` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -2917,6 +2918,132 @@ let setupScript = DAISCloudArmorTemplate.setupScript(
 | `blockUserAgents(patterns)` | Block specific user agents |
 | `matchAPIPaths(version)` | Match API endpoint paths |
 
+### CDNCachePolicy (Cloud CDN)
+
+Accelerate content delivery with Cloud CDN:
+
+```swift
+// Create a CDN cache policy
+let cachePolicy = CDNCachePolicy(
+    cacheMode: .cacheAllStatic,
+    defaultTTL: 3600,
+    maxTTL: 86400,
+    negativeCaching: true,
+    negativeCachingPolicy: [
+        .init(code: 404, ttl: 60),
+        .init(code: 500, ttl: 10)
+    ],
+    serveWhileStale: 86400
+)
+
+// Configure cache key policy
+let keyPolicy = CDNCachePolicy.CacheKeyPolicy(
+    includeHost: true,
+    includeProtocol: false,
+    includeQueryString: true,
+    queryStringWhitelist: ["page", "limit"]
+)
+```
+
+**Backend Bucket for Static Assets:**
+
+```swift
+// Create CDN-enabled backend bucket
+let backendBucket = CDNBackendBucket(
+    name: "my-static-assets",
+    projectID: "my-project",
+    bucketName: "my-storage-bucket",
+    enableCDN: true,
+    compressionMode: .automatic
+)
+
+print(backendBucket.createCommand)
+// Output: gcloud compute backend-buckets create my-static-assets --gcs-bucket-name=my-storage-bucket --enable-cdn ...
+```
+
+**Signed URLs for Protected Content:**
+
+```swift
+// Create signed URL key
+let signedKey = CDNSignedURLKey(keyName: "my-key", keyValue: "secret-value")
+
+// Add to backend bucket
+print(signedKey.addToBackendBucketCommand(backendBucket: "my-bucket", projectID: "my-project"))
+
+// Generate signed URL
+let signCmd = CDNSignedURLGenerator.signURLCommand(
+    url: "https://cdn.example.com/video.mp4",
+    keyName: "my-key",
+    keyFilePath: "/path/to/key",
+    expiresIn: "2h"
+)
+```
+
+**Cache Invalidation:**
+
+```swift
+// Invalidate specific path
+let invalidation = CDNCacheInvalidation(
+    urlMap: "my-url-map",
+    projectID: "my-project",
+    path: "/images/*"
+)
+print(invalidation.invalidateCommand)
+
+// Invalidate all cache
+print(CDNCacheInvalidation.invalidateAllCommand(urlMap: "my-url-map", projectID: "my-project"))
+```
+
+**CDN Operations:**
+
+```swift
+// Enable CDN on backend service
+let enableCmd = CDNOperations.enableCDNOnBackendService(
+    backendService: "my-service",
+    projectID: "my-project",
+    cacheMode: .forceCacheAll
+)
+
+// Set cache TTL
+let ttlCmd = CDNOperations.setCacheTTL(
+    backendService: "my-service",
+    projectID: "my-project",
+    defaultTTL: 3600,
+    maxTTL: 86400
+)
+```
+
+**DAIS Templates:**
+
+```swift
+// Static assets bucket with CDN
+let assetsBucket = DAISCDNTemplate.staticAssetsBucket(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    storageBucket: "dais-static"
+)
+
+// API cache policy (short TTL)
+let apiPolicy = DAISCDNTemplate.apiCachePolicy()
+
+// Media streaming policy (long TTL)
+let mediaPolicy = DAISCDNTemplate.mediaCachePolicy()
+
+// Edge security policy
+let edgePolicy = DAISCDNTemplate.edgeSecurityPolicy(
+    projectID: "my-project",
+    deploymentName: "dais-prod"
+)
+```
+
+**Cache Mode Reference:**
+
+| Mode | Description |
+|------|-------------|
+| `useOriginHeaders` | Respect Cache-Control headers from origin |
+| `forceCacheAll` | Cache all responses regardless of headers |
+| `cacheAllStatic` | Automatically cache static content types |
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -3531,6 +3658,10 @@ MIT License
 - [Cloud Armor WAF Rules](https://cloud.google.com/armor/docs/waf-rules)
 - [Cloud Armor Rate Limiting](https://cloud.google.com/armor/docs/rate-limiting-overview)
 - [Cloud Armor Adaptive Protection](https://cloud.google.com/armor/docs/adaptive-protection-overview)
+- [Cloud CDN Documentation](https://cloud.google.com/cdn/docs)
+- [Cloud CDN Caching](https://cloud.google.com/cdn/docs/caching)
+- [Cloud CDN Signed URLs](https://cloud.google.com/cdn/docs/signed-urls)
+- [Cloud CDN Cache Invalidation](https://cloud.google.com/cdn/docs/invalidating-cached-content)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)

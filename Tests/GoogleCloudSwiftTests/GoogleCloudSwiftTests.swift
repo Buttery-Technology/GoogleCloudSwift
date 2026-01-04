@@ -11816,3 +11816,403 @@ import Testing
     #expect(decoded.layer7DdosDefenseConfig?.enable == true)
     #expect(decoded.layer7DdosDefenseConfig?.ruleVisibility == .premium)
 }
+
+// MARK: - Cloud CDN Tests
+
+@Test func testCDNCachePolicyBasicInit() {
+    let policy = CDNCachePolicy(
+        cacheMode: .cacheAllStatic,
+        defaultTTL: 3600,
+        maxTTL: 86400
+    )
+
+    #expect(policy.cacheMode == .cacheAllStatic)
+    #expect(policy.defaultTTL == 3600)
+    #expect(policy.maxTTL == 86400)
+    #expect(policy.negativeCaching == false)
+}
+
+@Test func testCDNCacheModeValues() {
+    #expect(CDNCachePolicy.CacheMode.useOriginHeaders.rawValue == "USE_ORIGIN_HEADERS")
+    #expect(CDNCachePolicy.CacheMode.forceCacheAll.rawValue == "FORCE_CACHE_ALL")
+    #expect(CDNCachePolicy.CacheMode.cacheAllStatic.rawValue == "CACHE_ALL_STATIC")
+}
+
+@Test func testCDNCacheModeDescriptions() {
+    #expect(CDNCachePolicy.CacheMode.useOriginHeaders.description.contains("Cache-Control"))
+    #expect(CDNCachePolicy.CacheMode.forceCacheAll.description.contains("Cache all"))
+    #expect(CDNCachePolicy.CacheMode.cacheAllStatic.description.contains("static"))
+}
+
+@Test func testCDNCachePolicyWithNegativeCaching() {
+    let policy = CDNCachePolicy(
+        cacheMode: .cacheAllStatic,
+        negativeCaching: true,
+        negativeCachingPolicy: [
+            .init(code: 404, ttl: 60),
+            .init(code: 500, ttl: 10)
+        ]
+    )
+
+    #expect(policy.negativeCaching == true)
+    #expect(policy.negativeCachingPolicy?.count == 2)
+    #expect(policy.negativeCachingPolicy?[0].code == 404)
+    #expect(policy.negativeCachingPolicy?[0].ttl == 60)
+}
+
+@Test func testCDNCacheKeyPolicy() {
+    let keyPolicy = CDNCachePolicy.CacheKeyPolicy(
+        includeHost: true,
+        includeProtocol: false,
+        includeQueryString: true,
+        queryStringWhitelist: ["page", "limit"],
+        includeHttpHeaders: ["Accept-Language"]
+    )
+
+    #expect(keyPolicy.includeHost == true)
+    #expect(keyPolicy.includeProtocol == false)
+    #expect(keyPolicy.includeQueryString == true)
+    #expect(keyPolicy.queryStringWhitelist?.count == 2)
+    #expect(keyPolicy.includeHttpHeaders?.contains("Accept-Language") == true)
+}
+
+@Test func testCDNBackendBucketCreateCommand() {
+    let bucket = CDNBackendBucket(
+        name: "my-assets",
+        projectID: "my-project",
+        bucketName: "my-storage-bucket",
+        enableCDN: true
+    )
+
+    let cmd = bucket.createCommand
+    #expect(cmd.contains("backend-buckets create my-assets"))
+    #expect(cmd.contains("--gcs-bucket-name=my-storage-bucket"))
+    #expect(cmd.contains("--enable-cdn"))
+    #expect(cmd.contains("--project=my-project"))
+}
+
+@Test func testCDNBackendBucketWithCompression() {
+    let bucket = CDNBackendBucket(
+        name: "compressed-assets",
+        projectID: "my-project",
+        bucketName: "my-bucket",
+        compressionMode: .automatic
+    )
+
+    let cmd = bucket.createCommand
+    #expect(cmd.contains("--compression-mode=AUTOMATIC"))
+}
+
+@Test func testCDNBackendBucketDeleteCommand() {
+    let bucket = CDNBackendBucket(
+        name: "my-assets",
+        projectID: "my-project",
+        bucketName: "my-bucket"
+    )
+
+    #expect(bucket.deleteCommand.contains("backend-buckets delete my-assets"))
+    #expect(bucket.deleteCommand.contains("--quiet"))
+}
+
+@Test func testCDNBackendBucketDescribeCommand() {
+    let bucket = CDNBackendBucket(
+        name: "my-assets",
+        projectID: "my-project",
+        bucketName: "my-bucket"
+    )
+
+    #expect(bucket.describeCommand.contains("backend-buckets describe my-assets"))
+}
+
+@Test func testCDNBackendBucketListCommand() {
+    let cmd = CDNBackendBucket.listCommand(projectID: "my-project")
+    #expect(cmd.contains("backend-buckets list"))
+    #expect(cmd.contains("--project=my-project"))
+}
+
+@Test func testCDNSignedURLKeyAddToBackendBucket() {
+    let key = CDNSignedURLKey(keyName: "my-key", keyValue: "secret-value")
+
+    let cmd = key.addToBackendBucketCommand(backendBucket: "my-bucket", projectID: "my-project")
+    #expect(cmd.contains("backend-buckets add-signed-url-key my-bucket"))
+    #expect(cmd.contains("--key-name=my-key"))
+}
+
+@Test func testCDNSignedURLKeyAddToBackendService() {
+    let key = CDNSignedURLKey(keyName: "my-key", keyValue: "secret-value")
+
+    let cmd = key.addToBackendServiceCommand(backendService: "my-service", projectID: "my-project")
+    #expect(cmd.contains("backend-services add-signed-url-key my-service"))
+    #expect(cmd.contains("--key-name=my-key"))
+}
+
+@Test func testCDNSignedURLKeyDelete() {
+    let bucketCmd = CDNSignedURLKey.deleteFromBackendBucketCommand(
+        keyName: "my-key",
+        backendBucket: "my-bucket",
+        projectID: "my-project"
+    )
+    #expect(bucketCmd.contains("delete-signed-url-key my-bucket"))
+
+    let serviceCmd = CDNSignedURLKey.deleteFromBackendServiceCommand(
+        keyName: "my-key",
+        backendService: "my-service",
+        projectID: "my-project"
+    )
+    #expect(serviceCmd.contains("delete-signed-url-key my-service"))
+}
+
+@Test func testCDNSignedURLGeneratorCommand() {
+    let cmd = CDNSignedURLGenerator.signURLCommand(
+        url: "https://example.com/file.mp4",
+        keyName: "my-key",
+        keyFilePath: "/path/to/key",
+        expiresIn: "2h"
+    )
+
+    #expect(cmd.contains("compute sign-url"))
+    #expect(cmd.contains("--key-name=my-key"))
+    #expect(cmd.contains("--expires-in=2h"))
+}
+
+@Test func testCDNCacheInvalidationCommand() {
+    let invalidation = CDNCacheInvalidation(
+        urlMap: "my-url-map",
+        projectID: "my-project",
+        path: "/images/*"
+    )
+
+    let cmd = invalidation.invalidateCommand
+    #expect(cmd.contains("invalidate-cdn-cache my-url-map"))
+    #expect(cmd.contains("--path=\"/images/*\""))
+}
+
+@Test func testCDNCacheInvalidationWithHost() {
+    let invalidation = CDNCacheInvalidation(
+        urlMap: "my-url-map",
+        projectID: "my-project",
+        path: "/api/*",
+        host: "api.example.com"
+    )
+
+    let cmd = invalidation.invalidateCommand
+    #expect(cmd.contains("--host=api.example.com"))
+}
+
+@Test func testCDNCacheInvalidateAllCommand() {
+    let cmd = CDNCacheInvalidation.invalidateAllCommand(
+        urlMap: "my-url-map",
+        projectID: "my-project"
+    )
+    #expect(cmd.contains("--path=\"/*\""))
+}
+
+@Test func testCDNEdgeSecurityPolicyCreateCommand() {
+    let policy = CDNEdgeSecurityPolicy(
+        name: "my-edge-policy",
+        projectID: "my-project",
+        description: "Edge security"
+    )
+
+    let cmd = policy.createCommand
+    #expect(cmd.contains("security-policies create my-edge-policy"))
+    #expect(cmd.contains("--type=CLOUD_ARMOR_EDGE"))
+}
+
+@Test func testCDNEdgeSecurityPolicyAttachCommands() {
+    let policy = CDNEdgeSecurityPolicy(
+        name: "my-edge-policy",
+        projectID: "my-project"
+    )
+
+    let bucketCmd = policy.attachToBackendBucketCommand(backendBucket: "my-bucket")
+    #expect(bucketCmd.contains("backend-buckets update my-bucket"))
+    #expect(bucketCmd.contains("--edge-security-policy=my-edge-policy"))
+
+    let serviceCmd = policy.attachToBackendServiceCommand(backendService: "my-service")
+    #expect(serviceCmd.contains("backend-services update my-service"))
+    #expect(serviceCmd.contains("--edge-security-policy=my-edge-policy"))
+}
+
+@Test func testCDNOperationsEnableCDN() {
+    let cmd = CDNOperations.enableCDNOnBackendService(
+        backendService: "my-service",
+        projectID: "my-project",
+        cacheMode: .forceCacheAll
+    )
+
+    #expect(cmd.contains("--enable-cdn"))
+    #expect(cmd.contains("--cache-mode=FORCE_CACHE_ALL"))
+}
+
+@Test func testCDNOperationsDisableCDN() {
+    let cmd = CDNOperations.disableCDNOnBackendService(
+        backendService: "my-service",
+        projectID: "my-project"
+    )
+
+    #expect(cmd.contains("--no-enable-cdn"))
+}
+
+@Test func testCDNOperationsSetCacheTTL() {
+    let cmd = CDNOperations.setCacheTTL(
+        backendService: "my-service",
+        projectID: "my-project",
+        defaultTTL: 3600,
+        maxTTL: 86400,
+        clientTTL: 1800
+    )
+
+    #expect(cmd.contains("--default-ttl=3600"))
+    #expect(cmd.contains("--max-ttl=86400"))
+    #expect(cmd.contains("--client-ttl=1800"))
+}
+
+@Test func testCDNOperationsNegativeCaching() {
+    let cmd = CDNOperations.enableNegativeCaching(
+        backendService: "my-service",
+        projectID: "my-project"
+    )
+
+    #expect(cmd.contains("--negative-caching"))
+}
+
+@Test func testCDNOperationsServeWhileStale() {
+    let cmd = CDNOperations.setServeWhileStale(
+        backendService: "my-service",
+        projectID: "my-project",
+        seconds: 86400
+    )
+
+    #expect(cmd.contains("--serve-while-stale=86400"))
+}
+
+@Test func testCDNOperationsCacheKeyPolicy() {
+    let cmd = CDNOperations.setCacheKeyPolicy(
+        backendService: "my-service",
+        projectID: "my-project",
+        includeHost: true,
+        includeProtocol: false,
+        includeQueryString: true,
+        queryStringWhitelist: ["page", "sort"]
+    )
+
+    #expect(cmd.contains("--cache-key-include-host"))
+    #expect(cmd.contains("--no-cache-key-include-protocol"))
+    #expect(cmd.contains("--cache-key-include-query-string"))
+    #expect(cmd.contains("--cache-key-query-string-whitelist=page,sort"))
+}
+
+@Test func testDAISCDNTemplateStaticAssetsBucket() {
+    let bucket = DAISCDNTemplate.staticAssetsBucket(
+        projectID: "my-project",
+        deploymentName: "dais-prod",
+        storageBucket: "dais-static-bucket"
+    )
+
+    #expect(bucket.name == "dais-prod-static-assets")
+    #expect(bucket.enableCDN == true)
+    #expect(bucket.cdnPolicy?.cacheMode == .cacheAllStatic)
+    #expect(bucket.compressionMode == .automatic)
+}
+
+@Test func testDAISCDNTemplateApiCachePolicy() {
+    let policy = DAISCDNTemplate.apiCachePolicy()
+
+    #expect(policy.cacheMode == .useOriginHeaders)
+    #expect(policy.defaultTTL == 60)
+    #expect(policy.serveWhileStale == 86400)
+    #expect(policy.bypassCacheOnRequestHeaders?.count == 2)
+}
+
+@Test func testDAISCDNTemplateMediaCachePolicy() {
+    let policy = DAISCDNTemplate.mediaCachePolicy()
+
+    #expect(policy.cacheMode == .forceCacheAll)
+    #expect(policy.defaultTTL == 2592000) // 30 days
+    #expect(policy.maxTTL == 31536000) // 1 year
+}
+
+@Test func testDAISCDNTemplateEdgeSecurityPolicy() {
+    let policy = DAISCDNTemplate.edgeSecurityPolicy(
+        projectID: "my-project",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(policy.name == "dais-prod-cdn-edge-policy")
+}
+
+@Test func testDAISCDNTemplateSetupScript() {
+    let script = DAISCDNTemplate.setupScript(
+        projectID: "my-project",
+        deploymentName: "dais-prod",
+        storageBucket: "my-bucket",
+        urlMap: "my-url-map"
+    )
+
+    #expect(script.contains("backend-buckets create"))
+    #expect(script.contains("--enable-cdn"))
+    #expect(script.contains("url-maps add-path-matcher"))
+}
+
+@Test func testDAISCDNTemplateTeardownScript() {
+    let script = DAISCDNTemplate.teardownScript(
+        projectID: "my-project",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(script.contains("backend-buckets delete"))
+}
+
+@Test func testDAISCDNTemplateStandardHeaders() {
+    let headers = DAISCDNTemplate.standardResponseHeaders
+    #expect(headers.contains("X-Cache-Status: {cdn_cache_status}"))
+    #expect(headers.contains { $0.contains("Strict-Transport-Security") })
+}
+
+@Test func testCDNCachePolicyCodable() throws {
+    let policy = CDNCachePolicy(
+        cacheMode: .cacheAllStatic,
+        defaultTTL: 3600,
+        maxTTL: 86400,
+        negativeCaching: true
+    )
+
+    let data = try JSONEncoder().encode(policy)
+    let decoded = try JSONDecoder().decode(CDNCachePolicy.self, from: data)
+
+    #expect(decoded.cacheMode == .cacheAllStatic)
+    #expect(decoded.defaultTTL == 3600)
+    #expect(decoded.negativeCaching == true)
+}
+
+@Test func testCDNBackendBucketCodable() throws {
+    let bucket = CDNBackendBucket(
+        name: "my-bucket",
+        projectID: "my-project",
+        bucketName: "storage-bucket",
+        enableCDN: true
+    )
+
+    let data = try JSONEncoder().encode(bucket)
+    let decoded = try JSONDecoder().decode(CDNBackendBucket.self, from: data)
+
+    #expect(decoded.name == "my-bucket")
+    #expect(decoded.enableCDN == true)
+}
+
+@Test func testCDNCacheInvalidationCodable() throws {
+    let invalidation = CDNCacheInvalidation(
+        urlMap: "my-map",
+        projectID: "my-project",
+        path: "/images/*",
+        host: "cdn.example.com"
+    )
+
+    let data = try JSONEncoder().encode(invalidation)
+    let decoded = try JSONDecoder().decode(CDNCacheInvalidation.self, from: data)
+
+    #expect(decoded.urlMap == "my-map")
+    #expect(decoded.path == "/images/*")
+    #expect(decoded.host == "cdn.example.com")
+}
