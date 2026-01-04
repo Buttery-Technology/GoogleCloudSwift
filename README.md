@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 25 Google Cloud services:
+GoogleCloudSwift provides models for 26 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -110,6 +110,7 @@ GoogleCloudSwift provides models for 25 Google Cloud services:
 | **Cloud CDN** | Content delivery network | `CDNCachePolicy`, `CDNBackendBucket`, `CDNCacheInvalidation` |
 | **Cloud Tasks** | Distributed task queues | `GoogleCloudTaskQueue`, `GoogleCloudHTTPTask`, `GoogleCloudAppEngineTask` |
 | **Cloud KMS** | Key management service | `GoogleCloudKeyRing`, `GoogleCloudCryptoKey`, `GoogleCloudCryptoKeyVersion` |
+| **Eventarc** | Event-driven architecture | `GoogleCloudEventarcTrigger`, `GoogleCloudEventarcChannel`, `GoogleCloudEventType` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -3331,6 +3332,99 @@ let signingKey = DAISKMSTemplate.signingKey(
 | `external` | Externally managed key |
 | `externalVpc` | External key via VPC |
 
+### GoogleCloudEventarcTrigger (Eventarc)
+
+Build event-driven architectures with Eventarc:
+
+```swift
+// Create a trigger for Cloud Storage events
+let trigger = GoogleCloudEventarcTrigger(
+    name: "storage-upload-trigger",
+    projectID: "my-project",
+    location: "us-central1",
+    destination: .cloudRun(service: "my-processor", path: "/events", region: "us-central1"),
+    eventFilters: [
+        EventFilter(attribute: "type", value: GoogleCloudEventType.storageObjectFinalize.rawValue),
+        EventFilter(attribute: "bucket", value: "my-bucket")
+    ],
+    serviceAccount: "sa@my-project.iam.gserviceaccount.com"
+)
+print(trigger.createCommand)
+```
+
+**Destinations:**
+
+```swift
+// Cloud Run destination
+let cloudRunDest = GoogleCloudEventarcTrigger.Destination.cloudRun(
+    service: "my-service",
+    path: "/webhook",
+    region: "us-central1"
+)
+
+// Cloud Function destination
+let functionDest = GoogleCloudEventarcTrigger.Destination.cloudFunction(
+    name: "my-function",
+    region: "us-central1"
+)
+
+// Workflow destination
+let workflowDest = GoogleCloudEventarcTrigger.Destination.workflow(
+    name: "my-workflow",
+    region: "us-central1"
+)
+```
+
+**Event Types:**
+
+```swift
+// Storage events
+let storageEvent = GoogleCloudEventType.storageObjectFinalize
+
+// Pub/Sub events
+let pubsubEvent = GoogleCloudEventType.pubsubMessagePublish
+
+// Build events
+let buildEvent = GoogleCloudEventType.cloudBuildComplete
+
+// Firestore events
+let firestoreEvent = GoogleCloudEventType.firestoreDocumentWrite
+```
+
+**Custom Event Channels:**
+
+```swift
+let channel = GoogleCloudEventarcChannel(
+    name: "custom-events",
+    projectID: "my-project",
+    location: "us-central1"
+)
+print(channel.createCommand)
+```
+
+**DAIS Templates:**
+
+```swift
+// Storage upload trigger
+let storageTrigger = DAISEventarcTemplate.storageUploadTrigger(
+    projectID: "my-project",
+    location: "us-central1",
+    deploymentName: "dais-prod",
+    bucket: "dais-uploads",
+    destinationService: "dais-api",
+    serviceAccountEmail: "sa@project.iam.gserviceaccount.com"
+)
+
+// Pub/Sub trigger
+let pubsubTrigger = DAISEventarcTemplate.pubsubMessageTrigger(
+    projectID: "my-project",
+    location: "us-central1",
+    deploymentName: "dais-prod",
+    destinationService: "dais-api",
+    serviceAccountEmail: "sa@project.iam.gserviceaccount.com"
+)
+```
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -3956,6 +4050,9 @@ MIT License
 - [Cloud KMS Key Rings](https://cloud.google.com/kms/docs/creating-keys)
 - [Cloud KMS Key Rotation](https://cloud.google.com/kms/docs/key-rotation)
 - [Cloud KMS Envelope Encryption](https://cloud.google.com/kms/docs/envelope-encryption)
+- [Eventarc Documentation](https://cloud.google.com/eventarc/docs)
+- [Eventarc Triggers](https://cloud.google.com/eventarc/docs/creating-triggers)
+- [Eventarc Event Types](https://cloud.google.com/eventarc/docs/reference/supported-events)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
