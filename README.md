@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 13 Google Cloud services:
+GoogleCloudSwift provides models for 14 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -98,6 +98,7 @@ GoogleCloudSwift provides models for 13 Google Cloud services:
 | **Cloud SQL** | Managed databases (PostgreSQL, MySQL, SQL Server) | `GoogleCloudSQLInstance`, `GoogleCloudSQLDatabase` |
 | **Cloud Pub/Sub** | Messaging and event streaming | `GoogleCloudPubSubTopic`, `GoogleCloudPubSubSubscription` |
 | **Cloud Functions** | Serverless compute | `GoogleCloudFunction`, `CloudFunctionRuntime` |
+| **Cloud Run** | Containerized services | `GoogleCloudRunService`, `GoogleCloudRunJob` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -587,6 +588,183 @@ let script = DAISFunctionTemplate.setupScript(
 |------------|-------------|
 | `gen1` | Legacy Cloud Functions (max 9 min timeout) |
 | `gen2` | Recommended, uses Cloud Run (max 60 min timeout) |
+
+### GoogleCloudRunService (Cloud Run API)
+
+Cloud Run is a fully managed platform for deploying containerized applications:
+
+```swift
+// Create a Cloud Run service
+let service = GoogleCloudRunService(
+    name: "my-api",
+    projectID: "my-project",
+    region: "us-central1",
+    image: "gcr.io/my-project/my-api:latest",
+    port: 8080,
+    memoryMB: 1024,
+    cpu: "2",
+    minInstances: 1,
+    maxInstances: 10,
+    allowUnauthenticated: true
+)
+
+print(service.deployCommand)
+print(service.resourceName)  // projects/my-project/locations/us-central1/services/my-api
+```
+
+**Services with Secrets:**
+
+```swift
+let secureService = GoogleCloudRunService(
+    name: "secure-api",
+    projectID: "my-project",
+    region: "us-central1",
+    image: "gcr.io/my-project/secure-api:latest",
+    secrets: [
+        .envVar(name: "API_KEY", secretName: "my-api-key"),
+        .envVar(name: "DB_PASSWORD", secretName: "db-pass", version: "2"),
+        .volume(path: "/secrets/config", secretName: "app-config")
+    ]
+)
+```
+
+**VPC and Ingress Configuration:**
+
+```swift
+let privateService = GoogleCloudRunService(
+    name: "internal-api",
+    projectID: "my-project",
+    region: "us-central1",
+    image: "gcr.io/my-project/internal-api:latest",
+    vpcConnector: "projects/my-project/locations/us-central1/connectors/my-connector",
+    vpcEgress: .allTraffic,
+    ingress: .internal,
+    allowUnauthenticated: false
+)
+```
+
+**Cloud Run Jobs (Batch Processing):**
+
+```swift
+// Create a batch processing job
+let job = GoogleCloudRunJob(
+    name: "data-processor",
+    projectID: "my-project",
+    region: "us-central1",
+    image: "gcr.io/my-project/processor:latest",
+    taskCount: 10,
+    parallelism: 5,
+    taskTimeoutSeconds: 1800,
+    memoryMB: 2048,
+    cpu: "2"
+)
+
+print(job.createCommand)
+print(job.executeCommand)
+print(job.executeCommand(taskCount: 20, args: ["--verbose"]))
+```
+
+**Traffic Splitting:**
+
+```swift
+// Canary deployment
+let traffic = CloudRunTrafficSplit.canary(
+    stableRevision: "my-api-v1",
+    canaryRevision: "my-api-v2",
+    canaryPercent: 10
+)
+
+// Update traffic distribution
+print(service.updateTrafficCommand(revisions: ["v1": 90, "v2": 10]))
+print(service.routeToLatestCommand)
+```
+
+**Domain Mapping:**
+
+```swift
+let domainMapping = GoogleCloudRunDomainMapping(
+    domain: "api.example.com",
+    serviceName: "my-api",
+    projectID: "my-project",
+    region: "us-central1"
+)
+print(domainMapping.createCommand)
+```
+
+**DAIS Cloud Run Templates:**
+
+```swift
+// gRPC service with always-allocated CPU
+let grpcService = DAISCloudRunTemplate.grpcService(
+    projectID: "my-project",
+    region: "us-central1",
+    deploymentName: "prod",
+    image: "gcr.io/my-project/dais-grpc:latest"
+)
+
+// HTTP API with scale-to-zero
+let apiService = DAISCloudRunTemplate.httpAPI(
+    projectID: "my-project",
+    region: "us-central1",
+    deploymentName: "prod",
+    image: "gcr.io/my-project/dais-api:latest"
+)
+
+// Background worker
+let worker = DAISCloudRunTemplate.worker(
+    projectID: "my-project",
+    region: "us-central1",
+    deploymentName: "prod",
+    image: "gcr.io/my-project/dais-worker:latest"
+)
+
+// Generate Dockerfile for Swift services
+let dockerfile = DAISCloudRunTemplate.dockerfile(
+    baseImage: "swift:5.10-jammy",
+    executableName: "dais-server",
+    port: 8080
+)
+
+// Generate Cloud Build config for CI/CD
+let cloudbuild = DAISCloudRunTemplate.cloudbuildConfig(
+    projectID: "my-project",
+    region: "us-central1",
+    serviceName: "my-service",
+    imageName: "my-image"
+)
+```
+
+**Container Registries:**
+
+```swift
+// Google Container Registry
+let gcr = ContainerRegistry.gcr(
+    projectID: "my-project",
+    imageName: "my-app",
+    tag: "v1.0.0"
+)
+print(gcr.imageURL)  // gcr.io/my-project/my-app:v1.0.0
+
+// Artifact Registry
+let ar = ContainerRegistry.artifactRegistry(
+    projectID: "my-project",
+    location: "us-central1",
+    repository: "my-repo",
+    imageName: "my-app",
+    tag: "latest"
+)
+print(ar.imageURL)  // us-central1-docker.pkg.dev/my-project/my-repo/my-app:latest
+```
+
+**Cloud Run Configuration Options:**
+
+| Option | Description |
+|--------|-------------|
+| `minInstances` | Minimum instances (0 = scale to zero) |
+| `maxInstances` | Maximum instances |
+| `concurrency` | Max concurrent requests per instance |
+| `cpuAllocationType` | `requestBased` or `alwaysAllocated` |
+| `executionEnvironment` | `gen1` or `gen2` |
 
 ### GoogleCloudService (Service Usage API)
 
@@ -1165,6 +1343,8 @@ MIT License
 - [Pub/Sub Ordering and Delivery](https://cloud.google.com/pubsub/docs/ordering)
 - [Cloud Functions Documentation](https://cloud.google.com/functions/docs)
 - [Cloud Scheduler Documentation](https://cloud.google.com/scheduler/docs)
+- [Cloud Run Documentation](https://cloud.google.com/run/docs)
+- [Cloud Run Jobs Documentation](https://cloud.google.com/run/docs/create-jobs)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
