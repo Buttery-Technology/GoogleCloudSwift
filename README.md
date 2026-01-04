@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 36 Google Cloud services:
+GoogleCloudSwift provides models for 37 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -99,6 +99,7 @@ GoogleCloudSwift provides models for 36 Google Cloud services:
 | **Cloud Pub/Sub** | Messaging and event streaming | `GoogleCloudPubSubTopic`, `GoogleCloudPubSubSubscription` |
 | **Cloud Functions** | Serverless compute | `GoogleCloudFunction`, `CloudFunctionRuntime` |
 | **Cloud Run** | Containerized services | `GoogleCloudRunService`, `GoogleCloudRunJob` |
+| **GKE** | Kubernetes Engine clusters | `GoogleCloudGKECluster`, `GoogleCloudGKENodePool`, `GKEOperations`, `DAISGKETemplate` |
 | **Cloud Logging** | Log management and analysis | `GoogleCloudLogEntry`, `GoogleCloudLogSink` |
 | **Cloud Monitoring** | Metrics, alerts, and uptime checks | `GoogleCloudAlertPolicy`, `GoogleCloudUptimeCheck` |
 | **VPC Networks** | Virtual Private Cloud networking | `GoogleCloudVPCNetwork`, `GoogleCloudSubnet`, `GoogleCloudFirewallRule` |
@@ -787,6 +788,230 @@ print(ar.imageURL)  // us-central1-docker.pkg.dev/my-project/my-repo/my-app:late
 | `concurrency` | Max concurrent requests per instance |
 | `cpuAllocationType` | `requestBased` or `alwaysAllocated` |
 | `executionEnvironment` | `gen1` or `gen2` |
+
+### GoogleCloudGKECluster (Google Kubernetes Engine)
+
+Google Kubernetes Engine (GKE) is a managed Kubernetes service for deploying containerized applications:
+
+```swift
+// Create a standard GKE cluster
+let cluster = GoogleCloudGKECluster(
+    name: "my-cluster",
+    projectID: "my-project",
+    location: "us-central1",
+    initialNodeCount: 3,
+    nodeConfig: GoogleCloudGKECluster.NodeConfig(
+        machineType: "e2-standard-4",
+        diskSizeGb: 100,
+        diskType: .pdSsd
+    ),
+    releaseChannel: GoogleCloudGKECluster.ReleaseChannel(channel: .regular),
+    workloadIdentityConfig: GoogleCloudGKECluster.WorkloadIdentityConfig(
+        workloadPool: "my-project.svc.id.goog"
+    )
+)
+
+print(cluster.createCommand)
+print(cluster.resourceName)  // projects/my-project/locations/us-central1/clusters/my-cluster
+print(cluster.getCredentialsCommand)  // Get kubectl credentials
+```
+
+**Autopilot Clusters:**
+
+```swift
+// Create an Autopilot cluster (fully managed)
+let autopilotCluster = GoogleCloudGKECluster(
+    name: "autopilot-cluster",
+    projectID: "my-project",
+    location: "us-central1",
+    autopilot: GoogleCloudGKECluster.Autopilot(enabled: true),
+    releaseChannel: GoogleCloudGKECluster.ReleaseChannel(channel: .regular)
+)
+
+print(autopilotCluster.createCommand)  // Includes --enable-autopilot
+```
+
+**Private Clusters:**
+
+```swift
+// Create a private cluster with no public endpoint
+let privateCluster = GoogleCloudGKECluster(
+    name: "private-cluster",
+    projectID: "my-project",
+    location: "us-central1",
+    initialNodeCount: 3,
+    privateClusterConfig: GoogleCloudGKECluster.PrivateClusterConfig(
+        enablePrivateNodes: true,
+        enablePrivateEndpoint: false,
+        masterIpv4CidrBlock: "172.16.0.0/28",
+        masterGlobalAccessConfig: GoogleCloudGKECluster.PrivateClusterConfig.MasterGlobalAccessConfig(enabled: true)
+    ),
+    networkConfig: GoogleCloudGKECluster.NetworkConfig(
+        network: "my-vpc",
+        subnetwork: "my-subnet",
+        datapathProvider: .advancedDatapath
+    )
+)
+```
+
+**Node Pools:**
+
+```swift
+// Create a node pool with autoscaling
+let nodePool = GoogleCloudGKENodePool(
+    name: "high-memory-pool",
+    clusterName: "my-cluster",
+    projectID: "my-project",
+    location: "us-central1",
+    initialNodeCount: 1,
+    config: GoogleCloudGKECluster.NodeConfig(
+        machineType: "n2-highmem-8",
+        diskSizeGb: 200,
+        diskType: .pdSsd
+    ),
+    autoscaling: GoogleCloudGKENodePool.Autoscaling(
+        enabled: true,
+        minNodeCount: 0,
+        maxNodeCount: 10
+    ),
+    management: GoogleCloudGKENodePool.NodeManagement(
+        autoUpgrade: true,
+        autoRepair: true
+    )
+)
+
+print(nodePool.createCommand)
+print(nodePool.resourceName)
+```
+
+**GPU Node Pool:**
+
+```swift
+// Create a GPU node pool for ML workloads
+let gpuPool = GoogleCloudGKENodePool(
+    name: "gpu-pool",
+    clusterName: "my-cluster",
+    projectID: "my-project",
+    location: "us-central1",
+    config: GoogleCloudGKECluster.NodeConfig(
+        machineType: "n1-standard-4",
+        accelerators: [
+            GoogleCloudGKECluster.NodeConfig.Accelerator(
+                acceleratorCount: 1,
+                acceleratorType: "nvidia-tesla-t4"
+            )
+        ],
+        taints: [
+            GoogleCloudGKECluster.NodeConfig.Taint(
+                key: "nvidia.com/gpu",
+                value: "present",
+                effect: .noSchedule
+            )
+        ]
+    ),
+    autoscaling: GoogleCloudGKENodePool.Autoscaling(
+        enabled: true,
+        minNodeCount: 0,
+        maxNodeCount: 5
+    )
+)
+```
+
+**Spot/Preemptible Nodes:**
+
+```swift
+// Create a spot node pool for cost savings
+let spotPool = GoogleCloudGKENodePool(
+    name: "spot-pool",
+    clusterName: "my-cluster",
+    projectID: "my-project",
+    location: "us-central1",
+    config: GoogleCloudGKECluster.NodeConfig(
+        machineType: "e2-standard-4",
+        spot: true,
+        labels: ["workload-type": "batch"]
+    ),
+    autoscaling: GoogleCloudGKENodePool.Autoscaling(
+        enabled: true,
+        minNodeCount: 0,
+        maxNodeCount: 20
+    )
+)
+```
+
+**Cluster Operations:**
+
+```swift
+// Resize a cluster
+print(cluster.resizeCommand(nodeCount: 5, nodePool: "default-pool"))
+
+// Upgrade cluster master
+print(cluster.upgradeCommand(version: "1.28.3-gke.1200"))
+
+// Upgrade a node pool
+print(cluster.upgradeCommand(version: "1.28.3-gke.1200", nodePool: "default-pool"))
+
+// List clusters
+print(GKEOperations.listClustersCommand(projectID: "my-project"))
+
+// List node pools
+print(GKEOperations.listNodePoolsCommand(
+    cluster: "my-cluster",
+    projectID: "my-project",
+    location: "us-central1"
+))
+
+// Get available versions
+print(GKEOperations.getServerConfigCommand(projectID: "my-project", location: "us-central1"))
+
+// Enable GKE API
+print(GKEOperations.enableAPICommand)
+```
+
+**DAIS GKE Templates:**
+
+```swift
+// Production-ready templates for DAIS deployments
+let template = DAISGKETemplate(
+    projectID: "my-project",
+    location: "us-central1",
+    clusterName: "dais-cluster",
+    network: "dais-vpc",
+    subnetwork: "dais-subnet"
+)
+
+// Standard cluster with Workload Identity
+let standardCluster = template.standardCluster
+
+// Autopilot cluster for hands-off management
+let autopilot = template.autopilotCluster
+
+// Private cluster for enhanced security
+let privateCluster = template.privateCluster
+
+// GPU node pool for ML workloads
+let gpuNodePool = template.gpuNodePool
+
+// Spot node pool for batch workloads
+let spotNodePool = template.spotNodePool
+
+// Generate setup script
+print(template.setupScript)
+
+// Generate teardown script
+print(template.teardownScript)
+```
+
+**GKE Configuration Options:**
+
+| Option | Description |
+|--------|-------------|
+| `autopilot` | Enable Autopilot mode (fully managed) |
+| `releaseChannel` | `rapid`, `regular`, or `stable` |
+| `privateClusterConfig` | Enable private nodes and endpoint |
+| `workloadIdentityConfig` | Enable Workload Identity |
+| `networkConfig` | VPC and subnet configuration |
+| `addonsConfig` | Enable/disable cluster add-ons |
 
 ### GoogleCloudLogEntry (Cloud Logging API)
 
@@ -5313,6 +5538,12 @@ MIT License
 - [Cloud Scheduler Documentation](https://cloud.google.com/scheduler/docs)
 - [Cloud Run Documentation](https://cloud.google.com/run/docs)
 - [Cloud Run Jobs Documentation](https://cloud.google.com/run/docs/create-jobs)
+- [GKE Documentation](https://cloud.google.com/kubernetes-engine/docs)
+- [GKE Autopilot](https://cloud.google.com/kubernetes-engine/docs/concepts/autopilot-overview)
+- [GKE Node Pools](https://cloud.google.com/kubernetes-engine/docs/concepts/node-pools)
+- [GKE Private Clusters](https://cloud.google.com/kubernetes-engine/docs/concepts/private-cluster-concept)
+- [GKE Workload Identity](https://cloud.google.com/kubernetes-engine/docs/concepts/workload-identity)
+- [GKE Release Channels](https://cloud.google.com/kubernetes-engine/docs/concepts/release-channels)
 - [Cloud Logging Documentation](https://cloud.google.com/logging/docs)
 - [Log-Based Metrics Documentation](https://cloud.google.com/logging/docs/logs-based-metrics)
 - [Cloud Monitoring Documentation](https://cloud.google.com/monitoring/docs)
