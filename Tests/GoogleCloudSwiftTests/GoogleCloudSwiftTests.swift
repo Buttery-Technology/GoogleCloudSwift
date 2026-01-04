@@ -24223,3 +24223,357 @@ import Testing
     #expect(GoogleCloudTranslationRequest.TranslationModel.nmt.rawValue == "nmt")
     #expect(GoogleCloudTranslationRequest.TranslationModel.base.rawValue == "base")
 }
+
+// MARK: - Cloud Batch Tests
+
+@Test func testBatchJobBasicInit() {
+    let job = GoogleCloudBatchJob(
+        name: "my-job",
+        projectID: "my-project",
+        location: "us-central1",
+        taskGroups: [
+            TaskGroup(
+                taskSpec: TaskSpec(
+                    runnables: [.container("gcr.io/my-project/image")]
+                ),
+                taskCount: 10
+            )
+        ]
+    )
+
+    #expect(job.name == "my-job")
+    #expect(job.projectID == "my-project")
+    #expect(job.taskGroups.count == 1)
+    #expect(job.taskGroups[0].taskCount == 10)
+}
+
+@Test func testBatchJobResourceName() {
+    let job = GoogleCloudBatchJob(
+        name: "test-job",
+        projectID: "my-project",
+        location: "us-central1",
+        taskGroups: []
+    )
+
+    #expect(job.resourceName == "projects/my-project/locations/us-central1/jobs/test-job")
+}
+
+@Test func testBatchJobCommands() {
+    let job = GoogleCloudBatchJob(
+        name: "test-job",
+        projectID: "my-project",
+        location: "us-central1",
+        taskGroups: []
+    )
+
+    #expect(job.submitCommand.contains("gcloud batch jobs submit"))
+    #expect(job.describeCommand.contains("gcloud batch jobs describe"))
+    #expect(job.deleteCommand.contains("gcloud batch jobs delete"))
+    #expect(job.listTasksCommand.contains("gcloud batch tasks list"))
+}
+
+@Test func testTaskGroupWithParallelism() {
+    let group = TaskGroup(
+        name: "processing-group",
+        taskSpec: TaskSpec(
+            runnables: [.container("image:latest")]
+        ),
+        taskCount: 100,
+        parallelism: 10
+    )
+
+    #expect(group.name == "processing-group")
+    #expect(group.taskCount == 100)
+    #expect(group.parallelism == 10)
+}
+
+@Test func testRunnableContainer() {
+    let runnable = Runnable.container("gcr.io/project/image", commands: ["--input", "/data"])
+    #expect(runnable.container?.imageUri == "gcr.io/project/image")
+    #expect(runnable.container?.commands == ["--input", "/data"])
+}
+
+@Test func testRunnableScript() {
+    let runnable = Runnable.script("#!/bin/bash\necho 'Hello'")
+    #expect(runnable.script?.text == "#!/bin/bash\necho 'Hello'")
+}
+
+@Test func testRunnableBarrier() {
+    let runnable = Runnable.barrier("sync-point")
+    #expect(runnable.barrier?.name == "sync-point")
+}
+
+@Test func testComputeResourcePresets() {
+    #expect(ComputeResource.standard.cpuMilli == 2000)
+    #expect(ComputeResource.standard.memoryMib == 8192)
+
+    #expect(ComputeResource.highMemory.cpuMilli == 4000)
+    #expect(ComputeResource.highMemory.memoryMib == 32768)
+
+    #expect(ComputeResource.highCPU.cpuMilli == 8000)
+
+    #expect(ComputeResource.minimal.cpuMilli == 1000)
+    #expect(ComputeResource.minimal.memoryMib == 2048)
+}
+
+@Test func testEnvironmentVariables() {
+    let env = Environment(
+        variables: ["INPUT": "/data/input", "OUTPUT": "/data/output"],
+        secretVariables: ["API_KEY": "projects/p/secrets/key/versions/latest"]
+    )
+
+    #expect(env.variables?["INPUT"] == "/data/input")
+    #expect(env.secretVariables?["API_KEY"] != nil)
+}
+
+@Test func testVolumeGCS() {
+    let volume = Volume.gcs("gs://my-bucket/data", mountPath: "/mnt/data")
+    #expect(volume.gcs?.remotePath == "gs://my-bucket/data")
+    #expect(volume.mountPath == "/mnt/data")
+}
+
+@Test func testVolumeNFS() {
+    let volume = Volume.nfs(server: "10.0.0.1", path: "/shared", mountPath: "/mnt/shared")
+    #expect(volume.nfs?.server == "10.0.0.1")
+    #expect(volume.nfs?.remotePath == "/shared")
+}
+
+@Test func testLifecyclePolicyRetry() {
+    let policy = LifecyclePolicy.retryOn([1, 2, 3])
+    #expect(policy.action == .retryTask)
+    #expect(policy.actionCondition?.exitCodes == [1, 2, 3])
+}
+
+@Test func testLifecyclePolicyFail() {
+    let policy = LifecyclePolicy.failOn([137, 143])
+    #expect(policy.action == .failTask)
+}
+
+@Test func testAllocationPolicyWithSpot() {
+    let policy = AllocationPolicy(
+        instances: [
+            AllocationPolicy.InstancePolicyOrTemplate(
+                policy: AllocationPolicy.InstancePolicy(
+                    machineType: "e2-standard-4",
+                    provisioningModel: .spot
+                )
+            )
+        ]
+    )
+
+    #expect(policy.instances?.first?.policy?.provisioningModel == .spot)
+}
+
+@Test func testAcceleratorPresets() {
+    let t4 = AllocationPolicy.Accelerator.t4(2)
+    #expect(t4.type == "nvidia-tesla-t4")
+    #expect(t4.count == 2)
+
+    let v100 = AllocationPolicy.Accelerator.v100()
+    #expect(v100.type == "nvidia-tesla-v100")
+
+    let a100 = AllocationPolicy.Accelerator.a100()
+    #expect(a100.type == "nvidia-a100-80gb")
+
+    let l4 = AllocationPolicy.Accelerator.l4()
+    #expect(l4.type == "nvidia-l4")
+}
+
+@Test func testLogsPolicyCloudLogging() {
+    let policy = LogsPolicy.cloudLogging
+    #expect(policy.destination == .cloudLogging)
+}
+
+@Test func testLogsPolicyToPath() {
+    let policy = LogsPolicy.toPath("/var/log/batch")
+    #expect(policy.destination == .path)
+    #expect(policy.logsPath == "/var/log/batch")
+}
+
+@Test func testJobStatusStates() {
+    #expect(JobStatus.State.queued.rawValue == "QUEUED")
+    #expect(JobStatus.State.running.rawValue == "RUNNING")
+    #expect(JobStatus.State.succeeded.rawValue == "SUCCEEDED")
+    #expect(JobStatus.State.failed.rawValue == "FAILED")
+}
+
+@Test func testBatchOperations() {
+    let ops = GoogleCloudBatchOperations(projectID: "my-project", location: "us-central1")
+
+    #expect(ops.listJobsCommand.contains("gcloud batch jobs list"))
+    #expect(ops.describeJob("my-job").contains("gcloud batch jobs describe my-job"))
+    #expect(ops.deleteJob("my-job").contains("gcloud batch jobs delete"))
+    #expect(ops.listTasks(job: "my-job").contains("gcloud batch tasks list"))
+    #expect(ops.enableAPICommand.contains("batch.googleapis.com"))
+}
+
+@Test func testBatchOperationsRoles() {
+    let roles = GoogleCloudBatchOperations.roles
+    #expect(roles["roles/batch.jobsViewer"] == "View batch jobs")
+    #expect(roles["roles/batch.jobsEditor"] == "Edit batch jobs")
+}
+
+@Test func testDAISBatchTemplateBasic() {
+    let template = DAISBatchTemplate(
+        projectID: "my-project",
+        location: "us-central1",
+        serviceAccount: "batch-sa",
+        defaultMachineType: "e2-standard-8",
+        dataBucket: "batch-data"
+    )
+
+    #expect(template.projectID == "my-project")
+    #expect(template.defaultMachineType == "e2-standard-8")
+}
+
+@Test func testDAISBatchTemplateContainerJob() {
+    let template = DAISBatchTemplate(projectID: "my-project")
+
+    let job = template.containerJob(
+        name: "process-job",
+        imageUri: "gcr.io/my-project/processor",
+        commands: ["--input", "/data"],
+        taskCount: 100,
+        parallelism: 20
+    )
+
+    #expect(job.name == "process-job")
+    #expect(job.taskGroups[0].taskCount == 100)
+    #expect(job.taskGroups[0].parallelism == 20)
+}
+
+@Test func testDAISBatchTemplateScriptJob() {
+    let template = DAISBatchTemplate(projectID: "my-project")
+
+    let job = template.scriptJob(
+        name: "script-job",
+        script: "echo 'Hello World'",
+        taskCount: 5
+    )
+
+    #expect(job.taskGroups[0].taskSpec.runnables[0].script?.text == "echo 'Hello World'")
+}
+
+@Test func testDAISBatchTemplateGPUJob() {
+    let template = DAISBatchTemplate(projectID: "my-project")
+
+    let job = template.gpuJob(
+        name: "ml-job",
+        imageUri: "gcr.io/my-project/ml-trainer",
+        gpu: .t4(2),
+        taskCount: 1
+    )
+
+    #expect(job.allocationPolicy?.instances?.first?.policy?.accelerators?.first?.count == 2)
+    #expect(job.allocationPolicy?.instances?.first?.installGpuDrivers == true)
+}
+
+@Test func testDAISBatchTemplateSpotJob() {
+    let template = DAISBatchTemplate(projectID: "my-project")
+
+    let job = template.spotJob(
+        name: "spot-job",
+        imageUri: "gcr.io/my-project/worker",
+        taskCount: 50
+    )
+
+    #expect(job.allocationPolicy?.instances?.first?.policy?.provisioningModel == .spot)
+    #expect(job.taskGroups[0].taskSpec.maxRetryCount == 3)
+}
+
+@Test func testDAISBatchTemplateDataProcessingJob() {
+    let template = DAISBatchTemplate(
+        projectID: "my-project",
+        dataBucket: "my-data-bucket"
+    )
+
+    let job = template.dataProcessingJob(
+        name: "etl-job",
+        imageUri: "gcr.io/my-project/etl",
+        inputPath: "gs://input-bucket/data",
+        outputPath: "gs://output-bucket/results",
+        taskCount: 10
+    )
+
+    #expect(job.taskGroups[0].taskSpec.environment?.variables?["INPUT_PATH"] == "gs://input-bucket/data")
+    #expect(job.taskGroups[0].taskSpec.volumes?.first?.mountPath == "/mnt/data")
+}
+
+@Test func testDAISBatchTemplateMLTrainingJob() {
+    let template = DAISBatchTemplate(projectID: "my-project")
+
+    let job = template.mlTrainingJob(
+        name: "training-job",
+        imageUri: "gcr.io/my-project/trainer",
+        modelPath: "gs://models/v1",
+        epochs: 50
+    )
+
+    #expect(job.taskGroups[0].taskSpec.maxRunDuration == "86400s")
+    #expect(job.taskGroups[0].taskSpec.environment?.variables?["MODEL_PATH"] == "gs://models/v1")
+}
+
+@Test func testDAISBatchTemplateSetupScript() {
+    let template = DAISBatchTemplate(
+        projectID: "my-project",
+        serviceAccount: "batch-sa",
+        dataBucket: "batch-data"
+    )
+
+    let script = template.setupScript
+    #expect(script.contains("gcloud services enable batch.googleapis.com"))
+    #expect(script.contains("gcloud iam service-accounts create batch-sa"))
+    #expect(script.contains("roles/batch.jobsEditor"))
+    #expect(script.contains("gsutil mb"))
+}
+
+@Test func testDAISBatchTemplateTeardownScript() {
+    let template = DAISBatchTemplate(
+        projectID: "my-project",
+        dataBucket: "batch-data"
+    )
+
+    let script = template.teardownScript
+    #expect(script.contains("gcloud batch jobs list"))
+    #expect(script.contains("gcloud batch jobs delete"))
+    #expect(script.contains("gsutil rm -r gs://batch-data"))
+}
+
+@Test func testBatchJobCodable() throws {
+    let job = GoogleCloudBatchJob(
+        name: "test-job",
+        projectID: "my-project",
+        location: "us-central1",
+        taskGroups: [
+            TaskGroup(
+                taskSpec: TaskSpec(
+                    runnables: [.container("image:latest")],
+                    computeResource: .standard
+                ),
+                taskCount: 5
+            )
+        ]
+    )
+
+    let data = try JSONEncoder().encode(job)
+    let decoded = try JSONDecoder().decode(GoogleCloudBatchJob.self, from: data)
+
+    #expect(decoded.name == "test-job")
+    #expect(decoded.taskGroups[0].taskCount == 5)
+}
+
+@Test func testProvisioningModelValues() {
+    #expect(AllocationPolicy.InstancePolicy.ProvisioningModel.standard.rawValue == "STANDARD")
+    #expect(AllocationPolicy.InstancePolicy.ProvisioningModel.spot.rawValue == "SPOT")
+    #expect(AllocationPolicy.InstancePolicy.ProvisioningModel.preemptible.rawValue == "PREEMPTIBLE")
+}
+
+@Test func testLifecyclePolicyActionValues() {
+    #expect(LifecyclePolicy.Action.retryTask.rawValue == "RETRY_TASK")
+    #expect(LifecyclePolicy.Action.failTask.rawValue == "FAIL_TASK")
+}
+
+@Test func testLogsPolicyDestinationValues() {
+    #expect(LogsPolicy.Destination.cloudLogging.rawValue == "CLOUD_LOGGING")
+    #expect(LogsPolicy.Destination.path.rawValue == "PATH")
+}
