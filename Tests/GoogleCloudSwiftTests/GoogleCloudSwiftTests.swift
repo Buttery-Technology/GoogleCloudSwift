@@ -24871,3 +24871,380 @@ import Testing
     #expect(AdmissionRule.EnforcementMode.enforcedBlockAndAuditLog.rawValue == "ENFORCED_BLOCK_AND_AUDIT_LOG")
     #expect(AdmissionRule.EnforcementMode.dryrunAuditLogOnly.rawValue == "DRYRUN_AUDIT_LOG_ONLY")
 }
+
+// MARK: - Certificate Authority Service Tests
+
+@Test func testCaPoolBasicInit() {
+    let pool = GoogleCloudCaPool(
+        name: "my-pool",
+        projectID: "my-project",
+        location: "us-central1",
+        tier: .devops
+    )
+
+    #expect(pool.name == "my-pool")
+    #expect(pool.resourceName == "projects/my-project/locations/us-central1/caPools/my-pool")
+    #expect(pool.tier == .devops)
+}
+
+@Test func testCaPoolTierValues() {
+    #expect(GoogleCloudCaPool.Tier.enterprise.rawValue == "ENTERPRISE")
+    #expect(GoogleCloudCaPool.Tier.devops.rawValue == "DEVOPS")
+}
+
+@Test func testCaPoolCreateCommand() {
+    let pool = GoogleCloudCaPool(
+        name: "my-pool",
+        projectID: "my-project",
+        location: "us-central1",
+        tier: .enterprise,
+        publishingOptions: .init(publishCaCert: true, publishCrl: true)
+    )
+
+    let cmd = pool.createCommand
+    #expect(cmd.contains("gcloud privateca pools create my-pool"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--tier=enterprise"))
+    #expect(cmd.contains("--publish-ca-cert"))
+}
+
+@Test func testCertificateAuthorityBasicInit() {
+    let ca = GoogleCloudCertificateAuthority(
+        name: "root-ca",
+        caPoolName: "my-pool",
+        projectID: "my-project",
+        location: "us-central1",
+        type: .selfSigned
+    )
+
+    #expect(ca.name == "root-ca")
+    #expect(ca.type == .selfSigned)
+    #expect(ca.resourceName == "projects/my-project/locations/us-central1/caPools/my-pool/certificateAuthorities/root-ca")
+}
+
+@Test func testCertificateAuthorityTypeValues() {
+    #expect(GoogleCloudCertificateAuthority.CAType.selfSigned.rawValue == "SELF_SIGNED")
+    #expect(GoogleCloudCertificateAuthority.CAType.subordinate.rawValue == "SUBORDINATE")
+}
+
+@Test func testCertificateAuthorityStateValues() {
+    #expect(GoogleCloudCertificateAuthority.State.enabled.rawValue == "ENABLED")
+    #expect(GoogleCloudCertificateAuthority.State.disabled.rawValue == "DISABLED")
+    #expect(GoogleCloudCertificateAuthority.State.staged.rawValue == "STAGED")
+}
+
+@Test func testCertificateAuthorityEnableCommand() {
+    let ca = GoogleCloudCertificateAuthority(
+        name: "root-ca",
+        caPoolName: "my-pool",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(ca.enableCommand.contains("gcloud privateca roots enable root-ca"))
+    #expect(ca.enableCommand.contains("--pool=my-pool"))
+}
+
+@Test func testCertificateBasicInit() {
+    let cert = GoogleCloudCertificate(
+        name: "my-cert",
+        caPoolName: "my-pool",
+        projectID: "my-project",
+        location: "us-central1",
+        lifetime: "7776000s"
+    )
+
+    #expect(cert.name == "my-cert")
+    #expect(cert.lifetime == "7776000s")
+    #expect(cert.resourceName == "projects/my-project/locations/us-central1/caPools/my-pool/certificates/my-cert")
+}
+
+@Test func testCertificateCreateCommand() {
+    let cert = GoogleCloudCertificate(
+        name: "server-cert",
+        caPoolName: "my-pool",
+        projectID: "my-project",
+        location: "us-central1",
+        lifetime: "7776000s"
+    )
+
+    let cmd = cert.createCommand
+    #expect(cmd.contains("gcloud privateca certificates create server-cert"))
+    #expect(cmd.contains("--issuer-pool=my-pool"))
+    #expect(cmd.contains("--validity=7776000s"))
+}
+
+@Test func testCertificateFromCSRCommand() {
+    let cert = GoogleCloudCertificate(
+        name: "server-cert",
+        caPoolName: "my-pool",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let cmd = cert.createFromCSRCommand(csrPath: "/path/to/csr.pem")
+    #expect(cmd.contains("--csr=/path/to/csr.pem"))
+}
+
+@Test func testCertificateRevokeCommand() {
+    let cert = GoogleCloudCertificate(
+        name: "server-cert",
+        caPoolName: "my-pool",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let cmd = cert.revokeCommand(reason: .keyCompromise)
+    #expect(cmd.contains("gcloud privateca certificates revoke server-cert"))
+    #expect(cmd.contains("--reason=key-compromise"))
+}
+
+@Test func testRevocationReasonValues() {
+    #expect(GoogleCloudCertificate.RevocationReason.keyCompromise.rawValue == "KEY_COMPROMISE")
+    #expect(GoogleCloudCertificate.RevocationReason.cessationOfOperation.rawValue == "CESSATION_OF_OPERATION")
+    #expect(GoogleCloudCertificate.RevocationReason.superseded.rawValue == "SUPERSEDED")
+}
+
+@Test func testCertificateConfigSubject() {
+    let subject = CertificateConfig.Subject(
+        commonName: "example.com",
+        organization: "Example Inc",
+        countryCode: "US"
+    )
+
+    #expect(subject.subjectString.contains("CN=example.com"))
+    #expect(subject.subjectString.contains("O=Example Inc"))
+    #expect(subject.subjectString.contains("C=US"))
+}
+
+@Test func testBaseKeyUsagePresets() {
+    let serverAuth = CertificateConfig.KeyUsage.BaseKeyUsage.serverAuth
+    #expect(serverAuth.digitalSignature == true)
+    #expect(serverAuth.keyEncipherment == true)
+
+    let caUsage = CertificateConfig.KeyUsage.BaseKeyUsage.caUsage
+    #expect(caUsage.certSign == true)
+    #expect(caUsage.crlSign == true)
+}
+
+@Test func testExtendedKeyUsagePresets() {
+    let mtls = CertificateConfig.KeyUsage.ExtendedKeyUsage.mutualTLS
+    #expect(mtls.serverAuth == true)
+    #expect(mtls.clientAuth == true)
+
+    let codeSigning = CertificateConfig.KeyUsage.ExtendedKeyUsage.codeSigning
+    #expect(codeSigning.codeSigning == true)
+}
+
+@Test func testCaOptionsPresets() {
+    let root = CertificateConfig.CaOptions.rootCA
+    #expect(root.isCa == true)
+
+    let intermediate = CertificateConfig.CaOptions.intermediateCA
+    #expect(intermediate.isCa == true)
+    #expect(intermediate.maxIssuerPathLength == 0)
+
+    let endEntity = CertificateConfig.CaOptions.endEntity
+    #expect(endEntity.isCa == false)
+}
+
+@Test func testCertificateTemplateBasicInit() {
+    let template = GoogleCloudCertificateTemplate(
+        name: "server-template",
+        projectID: "my-project",
+        location: "us-central1",
+        description: "Server certificate template"
+    )
+
+    #expect(template.name == "server-template")
+    #expect(template.resourceName == "projects/my-project/locations/us-central1/certificateTemplates/server-template")
+}
+
+@Test func testCertificateTemplateCreateCommand() {
+    let template = GoogleCloudCertificateTemplate(
+        name: "server-template",
+        projectID: "my-project",
+        location: "us-central1",
+        description: "Server certificate template"
+    )
+
+    let cmd = template.createCommand
+    #expect(cmd.contains("gcloud privateca templates create server-template"))
+    #expect(cmd.contains("--description="))
+}
+
+@Test func testCertificateAuthorityOperationsEnableAPI() {
+    let ops = CertificateAuthorityOperations(projectID: "my-project", location: "us-central1")
+
+    #expect(ops.enableAPICommand == "gcloud services enable privateca.googleapis.com --project=my-project")
+}
+
+@Test func testCertificateAuthorityOperationsListPools() {
+    let ops = CertificateAuthorityOperations(projectID: "my-project", location: "us-central1")
+
+    #expect(ops.listPoolsCommand.contains("gcloud privateca pools list"))
+    #expect(ops.listPoolsCommand.contains("--project=my-project"))
+}
+
+@Test func testCertificateAuthorityOperationsRoles() {
+    #expect(CertificateAuthorityOperations.CASRole.caServiceAdmin.rawValue == "roles/privateca.admin")
+    #expect(CertificateAuthorityOperations.CASRole.certificateManager.rawValue == "roles/privateca.certificateManager")
+    #expect(CertificateAuthorityOperations.CASRole.certificateRequester.rawValue == "roles/privateca.certificateRequester")
+}
+
+@Test func testDAISCertificateAuthorityTemplateDevOpsPool() {
+    let template = DAISCertificateAuthorityTemplate(
+        projectID: "my-project",
+        location: "us-central1",
+        organization: "Example Inc"
+    )
+
+    let pool = template.devOpsPool(name: "dev-pool")
+    #expect(pool.tier == .devops)
+    #expect(pool.publishingOptions?.publishCaCert == true)
+}
+
+@Test func testDAISCertificateAuthorityTemplateEnterprisePool() {
+    let template = DAISCertificateAuthorityTemplate(
+        projectID: "my-project",
+        organization: "Example Inc"
+    )
+
+    let pool = template.enterprisePool(name: "prod-pool")
+    #expect(pool.tier == .enterprise)
+    #expect(pool.issuancePolicy?.maximumLifetime == "31536000s")
+}
+
+@Test func testDAISCertificateAuthorityTemplateRootCA() {
+    let template = DAISCertificateAuthorityTemplate(
+        projectID: "my-project",
+        organization: "Example Inc"
+    )
+
+    let ca = template.rootCA(name: "root-ca", pool: "my-pool")
+    #expect(ca.type == .selfSigned)
+    #expect(ca.keySpec?.algorithm == .ecP384Sha384)
+    #expect(ca.config?.subjectConfig?.subject?.organization == "Example Inc")
+}
+
+@Test func testDAISCertificateAuthorityTemplateServerCertificate() {
+    let template = DAISCertificateAuthorityTemplate(
+        projectID: "my-project",
+        organization: "Example Inc"
+    )
+
+    let cert = template.serverCertificate(
+        name: "web-server",
+        pool: "my-pool",
+        dnsNames: ["example.com", "www.example.com"]
+    )
+
+    #expect(cert.config?.subjectConfig?.subjectAltName?.dnsNames == ["example.com", "www.example.com"])
+    #expect(cert.config?.x509Config?.keyUsage?.extendedKeyUsage?.serverAuth == true)
+}
+
+@Test func testDAISCertificateAuthorityTemplateClientCertificate() {
+    let template = DAISCertificateAuthorityTemplate(
+        projectID: "my-project",
+        organization: "Example Inc"
+    )
+
+    let cert = template.clientCertificate(
+        name: "user-cert",
+        pool: "my-pool",
+        email: "user@example.com"
+    )
+
+    #expect(cert.config?.subjectConfig?.subjectAltName?.emailAddresses == ["user@example.com"])
+    #expect(cert.config?.x509Config?.keyUsage?.extendedKeyUsage?.clientAuth == true)
+}
+
+@Test func testDAISCertificateAuthorityTemplateMTLSTemplate() {
+    let template = DAISCertificateAuthorityTemplate(
+        projectID: "my-project",
+        organization: "Example Inc"
+    )
+
+    let mtlsTemplate = template.mTLSTemplate
+    #expect(mtlsTemplate.name == "mtls-template")
+    #expect(mtlsTemplate.predefinedValues?.keyUsage?.extendedKeyUsage?.serverAuth == true)
+    #expect(mtlsTemplate.predefinedValues?.keyUsage?.extendedKeyUsage?.clientAuth == true)
+}
+
+@Test func testDAISCertificateAuthorityTemplateSetupScript() {
+    let template = DAISCertificateAuthorityTemplate(
+        projectID: "my-project",
+        organization: "Example Inc"
+    )
+
+    let script = template.setupScript
+    #expect(script.contains("gcloud services enable privateca.googleapis.com"))
+    #expect(script.contains("gcloud privateca pools create"))
+    #expect(script.contains("gcloud privateca roots create"))
+    #expect(script.contains("Example Inc Root CA"))
+}
+
+@Test func testDAISCertificateAuthorityTemplateIssueCertificateScript() {
+    let template = DAISCertificateAuthorityTemplate(
+        projectID: "my-project",
+        organization: "Example Inc"
+    )
+
+    let script = template.issueCertificateScript(
+        certName: "web-server",
+        dnsNames: ["example.com", "www.example.com"]
+    )
+
+    #expect(script.contains("gcloud privateca certificates create"))
+    #expect(script.contains("--dns-san=example.com"))
+    #expect(script.contains("--dns-san=www.example.com"))
+}
+
+@Test func testKeyVersionSpecAlgorithmValues() {
+    #expect(GoogleCloudCertificateAuthority.KeyVersionSpec.SignHashAlgorithm.ecP256Sha256.rawValue == "EC_P256_SHA256")
+    #expect(GoogleCloudCertificateAuthority.KeyVersionSpec.SignHashAlgorithm.rsaPss4096Sha256.rawValue == "RSA_PSS_4096_SHA256")
+}
+
+@Test func testCaPoolCodable() throws {
+    let pool = GoogleCloudCaPool(
+        name: "my-pool",
+        projectID: "my-project",
+        location: "us-central1",
+        tier: .enterprise
+    )
+
+    let data = try JSONEncoder().encode(pool)
+    let decoded = try JSONDecoder().decode(GoogleCloudCaPool.self, from: data)
+
+    #expect(decoded.name == "my-pool")
+    #expect(decoded.tier == .enterprise)
+}
+
+@Test func testCertificateAuthorityCodable() throws {
+    let ca = GoogleCloudCertificateAuthority(
+        name: "root-ca",
+        caPoolName: "my-pool",
+        projectID: "my-project",
+        location: "us-central1",
+        type: .selfSigned
+    )
+
+    let data = try JSONEncoder().encode(ca)
+    let decoded = try JSONDecoder().decode(GoogleCloudCertificateAuthority.self, from: data)
+
+    #expect(decoded.name == "root-ca")
+    #expect(decoded.type == .selfSigned)
+}
+
+@Test func testAllowedKeyTypePresets() {
+    let rsa = GoogleCloudCaPool.IssuancePolicy.AllowedKeyType.rsa2048
+    #expect(rsa.rsa?.minModulusSize == 2048)
+
+    let ecdsa = GoogleCloudCaPool.IssuancePolicy.AllowedKeyType.ecdsaP256
+    #expect(ecdsa.ellipticCurve?.signatureAlgorithm == .ecdsaP256)
+}
+
+@Test func testCertificateRevocationListStateValues() {
+    #expect(GoogleCloudCertificateRevocationList.State.active.rawValue == "ACTIVE")
+    #expect(GoogleCloudCertificateRevocationList.State.superseded.rawValue == "SUPERSEDED")
+}

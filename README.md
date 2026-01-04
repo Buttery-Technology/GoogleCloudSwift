@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 53 Google Cloud services:
+GoogleCloudSwift provides models for 54 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -133,6 +133,7 @@ GoogleCloudSwift provides models for 53 Google Cloud services:
 | **Translation AI** | Text translation | `GoogleCloudTranslationRequest`, `GoogleCloudGlossary`, `LanguageCode`, `DAISTranslationTemplate` |
 | **Cloud Batch** | Containerized batch processing | `GoogleCloudBatchJob`, `TaskGroup`, `AllocationPolicy`, `DAISBatchTemplate` |
 | **Binary Authorization** | Container image security | `GoogleCloudBinaryAuthorizationPolicy`, `GoogleCloudAttestor`, `AdmissionRule`, `DAISBinaryAuthorizationTemplate` |
+| **Certificate Authority Service** | Private CA management | `GoogleCloudCaPool`, `GoogleCloudCertificateAuthority`, `GoogleCloudCertificate`, `DAISCertificateAuthorityTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -6894,6 +6895,160 @@ print(template.requireAttestationPolicyYAML(attestorName: "security-team"))
 | `denyAll` | Deny all images | Lock-down mode |
 | `requireAttestation` | Require signed attestations | Production security |
 
+### GoogleCloudCaPool (Certificate Authority Service API)
+
+Certificate Authority Service provides managed private CA infrastructure:
+
+```swift
+// Create a CA pool for enterprise use
+let pool = GoogleCloudCaPool(
+    name: "production-pool",
+    projectID: "my-project",
+    location: "us-central1",
+    tier: .enterprise,
+    issuancePolicy: .init(
+        allowedKeyTypes: [.rsa2048, .ecdsaP256],
+        maximumLifetime: "31536000s" // 1 year
+    ),
+    publishingOptions: .init(
+        publishCaCert: true,
+        publishCrl: true
+    )
+)
+
+print(pool.createCommand)
+// gcloud privateca pools create production-pool --project=my-project --location=us-central1 --tier=enterprise
+```
+
+**Creating Certificate Authorities:**
+
+```swift
+// Create a root CA
+let rootCA = GoogleCloudCertificateAuthority(
+    name: "root-ca",
+    caPoolName: "production-pool",
+    projectID: "my-project",
+    location: "us-central1",
+    type: .selfSigned,
+    config: CertificateConfig(
+        subjectConfig: .init(
+            subject: .init(
+                commonName: "Example Inc Root CA",
+                organization: "Example Inc",
+                countryCode: "US"
+            )
+        ),
+        x509Config: .init(
+            keyUsage: .init(baseKeyUsage: .caUsage),
+            caOptions: .rootCA
+        )
+    ),
+    lifetime: "315360000s", // 10 years
+    keySpec: .init(algorithm: .ecP384Sha384)
+)
+
+print(rootCA.createRootCACommand)
+print(rootCA.enableCommand)
+```
+
+**Issuing Certificates:**
+
+```swift
+// Issue a server certificate
+let serverCert = GoogleCloudCertificate(
+    name: "web-server-cert",
+    caPoolName: "production-pool",
+    projectID: "my-project",
+    location: "us-central1",
+    lifetime: "7776000s", // 90 days
+    config: CertificateConfig(
+        subjectConfig: .init(
+            subject: .init(
+                commonName: "example.com",
+                organization: "Example Inc"
+            ),
+            subjectAltName: .init(
+                dnsNames: ["example.com", "www.example.com", "api.example.com"]
+            )
+        ),
+        x509Config: .init(
+            keyUsage: .init(
+                baseKeyUsage: .serverAuth,
+                extendedKeyUsage: .serverAuth
+            ),
+            caOptions: .endEntity
+        )
+    )
+)
+
+print(serverCert.createCommand)
+print(serverCert.describeCommand)
+```
+
+**Certificate Authority Operations:**
+
+```swift
+let ops = CertificateAuthorityOperations(projectID: "my-project", location: "us-central1")
+
+// Enable API
+print(ops.enableAPICommand)
+
+// List CA pools
+print(ops.listPoolsCommand)
+
+// List certificates in a pool
+print(ops.listCertificatesCommand(pool: "production-pool"))
+
+// Create CSR using OpenSSL
+print(ops.createCSRCommand(keyFile: "key.pem", csrFile: "csr.pem", subject: "CN=example.com,O=Example Inc"))
+```
+
+**DAIS Certificate Authority Template:**
+
+```swift
+let template = DAISCertificateAuthorityTemplate(
+    projectID: "my-project",
+    location: "us-central1",
+    organization: "Example Inc"
+)
+
+// Create enterprise CA pool
+let pool = template.enterprisePool(name: "prod-pool")
+
+// Create root CA
+let rootCA = template.rootCA(name: "root-ca", pool: "prod-pool")
+
+// Issue server certificate
+let cert = template.serverCertificate(
+    name: "api-server",
+    pool: "prod-pool",
+    dnsNames: ["api.example.com", "api-internal.example.com"]
+)
+
+// Issue client certificate for mTLS
+let clientCert = template.clientCertificate(
+    name: "service-client",
+    pool: "prod-pool",
+    email: "service@example.com"
+)
+
+// Generate setup script
+print(template.setupScript)
+
+// Generate certificate issuance script
+print(template.issueCertificateScript(
+    certName: "web-server",
+    dnsNames: ["example.com", "www.example.com"]
+))
+```
+
+**CA Pool Tiers:**
+
+| Tier | Description | Use Case |
+|------|-------------|----------|
+| `devops` | Basic features | Development, CI/CD |
+| `enterprise` | Advanced features with HSM | Production workloads |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -8477,6 +8632,17 @@ MIT License
 - [GKE Integration](https://cloud.google.com/binary-authorization/docs/deploy-to-gke)
 - [Cloud Run Integration](https://cloud.google.com/binary-authorization/docs/cloud-run)
 - [Binary Authorization API](https://cloud.google.com/binary-authorization/docs/reference/rest)
+
+### Certificate Authority Service
+- [Certificate Authority Service Documentation](https://cloud.google.com/certificate-authority-service/docs)
+- [CA Pools Overview](https://cloud.google.com/certificate-authority-service/docs/ca-pools)
+- [Creating Root CAs](https://cloud.google.com/certificate-authority-service/docs/creating-certificate-authorities)
+- [Issuing Certificates](https://cloud.google.com/certificate-authority-service/docs/creating-certificates)
+- [Certificate Templates](https://cloud.google.com/certificate-authority-service/docs/certificate-templates)
+- [Key Algorithms](https://cloud.google.com/certificate-authority-service/docs/key-algorithms)
+- [Issuance Policies](https://cloud.google.com/certificate-authority-service/docs/issuance-policies)
+- [Certificate Revocation](https://cloud.google.com/certificate-authority-service/docs/revoke-certificates)
+- [CAS API Reference](https://cloud.google.com/certificate-authority-service/docs/reference/rest)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)
