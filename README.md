@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 12 Google Cloud services:
+GoogleCloudSwift provides models for 13 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -97,6 +97,7 @@ GoogleCloudSwift provides models for 12 Google Cloud services:
 | **Cloud Storage** | Object storage | `GoogleCloudStorageBucket`, `LifecycleRule` |
 | **Cloud SQL** | Managed databases (PostgreSQL, MySQL, SQL Server) | `GoogleCloudSQLInstance`, `GoogleCloudSQLDatabase` |
 | **Cloud Pub/Sub** | Messaging and event streaming | `GoogleCloudPubSubTopic`, `GoogleCloudPubSubSubscription` |
+| **Cloud Functions** | Serverless compute | `GoogleCloudFunction`, `CloudFunctionRuntime` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -418,6 +419,174 @@ let pubsubScript = DAISPubSubTemplate.setupScript(
 | `pubsubViewer` | View topics and subscriptions |
 | `pubsubPublisher` | Publish messages to topics |
 | `pubsubSubscriber` | Consume messages from subscriptions |
+
+### GoogleCloudFunction (Cloud Functions API)
+
+Cloud Functions is a serverless execution environment for building event-driven applications:
+
+```swift
+// Create a Cloud Function
+let function = GoogleCloudFunction(
+    name: "process-events",
+    projectID: "my-project",
+    region: "us-central1",
+    runtime: .python312,
+    entryPoint: "main",
+    trigger: .http(allowUnauthenticated: false),
+    memoryMB: 512,
+    timeoutSeconds: 120
+)
+
+print(function.deployCommand)
+print(function.resourceName)  // projects/my-project/locations/us-central1/functions/process-events
+```
+
+**Trigger Types:**
+
+```swift
+// HTTP trigger
+let httpFunction = GoogleCloudFunction(
+    name: "api-handler",
+    projectID: "my-project",
+    region: "us-central1",
+    runtime: .nodejs20,
+    entryPoint: "handler",
+    trigger: .http(allowUnauthenticated: true)
+)
+
+// Pub/Sub trigger
+let pubsubFunction = GoogleCloudFunction(
+    name: "event-processor",
+    projectID: "my-project",
+    region: "us-central1",
+    runtime: .python312,
+    entryPoint: "process_event",
+    trigger: .pubsub(topic: "my-events")
+)
+
+// Cloud Storage trigger
+let storageFunction = GoogleCloudFunction(
+    name: "file-processor",
+    projectID: "my-project",
+    region: "us-central1",
+    runtime: .go122,
+    entryPoint: "ProcessFile",
+    trigger: .storage(bucket: "my-uploads", event: .finalize)
+)
+
+// Firestore trigger
+let firestoreFunction = GoogleCloudFunction(
+    name: "user-handler",
+    projectID: "my-project",
+    region: "us-central1",
+    runtime: .python312,
+    entryPoint: "on_user_create",
+    trigger: .firestore(document: "users/{userId}", event: .create)
+)
+```
+
+**Secret Environment Variables:**
+
+```swift
+let secureFunction = GoogleCloudFunction(
+    name: "secure-api",
+    projectID: "my-project",
+    region: "us-central1",
+    runtime: .python312,
+    entryPoint: "main",
+    secretEnvironmentVariables: [
+        GoogleCloudFunction.SecretEnvVar(variableName: "API_KEY", secretName: "my-api-key"),
+        GoogleCloudFunction.SecretEnvVar(variableName: "DB_PASSWORD", secretName: "db-pass", version: "2")
+    ]
+)
+```
+
+**VPC Connector for Private Network Access:**
+
+```swift
+let privateFunction = GoogleCloudFunction(
+    name: "internal-api",
+    projectID: "my-project",
+    region: "us-central1",
+    runtime: .python312,
+    entryPoint: "main",
+    vpcConnector: "projects/my-project/locations/us-central1/connectors/my-connector",
+    ingressSettings: .internalOnly
+)
+```
+
+**Cloud Scheduler for Scheduled Functions:**
+
+```swift
+let schedulerJob = CloudSchedulerJob(
+    name: "daily-cleanup",
+    projectID: "my-project",
+    location: "us-central1",
+    schedule: "0 2 * * *",  // Daily at 2 AM
+    timezone: "America/Los_Angeles",
+    targetFunction: "https://us-central1-my-project.cloudfunctions.net/cleanup",
+    serviceAccountEmail: "scheduler@my-project.iam.gserviceaccount.com"
+)
+
+print(schedulerJob.createCommand)
+print(schedulerJob.pauseCommand)
+print(schedulerJob.runCommand)  // Run immediately
+```
+
+**DAIS Function Templates:**
+
+```swift
+// Event processor for Pub/Sub messages
+let eventProcessor = DAISFunctionTemplate.eventProcessor(
+    projectID: "my-project",
+    region: "us-central1",
+    deploymentName: "prod",
+    eventsTopic: "prod-events"
+)
+
+// Health check endpoint
+let healthCheck = DAISFunctionTemplate.healthCheck(
+    projectID: "my-project",
+    region: "us-central1",
+    deploymentName: "prod"
+)
+
+// Scheduled maintenance function
+let (maintenanceFunc, scheduler) = DAISFunctionTemplate.scheduledMaintenance(
+    projectID: "my-project",
+    region: "us-central1",
+    deploymentName: "prod",
+    schedule: "0 3 * * *",
+    timezone: "UTC"
+)
+
+// Generate complete setup script
+let script = DAISFunctionTemplate.setupScript(
+    projectID: "my-project",
+    region: "us-central1",
+    deploymentName: "prod",
+    eventsTopic: "prod-events"
+)
+```
+
+**Supported Runtimes:**
+
+| Language | Runtimes |
+|----------|----------|
+| Python | python39, python310, python311, python312 |
+| Node.js | nodejs18, nodejs20, nodejs22 |
+| Go | go119, go120, go121, go122 |
+| Java | java11, java17, java21 |
+| .NET | dotnet6, dotnet8 |
+| Ruby | ruby30, ruby32, ruby33 |
+| PHP | php81, php82, php83 |
+
+**Function Generations:**
+
+| Generation | Description |
+|------------|-------------|
+| `gen1` | Legacy Cloud Functions (max 9 min timeout) |
+| `gen2` | Recommended, uses Cloud Run (max 60 min timeout) |
 
 ### GoogleCloudService (Service Usage API)
 
@@ -994,6 +1163,8 @@ MIT License
 - [Cloud SQL for PostgreSQL](https://cloud.google.com/sql/docs/postgres)
 - [Cloud Pub/Sub Documentation](https://cloud.google.com/pubsub/docs)
 - [Pub/Sub Ordering and Delivery](https://cloud.google.com/pubsub/docs/ordering)
+- [Cloud Functions Documentation](https://cloud.google.com/functions/docs)
+- [Cloud Scheduler Documentation](https://cloud.google.com/scheduler/docs)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
