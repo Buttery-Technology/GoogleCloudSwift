@@ -12584,3 +12584,336 @@ import Testing
     #expect(decoded.url == "https://example.com/endpoint")
     #expect(decoded.httpMethod == .post)
 }
+
+// MARK: - Cloud KMS Tests
+
+@Test func testKeyRingBasicInit() {
+    let keyRing = GoogleCloudKeyRing(
+        name: "my-keyring",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(keyRing.name == "my-keyring")
+    #expect(keyRing.location == "us-central1")
+}
+
+@Test func testKeyRingResourceName() {
+    let keyRing = GoogleCloudKeyRing(
+        name: "my-keyring",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(keyRing.resourceName == "projects/my-project/locations/us-central1/keyRings/my-keyring")
+}
+
+@Test func testKeyRingCreateCommand() {
+    let keyRing = GoogleCloudKeyRing(
+        name: "my-keyring",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let cmd = keyRing.createCommand
+    #expect(cmd.contains("kms keyrings create my-keyring"))
+    #expect(cmd.contains("--location=us-central1"))
+}
+
+@Test func testKeyRingListCommand() {
+    let cmd = GoogleCloudKeyRing.listCommand(projectID: "my-project", location: "us-central1")
+    #expect(cmd.contains("kms keyrings list"))
+}
+
+@Test func testKeyRingAddIAMBinding() {
+    let keyRing = GoogleCloudKeyRing(
+        name: "my-keyring",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let cmd = keyRing.addIAMBindingCommand(member: "user:test@example.com", role: "roles/cloudkms.admin")
+    #expect(cmd.contains("add-iam-policy-binding"))
+    #expect(cmd.contains("--member=\"user:test@example.com\""))
+}
+
+@Test func testCryptoKeyBasicInit() {
+    let key = GoogleCloudCryptoKey(
+        name: "my-key",
+        keyRing: "my-keyring",
+        projectID: "my-project",
+        location: "us-central1",
+        purpose: .encryptDecrypt,
+        protectionLevel: .software
+    )
+
+    #expect(key.name == "my-key")
+    #expect(key.purpose == .encryptDecrypt)
+    #expect(key.protectionLevel == .software)
+}
+
+@Test func testCryptoKeyResourceName() {
+    let key = GoogleCloudCryptoKey(
+        name: "my-key",
+        keyRing: "my-keyring",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(key.resourceName == "projects/my-project/locations/us-central1/keyRings/my-keyring/cryptoKeys/my-key")
+}
+
+@Test func testCryptoKeyCreateCommand() {
+    let key = GoogleCloudCryptoKey(
+        name: "my-key",
+        keyRing: "my-keyring",
+        projectID: "my-project",
+        location: "us-central1",
+        purpose: .asymmetricSign,
+        protectionLevel: .hsm,
+        rotationPeriod: "7776000s"
+    )
+
+    let cmd = key.createCommand
+    #expect(cmd.contains("kms keys create my-key"))
+    #expect(cmd.contains("--keyring=my-keyring"))
+    #expect(cmd.contains("--purpose=asymmetric-signing"))
+    #expect(cmd.contains("--protection-level=hsm"))
+    #expect(cmd.contains("--rotation-period=7776000s"))
+}
+
+@Test func testCryptoKeyWithLabels() {
+    let key = GoogleCloudCryptoKey(
+        name: "my-key",
+        keyRing: "my-keyring",
+        projectID: "my-project",
+        location: "us-central1",
+        labels: ["env": "prod", "team": "security"]
+    )
+
+    let cmd = key.createCommand
+    #expect(cmd.contains("--labels="))
+}
+
+@Test func testKeyPurposeValues() {
+    #expect(GoogleCloudCryptoKey.KeyPurpose.encryptDecrypt.rawValue == "encryption")
+    #expect(GoogleCloudCryptoKey.KeyPurpose.asymmetricSign.rawValue == "asymmetric-signing")
+    #expect(GoogleCloudCryptoKey.KeyPurpose.asymmetricDecrypt.rawValue == "asymmetric-encryption")
+    #expect(GoogleCloudCryptoKey.KeyPurpose.mac.rawValue == "mac")
+}
+
+@Test func testProtectionLevelValues() {
+    #expect(GoogleCloudCryptoKey.ProtectionLevel.software.rawValue == "software")
+    #expect(GoogleCloudCryptoKey.ProtectionLevel.hsm.rawValue == "hsm")
+    #expect(GoogleCloudCryptoKey.ProtectionLevel.external.rawValue == "external")
+}
+
+@Test func testCryptoKeyVersionResourceName() {
+    let version = GoogleCloudCryptoKeyVersion(
+        keyName: "my-key",
+        keyRing: "my-keyring",
+        projectID: "my-project",
+        location: "us-central1",
+        version: "1"
+    )
+
+    #expect(version.resourceName.contains("cryptoKeyVersions/1"))
+}
+
+@Test func testCryptoKeyVersionCommands() {
+    let version = GoogleCloudCryptoKeyVersion(
+        keyName: "my-key",
+        keyRing: "my-keyring",
+        projectID: "my-project",
+        location: "us-central1",
+        version: "1"
+    )
+
+    #expect(version.disableCommand.contains("versions disable 1"))
+    #expect(version.enableCommand.contains("versions enable 1"))
+    #expect(version.destroyCommand.contains("versions destroy 1"))
+}
+
+@Test func testCryptoKeyVersionGetPublicKey() {
+    let version = GoogleCloudCryptoKeyVersion(
+        keyName: "my-key",
+        keyRing: "my-keyring",
+        projectID: "my-project",
+        location: "us-central1",
+        version: "1"
+    )
+
+    #expect(version.getPublicKeyCommand.contains("get-public-key 1"))
+}
+
+@Test func testKMSOperationsEncrypt() {
+    let cmd = KMSOperations.encryptCommand(
+        keyName: "my-key",
+        keyRing: "my-keyring",
+        location: "us-central1",
+        projectID: "my-project",
+        plaintextFile: "input.txt",
+        ciphertextFile: "output.enc"
+    )
+
+    #expect(cmd.contains("kms encrypt"))
+    #expect(cmd.contains("--plaintext-file=input.txt"))
+    #expect(cmd.contains("--ciphertext-file=output.enc"))
+}
+
+@Test func testKMSOperationsDecrypt() {
+    let cmd = KMSOperations.decryptCommand(
+        keyName: "my-key",
+        keyRing: "my-keyring",
+        location: "us-central1",
+        projectID: "my-project",
+        ciphertextFile: "input.enc",
+        plaintextFile: "output.txt"
+    )
+
+    #expect(cmd.contains("kms decrypt"))
+    #expect(cmd.contains("--ciphertext-file=input.enc"))
+}
+
+@Test func testKMSOperationsAsymmetricSign() {
+    let cmd = KMSOperations.asymmetricSignCommand(
+        keyName: "my-key",
+        keyRing: "my-keyring",
+        location: "us-central1",
+        projectID: "my-project",
+        version: "1",
+        inputFile: "data.txt",
+        signatureFile: "sig.bin"
+    )
+
+    #expect(cmd.contains("asymmetric-sign"))
+    #expect(cmd.contains("--version=1"))
+}
+
+@Test func testKMSOperationsMacSign() {
+    let cmd = KMSOperations.macSignCommand(
+        keyName: "my-key",
+        keyRing: "my-keyring",
+        location: "us-central1",
+        projectID: "my-project",
+        version: "1",
+        inputFile: "data.txt",
+        signatureFile: "mac.bin"
+    )
+
+    #expect(cmd.contains("mac-sign"))
+}
+
+@Test func testKMSRoleValues() {
+    #expect(KMSRole.admin.rawValue == "roles/cloudkms.admin")
+    #expect(KMSRole.cryptoKeyEncrypter.rawValue == "roles/cloudkms.cryptoKeyEncrypter")
+    #expect(KMSRole.cryptoKeyDecrypter.rawValue == "roles/cloudkms.cryptoKeyDecrypter")
+    #expect(KMSRole.signer.rawValue == "roles/cloudkms.signer")
+}
+
+@Test func testKMSRoleDescriptions() {
+    #expect(KMSRole.admin.description.contains("Full control"))
+    #expect(KMSRole.cryptoKeyEncrypter.description.contains("Encrypt"))
+}
+
+@Test func testDAISKMSTemplateKeyRing() {
+    let keyRing = DAISKMSTemplate.keyRing(
+        projectID: "my-project",
+        location: "us-central1",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(keyRing.name == "dais-prod-keyring")
+}
+
+@Test func testDAISKMSTemplateDataEncryptionKey() {
+    let key = DAISKMSTemplate.dataEncryptionKey(
+        projectID: "my-project",
+        location: "us-central1",
+        keyRing: "dais-prod-keyring",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(key.name == "dais-prod-data-key")
+    #expect(key.purpose == .encryptDecrypt)
+    #expect(key.rotationPeriod == "7776000s")
+}
+
+@Test func testDAISKMSTemplateHSMKey() {
+    let key = DAISKMSTemplate.hsmEncryptionKey(
+        projectID: "my-project",
+        location: "us-central1",
+        keyRing: "dais-prod-keyring",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(key.name == "dais-prod-hsm-key")
+    #expect(key.protectionLevel == .hsm)
+}
+
+@Test func testDAISKMSTemplateSigningKey() {
+    let key = DAISKMSTemplate.signingKey(
+        projectID: "my-project",
+        location: "us-central1",
+        keyRing: "dais-prod-keyring",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(key.name == "dais-prod-signing-key")
+    #expect(key.purpose == .asymmetricSign)
+}
+
+@Test func testDAISKMSTemplateSetupScript() {
+    let script = DAISKMSTemplate.setupScript(
+        projectID: "my-project",
+        location: "us-central1",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(script.contains("cloudkms.googleapis.com"))
+    #expect(script.contains("kms keyrings create"))
+    #expect(script.contains("kms keys create"))
+}
+
+@Test func testDAISKMSTemplateGrantEncrypter() {
+    let cmd = DAISKMSTemplate.grantEncrypterCommand(
+        keyName: "my-key",
+        keyRing: "my-keyring",
+        location: "us-central1",
+        projectID: "my-project",
+        serviceAccountEmail: "sa@project.iam.gserviceaccount.com"
+    )
+
+    #expect(cmd.contains("add-iam-policy-binding"))
+    #expect(cmd.contains("cryptoKeyEncrypter"))
+}
+
+@Test func testKeyRingCodable() throws {
+    let keyRing = GoogleCloudKeyRing(
+        name: "my-keyring",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let data = try JSONEncoder().encode(keyRing)
+    let decoded = try JSONDecoder().decode(GoogleCloudKeyRing.self, from: data)
+
+    #expect(decoded.name == "my-keyring")
+}
+
+@Test func testCryptoKeyCodable() throws {
+    let key = GoogleCloudCryptoKey(
+        name: "my-key",
+        keyRing: "my-keyring",
+        projectID: "my-project",
+        location: "us-central1",
+        purpose: .encryptDecrypt,
+        protectionLevel: .software
+    )
+
+    let data = try JSONEncoder().encode(key)
+    let decoded = try JSONDecoder().decode(GoogleCloudCryptoKey.self, from: data)
+
+    #expect(decoded.name == "my-key")
+    #expect(decoded.purpose == .encryptDecrypt)
+}
