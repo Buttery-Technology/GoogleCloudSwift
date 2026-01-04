@@ -149,6 +149,27 @@ extension GoogleCloudComputeInstance {
             case .rockyLinux9: return "Rocky Linux 9"
             }
         }
+
+        /// The image project for gcloud commands
+        public var imageProject: String {
+            switch self {
+            case .ubuntuLTS, .ubuntu2404: return "ubuntu-os-cloud"
+            case .debian12: return "debian-cloud"
+            case .containerOptimized: return "cos-cloud"
+            case .rockyLinux9: return "rocky-linux-cloud"
+            }
+        }
+
+        /// The image family for gcloud commands
+        public var imageFamily: String {
+            switch self {
+            case .ubuntuLTS: return "ubuntu-2204-lts"
+            case .ubuntu2404: return "ubuntu-2404-lts-amd64"
+            case .debian12: return "debian-12"
+            case .containerOptimized: return "cos-stable"
+            case .rockyLinux9: return "rocky-linux-9"
+            }
+        }
     }
 
     /// Disk types available in Compute Engine
