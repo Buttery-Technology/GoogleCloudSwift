@@ -25671,3 +25671,475 @@ import Testing
     #expect(GoogleCloudConnectivityTest.Trace.Step.State.applyRoute.rawValue == "APPLY_ROUTE")
     #expect(GoogleCloudConnectivityTest.Trace.Step.State.arriveAtInstance.rawValue == "ARRIVE_AT_INSTANCE")
 }
+
+// MARK: - Cloud Interconnect Tests
+
+@Test func testInterconnectBasic() {
+    let interconnect = GoogleCloudInterconnect(
+        name: "my-interconnect",
+        projectID: "my-project",
+        description: "Primary interconnect",
+        location: "lax-loa9-1",
+        interconnectType: .dedicated,
+        linkType: .linkTypeEthernet10gLr,
+        requestedLinkCount: 2,
+        adminEnabled: true,
+        nocContactEmail: "noc@example.com",
+        customerName: "Example Corp"
+    )
+
+    #expect(interconnect.name == "my-interconnect")
+    #expect(interconnect.interconnectType == .dedicated)
+    #expect(interconnect.requestedLinkCount == 2)
+}
+
+@Test func testInterconnectResourceName() {
+    let interconnect = GoogleCloudInterconnect(
+        name: "dc-interconnect",
+        projectID: "my-project",
+        location: "lax-loa9-1",
+        interconnectType: .dedicated
+    )
+
+    #expect(interconnect.resourceName == "projects/my-project/global/interconnects/dc-interconnect")
+}
+
+@Test func testInterconnectCreateCommand() {
+    let interconnect = GoogleCloudInterconnect(
+        name: "prod-interconnect",
+        projectID: "my-project",
+        description: "Production interconnect",
+        location: "lax-loa9-1",
+        interconnectType: .dedicated,
+        linkType: .linkTypeEthernet10gLr,
+        requestedLinkCount: 1,
+        adminEnabled: true,
+        nocContactEmail: "noc@example.com",
+        customerName: "Example Corp"
+    )
+
+    let cmd = interconnect.createCommand
+    #expect(cmd.contains("gcloud compute interconnects create prod-interconnect"))
+    #expect(cmd.contains("--interconnect-type=DEDICATED"))
+    #expect(cmd.contains("--location=lax-loa9-1"))
+    #expect(cmd.contains("--link-type=LINK_TYPE_ETHERNET_10G_LR"))
+    #expect(cmd.contains("--noc-contact-email=noc@example.com"))
+    #expect(cmd.contains("--admin-enabled"))
+}
+
+@Test func testInterconnectTypeValues() {
+    #expect(GoogleCloudInterconnect.InterconnectType.dedicated.rawValue == "DEDICATED")
+    #expect(GoogleCloudInterconnect.InterconnectType.partner.rawValue == "PARTNER")
+}
+
+@Test func testInterconnectLinkTypeValues() {
+    #expect(GoogleCloudInterconnect.LinkType.linkTypeEthernet10gLr.rawValue == "LINK_TYPE_ETHERNET_10G_LR")
+    #expect(GoogleCloudInterconnect.LinkType.linkTypeEthernet100gLr.rawValue == "LINK_TYPE_ETHERNET_100G_LR")
+}
+
+@Test func testInterconnectAttachmentBasic() {
+    let attachment = GoogleCloudInterconnectAttachment(
+        name: "vlan-100",
+        projectID: "my-project",
+        region: "us-central1",
+        description: "VLAN 100 attachment",
+        interconnect: "my-interconnect",
+        router: "my-router",
+        attachmentType: .dedicated,
+        edgeAvailabilityDomain: .availabilityDomain1,
+        bandwidth: .bps10g,
+        vlanTag8021q: 100,
+        adminEnabled: true
+    )
+
+    #expect(attachment.name == "vlan-100")
+    #expect(attachment.vlanTag8021q == 100)
+    #expect(attachment.bandwidth == .bps10g)
+}
+
+@Test func testInterconnectAttachmentResourceName() {
+    let attachment = GoogleCloudInterconnectAttachment(
+        name: "attachment-1",
+        projectID: "my-project",
+        region: "us-central1",
+        router: "my-router"
+    )
+
+    #expect(attachment.resourceName == "projects/my-project/regions/us-central1/interconnectAttachments/attachment-1")
+}
+
+@Test func testInterconnectAttachmentDedicatedCreateCommand() {
+    let attachment = GoogleCloudInterconnectAttachment(
+        name: "vlan-200",
+        projectID: "my-project",
+        region: "us-central1",
+        interconnect: "my-interconnect",
+        router: "my-router",
+        edgeAvailabilityDomain: .availabilityDomain1,
+        bandwidth: .bps10g,
+        vlanTag8021q: 200,
+        mtu: 1500,
+        adminEnabled: true
+    )
+
+    let cmd = attachment.createDedicatedCommand
+    #expect(cmd.contains("gcloud compute interconnects attachments dedicated create vlan-200"))
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(cmd.contains("--router=my-router"))
+    #expect(cmd.contains("--interconnect=my-interconnect"))
+    #expect(cmd.contains("--bandwidth=BPS_10G"))
+    #expect(cmd.contains("--vlan=200"))
+    #expect(cmd.contains("--mtu=1500"))
+}
+
+@Test func testInterconnectAttachmentPartnerCreateCommand() {
+    let attachment = GoogleCloudInterconnectAttachment(
+        name: "partner-attachment",
+        projectID: "my-project",
+        region: "us-central1",
+        router: "partner-router",
+        edgeAvailabilityDomain: .availabilityDomainAny,
+        adminEnabled: true
+    )
+
+    let cmd = attachment.createPartnerCommand
+    #expect(cmd.contains("gcloud compute interconnects attachments partner create partner-attachment"))
+    #expect(cmd.contains("--router=partner-router"))
+    #expect(cmd.contains("--edge-availability-domain=AVAILABILITY_DOMAIN_ANY"))
+}
+
+@Test func testInterconnectAttachmentBandwidthValues() {
+    #expect(GoogleCloudInterconnectAttachment.Bandwidth.bps50m.rawValue == "BPS_50M")
+    #expect(GoogleCloudInterconnectAttachment.Bandwidth.bps100m.rawValue == "BPS_100M")
+    #expect(GoogleCloudInterconnectAttachment.Bandwidth.bps1g.rawValue == "BPS_1G")
+    #expect(GoogleCloudInterconnectAttachment.Bandwidth.bps10g.rawValue == "BPS_10G")
+    #expect(GoogleCloudInterconnectAttachment.Bandwidth.bps50g.rawValue == "BPS_50G")
+}
+
+@Test func testInterconnectAttachmentStateValues() {
+    #expect(GoogleCloudInterconnectAttachment.State.active.rawValue == "ACTIVE")
+    #expect(GoogleCloudInterconnectAttachment.State.unprovisioned.rawValue == "UNPROVISIONED")
+    #expect(GoogleCloudInterconnectAttachment.State.pendingPartner.rawValue == "PENDING_PARTNER")
+    #expect(GoogleCloudInterconnectAttachment.State.pendingCustomer.rawValue == "PENDING_CUSTOMER")
+}
+
+@Test func testInterconnectAttachmentEdgeAvailabilityDomainValues() {
+    #expect(GoogleCloudInterconnectAttachment.EdgeAvailabilityDomain.availabilityDomain1.rawValue == "AVAILABILITY_DOMAIN_1")
+    #expect(GoogleCloudInterconnectAttachment.EdgeAvailabilityDomain.availabilityDomain2.rawValue == "AVAILABILITY_DOMAIN_2")
+    #expect(GoogleCloudInterconnectAttachment.EdgeAvailabilityDomain.availabilityDomainAny.rawValue == "AVAILABILITY_DOMAIN_ANY")
+}
+
+@Test func testInterconnectLocationBasic() {
+    let location = GoogleCloudInterconnectLocation(
+        name: "lax-loa9-1",
+        description: "Equinix LA9",
+        city: "Los Angeles",
+        continent: .northAmerica,
+        facilityProvider: "Equinix",
+        status: .available
+    )
+
+    #expect(location.name == "lax-loa9-1")
+    #expect(location.city == "Los Angeles")
+    #expect(location.continent == .northAmerica)
+    #expect(location.status == .available)
+}
+
+@Test func testInterconnectLocationContinentValues() {
+    #expect(GoogleCloudInterconnectLocation.Continent.northAmerica.rawValue == "NORTH_AMERICA")
+    #expect(GoogleCloudInterconnectLocation.Continent.europe.rawValue == "EUROPE")
+    #expect(GoogleCloudInterconnectLocation.Continent.asiaPac.rawValue == "ASIA_PAC")
+}
+
+@Test func testCrossCloudInterconnectBasic() {
+    let crossCloud = GoogleCloudCrossCloudInterconnect(
+        name: "to-aws",
+        projectID: "my-project",
+        description: "Cross-cloud to AWS",
+        location: "lax-loa9-1",
+        remoteCloudProvider: .aws,
+        remoteCloud: .init(
+            remoteService: "Direct Connect",
+            remoteLocation: "us-west-2",
+            remoteAccountId: "123456789012"
+        ),
+        requestedLinkCount: 1
+    )
+
+    #expect(crossCloud.name == "to-aws")
+    #expect(crossCloud.remoteCloudProvider == .aws)
+    #expect(crossCloud.remoteCloud.remoteAccountId == "123456789012")
+}
+
+@Test func testCrossCloudInterconnectProviderValues() {
+    #expect(GoogleCloudCrossCloudInterconnect.RemoteCloudProvider.aws.rawValue == "AWS")
+    #expect(GoogleCloudCrossCloudInterconnect.RemoteCloudProvider.azure.rawValue == "AZURE")
+    #expect(GoogleCloudCrossCloudInterconnect.RemoteCloudProvider.alibaba.rawValue == "ALIBABA")
+    #expect(GoogleCloudCrossCloudInterconnect.RemoteCloudProvider.oracle.rawValue == "ORACLE")
+}
+
+@Test func testRouterForInterconnectBasic() {
+    let router = GoogleCloudRouterForInterconnect(
+        name: "ic-router",
+        projectID: "my-project",
+        region: "us-central1",
+        network: "my-network",
+        asn: 16550,
+        bgpKeepaliveInterval: 20,
+        advertisedGroups: [.allSubnets]
+    )
+
+    #expect(router.name == "ic-router")
+    #expect(router.asn == 16550)
+    #expect(router.advertisedGroups?.contains(.allSubnets) == true)
+}
+
+@Test func testRouterForInterconnectResourceName() {
+    let router = GoogleCloudRouterForInterconnect(
+        name: "my-router",
+        projectID: "my-project",
+        region: "us-central1",
+        network: "my-network"
+    )
+
+    #expect(router.resourceName == "projects/my-project/regions/us-central1/routers/my-router")
+}
+
+@Test func testRouterForInterconnectCreateCommand() {
+    let router = GoogleCloudRouterForInterconnect(
+        name: "ic-router",
+        projectID: "my-project",
+        region: "us-central1",
+        network: "prod-network",
+        asn: 16550,
+        bgpKeepaliveInterval: 20
+    )
+
+    let cmd = router.createCommand
+    #expect(cmd.contains("gcloud compute routers create ic-router"))
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(cmd.contains("--network=prod-network"))
+    #expect(cmd.contains("--asn=16550"))
+    #expect(cmd.contains("--bgp-keepalive-interval=20"))
+}
+
+@Test func testRouterForInterconnectAddBgpPeerCommand() {
+    let router = GoogleCloudRouterForInterconnect(
+        name: "ic-router",
+        projectID: "my-project",
+        region: "us-central1",
+        network: "my-network"
+    )
+
+    let cmd = router.addBgpPeerCommand(
+        peerName: "on-prem-peer",
+        peerAsn: 65000,
+        interface: "if-0",
+        peerIpAddress: "169.254.1.2"
+    )
+
+    #expect(cmd.contains("add-bgp-peer ic-router"))
+    #expect(cmd.contains("--peer-name=on-prem-peer"))
+    #expect(cmd.contains("--peer-asn=65000"))
+    #expect(cmd.contains("--peer-ip-address=169.254.1.2"))
+}
+
+@Test func testRouterForInterconnectAddInterfaceCommand() {
+    let router = GoogleCloudRouterForInterconnect(
+        name: "ic-router",
+        projectID: "my-project",
+        region: "us-central1",
+        network: "my-network"
+    )
+
+    let cmd = router.addInterfaceCommand(
+        interfaceName: "if-0",
+        interconnectAttachment: "vlan-100",
+        ipRange: "169.254.1.1/30"
+    )
+
+    #expect(cmd.contains("add-interface ic-router"))
+    #expect(cmd.contains("--interface-name=if-0"))
+    #expect(cmd.contains("--interconnect-attachment=vlan-100"))
+    #expect(cmd.contains("--ip-range=169.254.1.1/30"))
+}
+
+@Test func testInterconnectOperationsEnableAPI() {
+    let ops = InterconnectOperations(projectID: "my-project")
+    #expect(ops.enableAPICommand == "gcloud services enable compute.googleapis.com --project=my-project")
+}
+
+@Test func testInterconnectOperationsListCommands() {
+    let ops = InterconnectOperations(projectID: "my-project")
+    #expect(ops.listInterconnectsCommand == "gcloud compute interconnects list --project=my-project")
+    #expect(ops.listLocationsCommand == "gcloud compute interconnects locations list")
+}
+
+@Test func testInterconnectOperationsListAttachments() {
+    let ops = InterconnectOperations(projectID: "my-project")
+
+    let allCmd = ops.listAttachmentsCommand()
+    #expect(allCmd == "gcloud compute interconnects attachments list --project=my-project")
+
+    let regionCmd = ops.listAttachmentsCommand(region: "us-central1")
+    #expect(regionCmd.contains("--filter=\"region:us-central1\""))
+}
+
+@Test func testInterconnectOperationsGetDiagnostics() {
+    let ops = InterconnectOperations(projectID: "my-project")
+    let cmd = ops.getDiagnosticsCommand(interconnect: "my-interconnect")
+    #expect(cmd.contains("get-diagnostics my-interconnect"))
+}
+
+@Test func testInterconnectOperationsIAMRoles() {
+    #expect(InterconnectOperations.InterconnectRole.computeNetworkAdmin.rawValue == "roles/compute.networkAdmin")
+    #expect(InterconnectOperations.InterconnectRole.computeNetworkViewer.rawValue == "roles/compute.networkViewer")
+}
+
+@Test func testDAISInterconnectTemplateDedicated() {
+    let template = DAISInterconnectTemplate(projectID: "my-project", region: "us-central1")
+    let interconnect = template.dedicatedInterconnect(
+        name: "dc-interconnect",
+        location: "lax-loa9-1",
+        linkType: .linkTypeEthernet10gLr,
+        linkCount: 2,
+        nocEmail: "noc@example.com",
+        customerName: "Example Corp"
+    )
+
+    #expect(interconnect.name == "dc-interconnect")
+    #expect(interconnect.interconnectType == .dedicated)
+    #expect(interconnect.requestedLinkCount == 2)
+    #expect(interconnect.nocContactEmail == "noc@example.com")
+}
+
+@Test func testDAISInterconnectTemplateRouter() {
+    let template = DAISInterconnectTemplate(projectID: "my-project", region: "us-central1")
+    let router = template.interconnectRouter(
+        name: "ic-router",
+        network: "prod-network",
+        asn: 16550
+    )
+
+    #expect(router.name == "ic-router")
+    #expect(router.network == "prod-network")
+    #expect(router.asn == 16550)
+    #expect(router.bgpKeepaliveInterval == 20)
+}
+
+@Test func testDAISInterconnectTemplateAttachmentZoneA() {
+    let template = DAISInterconnectTemplate(projectID: "my-project", region: "us-central1")
+    let attachment = template.dedicatedAttachmentZoneA(
+        name: "vlan-100-a",
+        interconnect: "my-interconnect",
+        router: "my-router",
+        vlanTag: 100
+    )
+
+    #expect(attachment.name == "vlan-100-a")
+    #expect(attachment.edgeAvailabilityDomain == .availabilityDomain1)
+    #expect(attachment.vlanTag8021q == 100)
+}
+
+@Test func testDAISInterconnectTemplateAttachmentZoneB() {
+    let template = DAISInterconnectTemplate(projectID: "my-project", region: "us-central1")
+    let attachment = template.dedicatedAttachmentZoneB(
+        name: "vlan-100-b",
+        interconnect: "my-interconnect",
+        router: "my-router",
+        vlanTag: 100
+    )
+
+    #expect(attachment.name == "vlan-100-b")
+    #expect(attachment.edgeAvailabilityDomain == .availabilityDomain2)
+}
+
+@Test func testDAISInterconnectTemplatePartnerAttachment() {
+    let template = DAISInterconnectTemplate(projectID: "my-project", region: "us-central1")
+    let attachment = template.partnerAttachment(
+        name: "partner-vlan",
+        router: "partner-router"
+    )
+
+    #expect(attachment.name == "partner-vlan")
+    #expect(attachment.attachmentType == .partner)
+}
+
+@Test func testDAISInterconnectTemplateHAScript() {
+    let template = DAISInterconnectTemplate(projectID: "my-project", region: "us-central1")
+    let script = template.haInterconnectSetupScript(
+        interconnect1: "ic-metro1",
+        interconnect2: "ic-metro2",
+        location1: "lax-loa9-1",
+        location2: "sfo-zone1-1",
+        network: "prod-network",
+        nocEmail: "noc@example.com",
+        customerName: "Example Corp"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("gcloud compute routers create"))
+    #expect(script.contains("gcloud compute interconnects create"))
+    #expect(script.contains("--noc-contact-email=noc@example.com"))
+}
+
+@Test func testDAISInterconnectTemplatePartnerScript() {
+    let template = DAISInterconnectTemplate(projectID: "my-project", region: "us-central1")
+    let script = template.partnerInterconnectSetupScript(
+        network: "prod-network",
+        attachmentName: "partner-attachment"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("gcloud compute routers create partner-router"))
+    #expect(script.contains("attachments partner create partner-attachment"))
+    #expect(script.contains("pairingKey"))
+}
+
+@Test func testInterconnectCodable() throws {
+    let interconnect = GoogleCloudInterconnect(
+        name: "test-ic",
+        projectID: "my-project",
+        location: "lax-loa9-1",
+        interconnectType: .dedicated,
+        linkType: .linkTypeEthernet10gLr
+    )
+
+    let data = try JSONEncoder().encode(interconnect)
+    let decoded = try JSONDecoder().decode(GoogleCloudInterconnect.self, from: data)
+
+    #expect(decoded.name == "test-ic")
+    #expect(decoded.interconnectType == .dedicated)
+}
+
+@Test func testInterconnectAttachmentCodable() throws {
+    let attachment = GoogleCloudInterconnectAttachment(
+        name: "vlan-100",
+        projectID: "my-project",
+        region: "us-central1",
+        router: "my-router",
+        bandwidth: .bps10g,
+        vlanTag8021q: 100
+    )
+
+    let data = try JSONEncoder().encode(attachment)
+    let decoded = try JSONDecoder().decode(GoogleCloudInterconnectAttachment.self, from: data)
+
+    #expect(decoded.name == "vlan-100")
+    #expect(decoded.vlanTag8021q == 100)
+    #expect(decoded.bandwidth == .bps10g)
+}
+
+@Test func testPartnerMetadataCodable() throws {
+    let metadata = GoogleCloudInterconnectAttachment.PartnerMetadata(
+        partnerName: "Megaport",
+        interconnectName: "megaport-ic",
+        portalUrl: "https://portal.megaport.com"
+    )
+
+    let data = try JSONEncoder().encode(metadata)
+    let decoded = try JSONDecoder().decode(GoogleCloudInterconnectAttachment.PartnerMetadata.self, from: data)
+
+    #expect(decoded.partnerName == "Megaport")
+    #expect(decoded.portalUrl == "https://portal.megaport.com")
+}
