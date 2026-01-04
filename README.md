@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 56 Google Cloud services:
+GoogleCloudSwift provides models for 57 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -136,6 +136,7 @@ GoogleCloudSwift provides models for 56 Google Cloud services:
 | **Certificate Authority Service** | Private CA management | `GoogleCloudCaPool`, `GoogleCloudCertificateAuthority`, `GoogleCloudCertificate`, `DAISCertificateAuthorityTemplate` |
 | **Network Intelligence Center** | Network monitoring and diagnostics | `GoogleCloudConnectivityTest`, `Endpoint`, `GoogleCloudNetworkTopology`, `DAISNetworkIntelligenceTemplate` |
 | **Cloud Interconnect** | Dedicated and partner network connections | `GoogleCloudInterconnect`, `GoogleCloudInterconnectAttachment`, `GoogleCloudRouterForInterconnect`, `DAISInterconnectTemplate` |
+| **Cloud Healthcare API** | Healthcare data storage (FHIR, HL7v2, DICOM) | `GoogleCloudHealthcareDataset`, `GoogleCloudFHIRStore`, `GoogleCloudDICOMStore`, `DAISHealthcareTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -7456,6 +7457,217 @@ print(template.partnerInterconnectSetupScript(
 | 10 Gbps | `.bps10g` | High-bandwidth applications |
 | 50 Gbps | `.bps50g` | Data-intensive workloads |
 
+### GoogleCloudHealthcareDataset (Cloud Healthcare API)
+
+Cloud Healthcare API provides HIPAA-compliant storage and processing for healthcare data in FHIR, HL7v2, and DICOM formats:
+
+```swift
+// Create a healthcare dataset
+let dataset = GoogleCloudHealthcareDataset(
+    name: "clinical-data",
+    projectID: "my-project",
+    location: "us-central1",
+    timeZone: "America/Los_Angeles"
+)
+
+print(dataset.createCommand)
+print(dataset.resourceName)
+```
+
+**FHIR Store (Fast Healthcare Interoperability Resources):**
+
+```swift
+// Create an R4 FHIR store with BigQuery streaming
+let fhirStore = GoogleCloudFHIRStore(
+    name: "patient-records",
+    dataset: "clinical-data",
+    projectID: "my-project",
+    location: "us-central1",
+    version: .r4,
+    enableUpdateCreate: true,
+    streamConfigs: [
+        .init(
+            bigQueryDestination: .init(
+                datasetUri: "bq://my-project.healthcare_analytics",
+                schemaConfig: .init(schemaType: .analyticsV2, recursiveStructureDepth: 3)
+            ),
+            resourceTypes: ["Patient", "Observation", "Condition"]
+        )
+    ]
+)
+
+print(fhirStore.createCommand)
+print(fhirStore.fhirEndpoint)
+```
+
+**FHIR Operations:**
+
+```swift
+let ops = FHIROperations(store: fhirStore)
+
+// Read a patient resource
+print(ops.readCommand(resourceType: .patient, resourceID: "12345"))
+
+// Search for patients by name
+print(ops.searchCommand(resourceType: .patient, parameters: ["name": "Smith"]))
+
+// Create a new patient
+print(ops.createCommand(resourceType: .patient, dataFile: "patient.json"))
+
+// Bulk export
+print(ops.bulkExportCommand)
+```
+
+**HL7v2 Store:**
+
+```swift
+// Create an HL7v2 store with Pub/Sub notifications
+let hl7Store = GoogleCloudHL7v2Store(
+    name: "hl7-messages",
+    dataset: "clinical-data",
+    projectID: "my-project",
+    location: "us-central1",
+    parserConfig: .init(version: .v3),
+    notificationConfigs: [
+        .init(pubsubTopic: "projects/my-project/topics/hl7-events")
+    ]
+)
+
+print(hl7Store.createCommand)
+print(hl7Store.resourceName)
+```
+
+**DICOM Store (Medical Imaging):**
+
+```swift
+// Create a DICOM store for radiology images
+let dicomStore = GoogleCloudDICOMStore(
+    name: "radiology-images",
+    dataset: "imaging-data",
+    projectID: "my-project",
+    location: "us-central1",
+    notificationConfig: .init(
+        pubsubTopic: "projects/my-project/topics/dicom-events"
+    )
+)
+
+print(dicomStore.createCommand)
+print(dicomStore.dicomWebEndpoint)
+```
+
+**Consent Store:**
+
+```swift
+// Create a consent store for patient consent management
+let consentStore = GoogleCloudConsentStore(
+    name: "patient-consents",
+    dataset: "clinical-data",
+    projectID: "my-project",
+    location: "us-central1",
+    enableConsentCreateOnUpdate: true,
+    defaultConsentTtl: "31536000s" // 1 year
+)
+
+print(consentStore.createCommand)
+```
+
+**Healthcare Operations:**
+
+```swift
+let healthOps = HealthcareOperations(projectID: "my-project", location: "us-central1")
+
+// Enable API
+print(healthOps.enableAPICommand)
+
+// List stores
+print(healthOps.listFHIRStoresCommand(dataset: "clinical-data"))
+print(healthOps.listDICOMStoresCommand(dataset: "imaging-data"))
+
+// Import/export FHIR data
+print(healthOps.importFHIRCommand(
+    dataset: "clinical-data",
+    fhirStore: "patient-records",
+    gcsUri: "gs://my-bucket/fhir-bundles/*",
+    contentStructure: "BUNDLE"
+))
+
+print(healthOps.exportFHIRCommand(
+    dataset: "clinical-data",
+    fhirStore: "patient-records",
+    gcsUri: "gs://my-bucket/export/"
+))
+
+// De-identify dataset
+print(healthOps.deidentifyDatasetCommand(
+    sourceDataset: "clinical-data",
+    destinationDataset: "deidentified-data"
+))
+
+// Add IAM binding
+print(healthOps.addIAMBindingCommand(
+    member: "user:doctor@example.com",
+    role: .healthcareFhirResourceReader,
+    dataset: "clinical-data"
+))
+```
+
+**DAIS Healthcare Template:**
+
+```swift
+let template = DAISHealthcareTemplate(projectID: "my-project", location: "us-central1")
+
+// Create dataset
+let dataset = template.dataset(name: "ehr-data", timeZone: "America/Chicago")
+
+// Create FHIR R4 store with BigQuery streaming
+let fhirStore = template.fhirStoreR4(
+    name: "patient-records",
+    dataset: "ehr-data",
+    bigQueryDataset: "healthcare_analytics"
+)
+
+// Create HL7v2 store
+let hl7Store = template.hl7v2Store(
+    name: "hl7-messages",
+    dataset: "ehr-data",
+    pubsubTopic: "projects/my-project/topics/hl7-events"
+)
+
+// Create DICOM store
+let dicomStore = template.dicomStore(
+    name: "imaging",
+    dataset: "ehr-data"
+)
+
+// Generate setup script
+print(template.setupScript(
+    datasetName: "ehr-data",
+    fhirStoreName: "patient-records",
+    dicomStoreName: "imaging",
+    hl7v2StoreName: "hl7-messages"
+))
+
+// Generate FHIR bulk import script
+print(template.fhirBulkImportScript(
+    dataset: "ehr-data",
+    fhirStore: "patient-records",
+    gcsUri: "gs://my-bucket/synthea-data/*.json"
+))
+```
+
+**FHIR Resource Types:**
+
+| Resource | Type | Description |
+|----------|------|-------------|
+| Patient | `.patient` | Patient demographics |
+| Observation | `.observation` | Clinical measurements |
+| Condition | `.condition` | Diagnoses and problems |
+| MedicationRequest | `.medicationRequest` | Prescriptions |
+| Procedure | `.procedure` | Clinical procedures |
+| Encounter | `.encounter` | Patient visits |
+| Immunization | `.immunization` | Vaccination records |
+| DiagnosticReport | `.diagnosticReport` | Lab and imaging reports |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -9070,6 +9282,16 @@ MIT License
 - [Interconnect Locations](https://cloud.google.com/network-connectivity/docs/interconnect/concepts/choosing-colocation-facilities)
 - [Cloud Router for Interconnect](https://cloud.google.com/network-connectivity/docs/router/concepts/overview)
 - [BGP Sessions](https://cloud.google.com/network-connectivity/docs/router/concepts/overview#bgp-sessions)
+
+### Cloud Healthcare API
+- [Cloud Healthcare API Documentation](https://cloud.google.com/healthcare-api/docs)
+- [FHIR Overview](https://cloud.google.com/healthcare-api/docs/concepts/fhir)
+- [HL7v2 Overview](https://cloud.google.com/healthcare-api/docs/concepts/hl7v2)
+- [DICOM Overview](https://cloud.google.com/healthcare-api/docs/concepts/dicom)
+- [Consent Management](https://cloud.google.com/healthcare-api/docs/concepts/consent)
+- [De-identification](https://cloud.google.com/healthcare-api/docs/how-tos/deidentify)
+- [BigQuery Streaming](https://cloud.google.com/healthcare-api/docs/how-tos/fhir-bigquery-streaming)
+- [Healthcare API Reference](https://cloud.google.com/healthcare-api/docs/reference/rest)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)
