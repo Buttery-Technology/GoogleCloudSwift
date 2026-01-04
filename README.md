@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 55 Google Cloud services:
+GoogleCloudSwift provides models for 56 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -135,6 +135,7 @@ GoogleCloudSwift provides models for 55 Google Cloud services:
 | **Binary Authorization** | Container image security | `GoogleCloudBinaryAuthorizationPolicy`, `GoogleCloudAttestor`, `AdmissionRule`, `DAISBinaryAuthorizationTemplate` |
 | **Certificate Authority Service** | Private CA management | `GoogleCloudCaPool`, `GoogleCloudCertificateAuthority`, `GoogleCloudCertificate`, `DAISCertificateAuthorityTemplate` |
 | **Network Intelligence Center** | Network monitoring and diagnostics | `GoogleCloudConnectivityTest`, `Endpoint`, `GoogleCloudNetworkTopology`, `DAISNetworkIntelligenceTemplate` |
+| **Cloud Interconnect** | Dedicated and partner network connections | `GoogleCloudInterconnect`, `GoogleCloudInterconnectAttachment`, `GoogleCloudRouterForInterconnect`, `DAISInterconnectTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -7229,6 +7230,232 @@ print(template.connectivityTestingScript)
 | Cloud Function | `.cloudFunction(uri:)` | Function invocations |
 | Cloud Run | `.cloudRun(uri:)` | Cloud Run services |
 
+### GoogleCloudInterconnect (Cloud Interconnect API)
+
+Cloud Interconnect provides dedicated and partner network connections between your on-premises network and Google Cloud:
+
+```swift
+// Create a dedicated interconnect
+let interconnect = GoogleCloudInterconnect(
+    name: "dc-interconnect-lax",
+    projectID: "my-project",
+    description: "Los Angeles datacenter connection",
+    location: "lax-loa9-1",
+    interconnectType: .dedicated,
+    linkType: .linkTypeEthernet10gLr,
+    requestedLinkCount: 2,
+    adminEnabled: true,
+    nocContactEmail: "noc@example.com",
+    customerName: "Example Corp"
+)
+
+print(interconnect.createCommand)
+print(interconnect.describeCommand)
+```
+
+**Creating Cloud Router for Interconnect:**
+
+```swift
+// Create a Cloud Router for BGP sessions
+let router = GoogleCloudRouterForInterconnect(
+    name: "ic-router",
+    projectID: "my-project",
+    region: "us-central1",
+    network: "prod-network",
+    asn: 16550,
+    bgpKeepaliveInterval: 20,
+    advertisedGroups: [.allSubnets]
+)
+
+print(router.createCommand)
+
+// Add interface for VLAN attachment
+print(router.addInterfaceCommand(
+    interfaceName: "if-0",
+    interconnectAttachment: "vlan-100",
+    ipRange: "169.254.1.1/30"
+))
+
+// Add BGP peer for on-premises router
+print(router.addBgpPeerCommand(
+    peerName: "on-prem-peer",
+    peerAsn: 65000,
+    interface: "if-0",
+    peerIpAddress: "169.254.1.2"
+))
+```
+
+**Dedicated Interconnect Attachments:**
+
+```swift
+// Create VLAN attachment for zone A (high availability)
+let attachmentA = GoogleCloudInterconnectAttachment(
+    name: "vlan-100-a",
+    projectID: "my-project",
+    region: "us-central1",
+    description: "Zone A attachment",
+    interconnect: "dc-interconnect-lax",
+    router: "ic-router",
+    attachmentType: .dedicated,
+    edgeAvailabilityDomain: .availabilityDomain1,
+    bandwidth: .bps10g,
+    vlanTag8021q: 100,
+    mtu: 1500,
+    adminEnabled: true
+)
+
+print(attachmentA.createDedicatedCommand)
+
+// Create matching attachment for zone B
+let attachmentB = GoogleCloudInterconnectAttachment(
+    name: "vlan-100-b",
+    projectID: "my-project",
+    region: "us-central1",
+    description: "Zone B attachment",
+    interconnect: "dc-interconnect-lax-2",
+    router: "ic-router",
+    attachmentType: .dedicated,
+    edgeAvailabilityDomain: .availabilityDomain2,
+    bandwidth: .bps10g,
+    vlanTag8021q: 100,
+    adminEnabled: true
+)
+```
+
+**Partner Interconnect:**
+
+```swift
+// Create partner interconnect attachment
+let partnerAttachment = GoogleCloudInterconnectAttachment(
+    name: "partner-attachment",
+    projectID: "my-project",
+    region: "us-central1",
+    router: "partner-router",
+    attachmentType: .partner,
+    edgeAvailabilityDomain: .availabilityDomainAny,
+    adminEnabled: true
+)
+
+print(partnerAttachment.createPartnerCommand)
+// Returns pairing key to share with connectivity partner
+print(partnerAttachment.describeCommand)
+```
+
+**Cross-Cloud Interconnect:**
+
+```swift
+// Connect to AWS
+let awsInterconnect = GoogleCloudCrossCloudInterconnect(
+    name: "gcp-to-aws",
+    projectID: "my-project",
+    description: "Connection to AWS us-west-2",
+    location: "lax-loa9-1",
+    remoteCloudProvider: .aws,
+    remoteCloud: .init(
+        remoteService: "Direct Connect",
+        remoteLocation: "us-west-2",
+        remoteAccountId: "123456789012"
+    ),
+    requestedLinkCount: 1
+)
+
+// Connect to Azure
+let azureInterconnect = GoogleCloudCrossCloudInterconnect(
+    name: "gcp-to-azure",
+    projectID: "my-project",
+    location: "ord-zone1-1",
+    remoteCloudProvider: .azure,
+    remoteCloud: .init(
+        remoteLocation: "eastus2"
+    )
+)
+```
+
+**Interconnect Operations:**
+
+```swift
+let ops = InterconnectOperations(projectID: "my-project")
+
+// Enable API
+print(ops.enableAPICommand)
+
+// List interconnects and attachments
+print(ops.listInterconnectsCommand)
+print(ops.listAttachmentsCommand(region: "us-central1"))
+
+// List available locations
+print(ops.listLocationsCommand)
+print(ops.describeLocationCommand(location: "lax-loa9-1"))
+
+// Get diagnostics
+print(ops.getDiagnosticsCommand(interconnect: "dc-interconnect"))
+```
+
+**DAIS Interconnect Template:**
+
+```swift
+let template = DAISInterconnectTemplate(projectID: "my-project", region: "us-central1")
+
+// Create dedicated interconnect
+let interconnect = template.dedicatedInterconnect(
+    name: "dc-interconnect",
+    location: "lax-loa9-1",
+    linkType: .linkTypeEthernet10gLr,
+    linkCount: 2,
+    nocEmail: "noc@example.com",
+    customerName: "Example Corp"
+)
+
+// Create Cloud Router
+let router = template.interconnectRouter(
+    name: "ic-router",
+    network: "prod-network",
+    asn: 16550
+)
+
+// Create HA attachments
+let attachmentA = template.dedicatedAttachmentZoneA(
+    name: "vlan-100-a",
+    interconnect: "dc-interconnect",
+    router: "ic-router",
+    vlanTag: 100
+)
+
+let attachmentB = template.dedicatedAttachmentZoneB(
+    name: "vlan-100-b",
+    interconnect: "dc-interconnect-2",
+    router: "ic-router",
+    vlanTag: 100
+)
+
+// Generate HA setup script
+print(template.haInterconnectSetupScript(
+    interconnect1: "ic-metro1",
+    interconnect2: "ic-metro2",
+    location1: "lax-loa9-1",
+    location2: "sfo-zone1-1",
+    network: "prod-network",
+    nocEmail: "noc@example.com",
+    customerName: "Example Corp"
+))
+
+// Generate partner interconnect script
+print(template.partnerInterconnectSetupScript(
+    network: "prod-network",
+    attachmentName: "partner-attachment"
+))
+```
+
+**Bandwidth Options:**
+
+| Bandwidth | Value | Use Case |
+|-----------|-------|----------|
+| 50 Mbps | `.bps50m` | Light workloads |
+| 100 Mbps | `.bps100m` | Small applications |
+| 1 Gbps | `.bps1g` | Standard workloads |
+| 10 Gbps | `.bps10g` | High-bandwidth applications |
+| 50 Gbps | `.bps50g` | Data-intensive workloads |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -8833,6 +9060,16 @@ MIT License
 - [Firewall Insights](https://cloud.google.com/network-intelligence-center/docs/firewall-insights/concepts/overview)
 - [Performance Dashboard](https://cloud.google.com/network-intelligence-center/docs/performance-dashboard/concepts/overview)
 - [Network Management API](https://cloud.google.com/network-intelligence-center/docs/connectivity-tests/reference/networkmanagement/rest)
+
+### Cloud Interconnect
+- [Cloud Interconnect Documentation](https://cloud.google.com/network-connectivity/docs/interconnect)
+- [Dedicated Interconnect Overview](https://cloud.google.com/network-connectivity/docs/interconnect/concepts/dedicated-overview)
+- [Partner Interconnect Overview](https://cloud.google.com/network-connectivity/docs/interconnect/concepts/partner-overview)
+- [Cross-Cloud Interconnect](https://cloud.google.com/network-connectivity/docs/interconnect/concepts/cross-cloud-overview)
+- [HA VPN and Interconnect](https://cloud.google.com/network-connectivity/docs/interconnect/concepts/ha-interconnect)
+- [Interconnect Locations](https://cloud.google.com/network-connectivity/docs/interconnect/concepts/choosing-colocation-facilities)
+- [Cloud Router for Interconnect](https://cloud.google.com/network-connectivity/docs/router/concepts/overview)
+- [BGP Sessions](https://cloud.google.com/network-connectivity/docs/router/concepts/overview#bgp-sessions)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)
