@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 27 Google Cloud services:
+GoogleCloudSwift provides models for 28 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -112,6 +112,7 @@ GoogleCloudSwift provides models for 27 Google Cloud services:
 | **Cloud KMS** | Key management service | `GoogleCloudKeyRing`, `GoogleCloudCryptoKey`, `GoogleCloudCryptoKeyVersion` |
 | **Eventarc** | Event-driven architecture | `GoogleCloudEventarcTrigger`, `GoogleCloudEventarcChannel`, `GoogleCloudEventType` |
 | **Memorystore** | Managed Redis & Memcached | `GoogleCloudRedisInstance`, `GoogleCloudMemcachedInstance` |
+| **VPC Service Controls** | Data exfiltration prevention | `GoogleCloudAccessPolicy`, `GoogleCloudServicePerimeter`, `GoogleCloudAccessLevel` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -3516,6 +3517,89 @@ let script = DAISMemorystoreTemplate.setupScript(
 )
 ```
 
+### GoogleCloudServicePerimeter (VPC Service Controls)
+
+Prevent data exfiltration with VPC Service Controls:
+
+```swift
+// Create an access policy for your organization
+let policy = GoogleCloudAccessPolicy(
+    name: "my-policy",
+    organizationID: "org-123456789",
+    title: "Production Security Policy"
+)
+print(policy.createCommand)
+
+// Create an access level for corporate networks
+let accessLevel = GoogleCloudAccessLevel(
+    name: "corporate-network",
+    policyID: "123456789",
+    title: "Corporate Network Access",
+    basic: GoogleCloudAccessLevel.BasicLevel(
+        conditions: [
+            GoogleCloudAccessLevel.BasicLevel.Condition(
+                ipSubnetworks: ["10.0.0.0/8", "172.16.0.0/12"]
+            )
+        ]
+    )
+)
+print(accessLevel.createCommand)
+
+// Create a service perimeter to protect data
+let perimeter = GoogleCloudServicePerimeter(
+    name: "data-protection",
+    policyID: "123456789",
+    title: "Data Protection Perimeter",
+    resources: ["projects/123456789012"],
+    restrictedServices: RestrictedServices.dataStorage,
+    accessLevels: ["corporate-network"],
+    vpcAccessibleServices: GoogleCloudServicePerimeter.VPCAccessibleServices(
+        enableRestriction: true,
+        allowedServices: ["RESTRICTED-SERVICES"]
+    )
+)
+print(perimeter.createCommand)
+
+// Create a bridge perimeter for cross-project access
+let bridge = GoogleCloudServicePerimeter(
+    name: "project-bridge",
+    policyID: "123456789",
+    title: "Project Bridge",
+    perimeterType: .bridge,
+    resources: ["projects/123", "projects/456"]
+)
+```
+
+**Predefined Restricted Services:**
+
+```swift
+// Use predefined service lists
+let dataServices = RestrictedServices.dataStorage  // Storage, BigQuery, Spanner, etc.
+let aiServices = RestrictedServices.aiML           // Vertex AI, Vision, Speech, etc.
+let allServices = RestrictedServices.allCommon     // All commonly restricted services
+```
+
+**DAIS VPC-SC Templates:**
+
+```swift
+// Create comprehensive protection for DAIS
+let protectionPerimeter = DAISVPCServiceControlsTemplate.comprehensivePerimeter(
+    policyID: "policy-123",
+    deploymentName: "dais-prod",
+    projectNumbers: ["123456789"],
+    allowBigQueryExport: true
+)
+
+// Setup script for VPC Service Controls
+let script = DAISVPCServiceControlsTemplate.setupScript(
+    organizationID: "org-123",
+    projectID: "my-project",
+    projectNumber: "123456789",
+    deploymentName: "dais-prod",
+    corporateCIDRs: ["10.0.0.0/8"]
+)
+```
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -4149,6 +4233,12 @@ MIT License
 - [Memorystore for Redis Documentation](https://cloud.google.com/memorystore/docs/redis)
 - [Memorystore for Memcached Documentation](https://cloud.google.com/memorystore/docs/memcached)
 - [Redis Best Practices](https://cloud.google.com/memorystore/docs/redis/memory-management-best-practices)
+
+### VPC Service Controls
+- [VPC Service Controls Overview](https://cloud.google.com/vpc-service-controls/docs/overview)
+- [Service Perimeters](https://cloud.google.com/vpc-service-controls/docs/service-perimeters)
+- [Access Levels](https://cloud.google.com/vpc-service-controls/docs/access-levels)
+- [Ingress and Egress Rules](https://cloud.google.com/vpc-service-controls/docs/ingress-egress-rules)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
