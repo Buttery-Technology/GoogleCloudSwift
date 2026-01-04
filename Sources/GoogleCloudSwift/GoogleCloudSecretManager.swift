@@ -70,7 +70,12 @@ public struct GoogleCloudSecret: Codable, Sendable, Equatable {
 
     /// gcloud CLI command to create this secret
     public var createCommand: String {
-        "gcloud secrets create \(name) --project=\(projectID) --replication-policy=\(replication.rawValue)"
+        var cmd = "gcloud secrets create \(name) --project=\(projectID) --replication-policy=\(replication.rawValue)"
+        if !labels.isEmpty {
+            let labelPairs = labels.map { "\($0.key)=\($0.value)" }.joined(separator: ",")
+            cmd += " --labels=\(labelPairs)"
+        }
+        return cmd
     }
 
     /// gcloud CLI command to access this secret
@@ -222,8 +227,11 @@ public enum DAISSecretTemplate {
 
 /// IAM role bindings for Secret Manager
 public struct SecretManagerIAMBinding: Codable, Sendable, Equatable {
-    /// The secret resource name
-    public let secretResourceName: String
+    /// The secret name
+    public let secretName: String
+
+    /// The project ID
+    public let projectID: String
 
     /// The IAM role to grant
     public let role: SecretManagerRole
@@ -232,18 +240,37 @@ public struct SecretManagerIAMBinding: Codable, Sendable, Equatable {
     public let member: String
 
     public init(
-        secretResourceName: String,
+        secretName: String,
+        projectID: String,
         role: SecretManagerRole,
         member: String
     ) {
-        self.secretResourceName = secretResourceName
+        self.secretName = secretName
+        self.projectID = projectID
         self.role = role
         self.member = member
     }
 
+    /// Convenience initializer from a GoogleCloudSecret
+    public init(
+        secret: GoogleCloudSecret,
+        role: SecretManagerRole,
+        member: String
+    ) {
+        self.secretName = secret.name
+        self.projectID = secret.projectID
+        self.role = role
+        self.member = member
+    }
+
+    /// Full resource name for the secret
+    public var secretResourceName: String {
+        "projects/\(projectID)/secrets/\(secretName)"
+    }
+
     /// gcloud command to add this IAM binding
     public var addBindingCommand: String {
-        "gcloud secrets add-iam-policy-binding \(secretResourceName) --member=\(member) --role=\(role.rawValue)"
+        "gcloud secrets add-iam-policy-binding \(secretName) --project=\(projectID) --member=\(member) --role=\(role.rawValue)"
     }
 
     /// Secret Manager IAM roles
