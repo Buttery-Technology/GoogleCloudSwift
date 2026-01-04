@@ -20459,3 +20459,700 @@ import Testing
     #expect(decoded.count == 100)
     #expect(decoded.affectedUsersCount == 10)
 }
+
+// MARK: - Cloud Bigtable Tests
+
+@Test func testBigtableInstanceBasic() {
+    let instance = GoogleCloudBigtableInstance(
+        name: "my-instance",
+        projectID: "my-project",
+        displayName: "My Instance"
+    )
+
+    #expect(instance.name == "my-instance")
+    #expect(instance.projectID == "my-project")
+    #expect(instance.displayName == "My Instance")
+    #expect(instance.instanceType == .production)
+}
+
+@Test func testBigtableInstanceDevelopment() {
+    let instance = GoogleCloudBigtableInstance(
+        name: "dev-instance",
+        projectID: "my-project",
+        displayName: "Dev Instance",
+        instanceType: .development
+    )
+
+    #expect(instance.instanceType == .development)
+}
+
+@Test func testBigtableInstanceResourceName() {
+    let instance = GoogleCloudBigtableInstance(
+        name: "my-instance",
+        projectID: "my-project",
+        displayName: "My Instance"
+    )
+
+    #expect(instance.resourceName == "projects/my-project/instances/my-instance")
+}
+
+@Test func testBigtableInstanceCreateCommand() {
+    let instance = GoogleCloudBigtableInstance(
+        name: "my-instance",
+        projectID: "my-project",
+        displayName: "My Instance"
+    )
+
+    let cmd = instance.createCommand(clusterID: "cluster-1", zone: "us-central1-a", numNodes: 3)
+    #expect(cmd.contains("gcloud bigtable instances create my-instance"))
+    #expect(cmd.contains("--cluster=cluster-1"))
+    #expect(cmd.contains("--cluster-zone=us-central1-a"))
+    #expect(cmd.contains("--cluster-num-nodes=3"))
+}
+
+@Test func testBigtableInstanceDevCreateCommand() {
+    let instance = GoogleCloudBigtableInstance(
+        name: "dev-instance",
+        projectID: "my-project",
+        displayName: "Dev Instance",
+        instanceType: .development
+    )
+
+    let cmd = instance.createCommand(clusterID: "cluster-1", zone: "us-central1-a")
+    #expect(cmd.contains("--instance-type=DEVELOPMENT"))
+    #expect(!cmd.contains("--cluster-num-nodes"))
+}
+
+@Test func testBigtableInstanceDescribeCommand() {
+    let instance = GoogleCloudBigtableInstance(
+        name: "my-instance",
+        projectID: "my-project",
+        displayName: "My Instance"
+    )
+
+    #expect(instance.describeCommand == "gcloud bigtable instances describe my-instance --project=my-project")
+}
+
+@Test func testBigtableInstanceDeleteCommand() {
+    let instance = GoogleCloudBigtableInstance(
+        name: "my-instance",
+        projectID: "my-project",
+        displayName: "My Instance"
+    )
+
+    #expect(instance.deleteCommand == "gcloud bigtable instances delete my-instance --project=my-project")
+}
+
+@Test func testBigtableInstanceListCommand() {
+    let cmd = GoogleCloudBigtableInstance.listCommand(projectID: "my-project")
+    #expect(cmd == "gcloud bigtable instances list --project=my-project")
+}
+
+@Test func testBigtableInstanceTypes() {
+    #expect(GoogleCloudBigtableInstance.InstanceType.production.rawValue == "PRODUCTION")
+    #expect(GoogleCloudBigtableInstance.InstanceType.development.rawValue == "DEVELOPMENT")
+}
+
+@Test func testBigtableInstanceStates() {
+    #expect(GoogleCloudBigtableInstance.InstanceState.ready.rawValue == "READY")
+    #expect(GoogleCloudBigtableInstance.InstanceState.creating.rawValue == "CREATING")
+    #expect(GoogleCloudBigtableInstance.InstanceState.stateNotKnown.rawValue == "STATE_NOT_KNOWN")
+}
+
+@Test func testBigtableClusterBasic() {
+    let cluster = GoogleCloudBigtableCluster(
+        name: "cluster-1",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        zone: "us-central1-a"
+    )
+
+    #expect(cluster.name == "cluster-1")
+    #expect(cluster.instanceID == "my-instance")
+    #expect(cluster.zone == "us-central1-a")
+    #expect(cluster.storageType == .ssd)
+}
+
+@Test func testBigtableClusterHDD() {
+    let cluster = GoogleCloudBigtableCluster(
+        name: "cluster-1",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        zone: "us-central1-a",
+        storageType: .hdd
+    )
+
+    #expect(cluster.storageType == .hdd)
+}
+
+@Test func testBigtableClusterResourceName() {
+    let cluster = GoogleCloudBigtableCluster(
+        name: "cluster-1",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        zone: "us-central1-a"
+    )
+
+    #expect(cluster.resourceName == "projects/my-project/instances/my-instance/clusters/cluster-1")
+}
+
+@Test func testBigtableClusterCreateCommand() {
+    let cluster = GoogleCloudBigtableCluster(
+        name: "cluster-1",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        zone: "us-central1-a"
+    )
+
+    let cmd = cluster.createCommand(numNodes: 5)
+    #expect(cmd.contains("gcloud bigtable clusters create cluster-1"))
+    #expect(cmd.contains("--instance=my-instance"))
+    #expect(cmd.contains("--zone=us-central1-a"))
+    #expect(cmd.contains("--num-nodes=5"))
+    #expect(cmd.contains("--storage-type=SSD"))
+}
+
+@Test func testBigtableClusterUpdateCommand() {
+    let cluster = GoogleCloudBigtableCluster(
+        name: "cluster-1",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        zone: "us-central1-a"
+    )
+
+    let cmd = cluster.updateCommand(numNodes: 10)
+    #expect(cmd.contains("gcloud bigtable clusters update cluster-1"))
+    #expect(cmd.contains("--num-nodes=10"))
+}
+
+@Test func testBigtableClusterDescribeCommand() {
+    let cluster = GoogleCloudBigtableCluster(
+        name: "cluster-1",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        zone: "us-central1-a"
+    )
+
+    #expect(cluster.describeCommand == "gcloud bigtable clusters describe cluster-1 --instance=my-instance --project=my-project")
+}
+
+@Test func testBigtableClusterDeleteCommand() {
+    let cluster = GoogleCloudBigtableCluster(
+        name: "cluster-1",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        zone: "us-central1-a"
+    )
+
+    #expect(cluster.deleteCommand == "gcloud bigtable clusters delete cluster-1 --instance=my-instance --project=my-project")
+}
+
+@Test func testBigtableClusterListCommand() {
+    let cmd = GoogleCloudBigtableCluster.listCommand(projectID: "my-project", instanceID: "my-instance")
+    #expect(cmd == "gcloud bigtable clusters list --instances=my-instance --project=my-project")
+}
+
+@Test func testBigtableClusterStorageTypes() {
+    #expect(GoogleCloudBigtableCluster.StorageType.ssd.rawValue == "SSD")
+    #expect(GoogleCloudBigtableCluster.StorageType.hdd.rawValue == "HDD")
+}
+
+@Test func testBigtableClusterStates() {
+    #expect(GoogleCloudBigtableCluster.ClusterState.ready.rawValue == "READY")
+    #expect(GoogleCloudBigtableCluster.ClusterState.creating.rawValue == "CREATING")
+    #expect(GoogleCloudBigtableCluster.ClusterState.resizing.rawValue == "RESIZING")
+    #expect(GoogleCloudBigtableCluster.ClusterState.disabled.rawValue == "DISABLED")
+}
+
+@Test func testBigtableTableBasic() {
+    let table = GoogleCloudBigtableTable(
+        name: "my-table",
+        projectID: "my-project",
+        instanceID: "my-instance"
+    )
+
+    #expect(table.name == "my-table")
+    #expect(table.projectID == "my-project")
+    #expect(table.instanceID == "my-instance")
+}
+
+@Test func testBigtableTableWithColumnFamilies() {
+    let table = GoogleCloudBigtableTable(
+        name: "my-table",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        columnFamilies: ["cf1", "cf2", "cf3"]
+    )
+
+    #expect(table.columnFamilies?.count == 3)
+}
+
+@Test func testBigtableTableResourceName() {
+    let table = GoogleCloudBigtableTable(
+        name: "my-table",
+        projectID: "my-project",
+        instanceID: "my-instance"
+    )
+
+    #expect(table.resourceName == "projects/my-project/instances/my-instance/tables/my-table")
+}
+
+@Test func testBigtableTableCreateCommand() {
+    let table = GoogleCloudBigtableTable(
+        name: "my-table",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        columnFamilies: ["cf1", "cf2"]
+    )
+
+    let cmd = table.createCommand
+    #expect(cmd.contains("cbt -project=my-project -instance=my-instance createtable my-table"))
+    #expect(cmd.contains("families=cf1,cf2"))
+}
+
+@Test func testBigtableTableDescribeCommand() {
+    let table = GoogleCloudBigtableTable(
+        name: "my-table",
+        projectID: "my-project",
+        instanceID: "my-instance"
+    )
+
+    #expect(table.describeCommand == "cbt -project=my-project -instance=my-instance ls my-table")
+}
+
+@Test func testBigtableTableDeleteCommand() {
+    let table = GoogleCloudBigtableTable(
+        name: "my-table",
+        projectID: "my-project",
+        instanceID: "my-instance"
+    )
+
+    #expect(table.deleteCommand == "cbt -project=my-project -instance=my-instance deletetable my-table")
+}
+
+@Test func testBigtableTableListCommand() {
+    let cmd = GoogleCloudBigtableTable.listCommand(projectID: "my-project", instanceID: "my-instance")
+    #expect(cmd == "cbt -project=my-project -instance=my-instance ls")
+}
+
+@Test func testBigtableTableAddColumnFamilyCommand() {
+    let table = GoogleCloudBigtableTable(
+        name: "my-table",
+        projectID: "my-project",
+        instanceID: "my-instance"
+    )
+
+    let cmd = table.addColumnFamilyCommand(family: "new-cf", maxVersions: 5)
+    #expect(cmd.contains("cbt -project=my-project -instance=my-instance createfamily my-table new-cf"))
+    #expect(cmd.contains("maxversions:5"))
+}
+
+@Test func testBigtableTableReadCommand() {
+    let table = GoogleCloudBigtableTable(
+        name: "my-table",
+        projectID: "my-project",
+        instanceID: "my-instance"
+    )
+
+    let cmd = table.readCommand(prefix: "user#", limit: 10)
+    #expect(cmd.contains("cbt -project=my-project -instance=my-instance read my-table"))
+    #expect(cmd.contains("prefix=user#"))
+    #expect(cmd.contains("count=10"))
+}
+
+@Test func testBigtableTableGranularity() {
+    #expect(GoogleCloudBigtableTable.Granularity.millis.rawValue == "MILLIS")
+    #expect(GoogleCloudBigtableTable.Granularity.timestampGranularityUnspecified.rawValue == "TIMESTAMP_GRANULARITY_UNSPECIFIED")
+}
+
+@Test func testBigtableBackupBasic() {
+    let backup = GoogleCloudBigtableBackup(
+        name: "my-backup",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        clusterID: "cluster-1",
+        sourceTable: "my-table"
+    )
+
+    #expect(backup.name == "my-backup")
+    #expect(backup.sourceTable == "my-table")
+    #expect(backup.clusterID == "cluster-1")
+}
+
+@Test func testBigtableBackupResourceName() {
+    let backup = GoogleCloudBigtableBackup(
+        name: "my-backup",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        clusterID: "cluster-1",
+        sourceTable: "my-table"
+    )
+
+    #expect(backup.resourceName == "projects/my-project/instances/my-instance/clusters/cluster-1/backups/my-backup")
+}
+
+@Test func testBigtableBackupCreateCommand() {
+    let backup = GoogleCloudBigtableBackup(
+        name: "my-backup",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        clusterID: "cluster-1",
+        sourceTable: "my-table"
+    )
+
+    let cmd = backup.createCommand(expireDays: 7)
+    #expect(cmd.contains("gcloud bigtable backups create my-backup"))
+    #expect(cmd.contains("--instance=my-instance"))
+    #expect(cmd.contains("--cluster=cluster-1"))
+    #expect(cmd.contains("--table=my-table"))
+    #expect(cmd.contains("+7 days"))
+}
+
+@Test func testBigtableBackupDescribeCommand() {
+    let backup = GoogleCloudBigtableBackup(
+        name: "my-backup",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        clusterID: "cluster-1",
+        sourceTable: "my-table"
+    )
+
+    #expect(backup.describeCommand == "gcloud bigtable backups describe my-backup --instance=my-instance --cluster=cluster-1 --project=my-project")
+}
+
+@Test func testBigtableBackupDeleteCommand() {
+    let backup = GoogleCloudBigtableBackup(
+        name: "my-backup",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        clusterID: "cluster-1",
+        sourceTable: "my-table"
+    )
+
+    #expect(backup.deleteCommand == "gcloud bigtable backups delete my-backup --instance=my-instance --cluster=cluster-1 --project=my-project")
+}
+
+@Test func testBigtableBackupRestoreCommand() {
+    let backup = GoogleCloudBigtableBackup(
+        name: "my-backup",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        clusterID: "cluster-1",
+        sourceTable: "my-table"
+    )
+
+    let cmd = backup.restoreCommand(targetTable: "restored-table")
+    #expect(cmd.contains("gcloud bigtable instances tables restore"))
+    #expect(cmd.contains("--source-backup=my-backup"))
+    #expect(cmd.contains("--destination-table=restored-table"))
+}
+
+@Test func testBigtableBackupListCommand() {
+    let cmd = GoogleCloudBigtableBackup.listCommand(projectID: "my-project", instanceID: "my-instance", clusterID: "cluster-1")
+    #expect(cmd == "gcloud bigtable backups list --instance=my-instance --cluster=cluster-1 --project=my-project")
+}
+
+@Test func testBigtableBackupStates() {
+    #expect(GoogleCloudBigtableBackup.BackupState.ready.rawValue == "READY")
+    #expect(GoogleCloudBigtableBackup.BackupState.creating.rawValue == "CREATING")
+    #expect(GoogleCloudBigtableBackup.BackupState.stateUnspecified.rawValue == "STATE_UNSPECIFIED")
+}
+
+@Test func testBigtableOperationsEnableAPI() {
+    let cmd = BigtableOperations.enableAPICommand
+    #expect(cmd.contains("bigtable.googleapis.com"))
+    #expect(cmd.contains("bigtableadmin.googleapis.com"))
+}
+
+@Test func testBigtableOperationsInstallCBT() {
+    let cmd = BigtableOperations.installCBTCommand
+    #expect(cmd == "gcloud components install cbt")
+}
+
+@Test func testBigtableOperationsRoles() {
+    #expect(BigtableOperations.Roles.admin == "roles/bigtable.admin")
+    #expect(BigtableOperations.Roles.user == "roles/bigtable.user")
+    #expect(BigtableOperations.Roles.reader == "roles/bigtable.reader")
+    #expect(BigtableOperations.Roles.viewer == "roles/bigtable.viewer")
+}
+
+@Test func testBigtableOperationsAddAdminRole() {
+    let cmd = BigtableOperations.addAdminRoleCommand(projectID: "my-project", member: "user:admin@example.com")
+    #expect(cmd.contains("--member=user:admin@example.com"))
+    #expect(cmd.contains("--role=roles/bigtable.admin"))
+}
+
+@Test func testBigtableOperationsAddUserRole() {
+    let cmd = BigtableOperations.addUserRoleCommand(projectID: "my-project", serviceAccount: "sa@my-project.iam.gserviceaccount.com")
+    #expect(cmd.contains("--member=serviceAccount:sa@my-project.iam.gserviceaccount.com"))
+    #expect(cmd.contains("--role=roles/bigtable.user"))
+}
+
+@Test func testBigtableOperationsZones() {
+    #expect(BigtableOperations.Zones.usCentral1A == "us-central1-a")
+    #expect(BigtableOperations.Zones.usCentral1B == "us-central1-b")
+    #expect(BigtableOperations.Zones.europeWest1B == "europe-west1-b")
+}
+
+@Test func testBigtableAppProfileBasic() {
+    let profile = GoogleCloudBigtableAppProfile(
+        name: "my-profile",
+        projectID: "my-project",
+        instanceID: "my-instance"
+    )
+
+    #expect(profile.name == "my-profile")
+    #expect(profile.instanceID == "my-instance")
+}
+
+@Test func testBigtableAppProfileResourceName() {
+    let profile = GoogleCloudBigtableAppProfile(
+        name: "my-profile",
+        projectID: "my-project",
+        instanceID: "my-instance"
+    )
+
+    #expect(profile.resourceName == "projects/my-project/instances/my-instance/appProfiles/my-profile")
+}
+
+@Test func testBigtableAppProfileMultiClusterRouting() {
+    let profile = GoogleCloudBigtableAppProfile(
+        name: "my-profile",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        routingPolicy: .multiClusterRouting
+    )
+
+    let cmd = profile.createCommand
+    #expect(cmd.contains("--route-any"))
+}
+
+@Test func testBigtableAppProfileSingleClusterRouting() {
+    let profile = GoogleCloudBigtableAppProfile(
+        name: "my-profile",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        routingPolicy: .singleClusterRouting(clusterID: "cluster-1", allowTransactionalWrites: true)
+    )
+
+    let cmd = profile.createCommand
+    #expect(cmd.contains("--route-to=cluster-1"))
+    #expect(cmd.contains("--transactional-writes"))
+}
+
+@Test func testBigtableAppProfileDeleteCommand() {
+    let profile = GoogleCloudBigtableAppProfile(
+        name: "my-profile",
+        projectID: "my-project",
+        instanceID: "my-instance"
+    )
+
+    #expect(profile.deleteCommand == "gcloud bigtable app-profiles delete my-profile --instance=my-instance --project=my-project")
+}
+
+@Test func testBigtableAppProfileListCommand() {
+    let cmd = GoogleCloudBigtableAppProfile.listCommand(projectID: "my-project", instanceID: "my-instance")
+    #expect(cmd == "gcloud bigtable app-profiles list --instance=my-instance --project=my-project")
+}
+
+@Test func testDAISBigtableTemplateBasic() {
+    let template = DAISBigtableTemplate(projectID: "my-project")
+
+    #expect(template.projectID == "my-project")
+    #expect(template.instanceName == "dais-bigtable")
+    #expect(template.zone == "us-central1-a")
+}
+
+@Test func testDAISBigtableTemplateProductionInstance() {
+    let template = DAISBigtableTemplate(projectID: "my-project")
+
+    let instance = template.productionInstance
+    #expect(instance.name == "dais-bigtable")
+    #expect(instance.instanceType == .production)
+    #expect(instance.labels?["env"] == "production")
+}
+
+@Test func testDAISBigtableTemplateDevelopmentInstance() {
+    let template = DAISBigtableTemplate(projectID: "my-project")
+
+    let instance = template.developmentInstance
+    #expect(instance.name == "dais-bigtable-dev")
+    #expect(instance.instanceType == .development)
+    #expect(instance.labels?["env"] == "development")
+}
+
+@Test func testDAISBigtableTemplatePrimaryCluster() {
+    let template = DAISBigtableTemplate(projectID: "my-project")
+
+    let cluster = template.primaryCluster
+    #expect(cluster.name == "dais-bigtable-c1")
+    #expect(cluster.serveNodes == 3)
+    #expect(cluster.storageType == .ssd)
+}
+
+@Test func testDAISBigtableTemplateTimeSeriesTable() {
+    let template = DAISBigtableTemplate(projectID: "my-project")
+
+    let table = template.timeSeriesTable
+    #expect(table.name == "time_series")
+    #expect(table.columnFamilies?.contains("metrics") == true)
+    #expect(table.columnFamilies?.contains("events") == true)
+}
+
+@Test func testDAISBigtableTemplateEntitiesTable() {
+    let template = DAISBigtableTemplate(projectID: "my-project")
+
+    let table = template.entitiesTable
+    #expect(table.name == "entities")
+    #expect(table.columnFamilies?.contains("profile") == true)
+    #expect(table.columnFamilies?.contains("activity") == true)
+}
+
+@Test func testDAISBigtableTemplateDefaultAppProfile() {
+    let template = DAISBigtableTemplate(projectID: "my-project")
+
+    let profile = template.defaultAppProfile
+    #expect(profile.name == "default-profile")
+}
+
+@Test func testDAISBigtableTemplateTransactionalAppProfile() {
+    let template = DAISBigtableTemplate(projectID: "my-project")
+
+    let profile = template.transactionalAppProfile(clusterID: "cluster-1")
+    #expect(profile.name == "transactional-profile")
+}
+
+@Test func testDAISBigtableTemplateDailyBackup() {
+    let template = DAISBigtableTemplate(projectID: "my-project")
+
+    let backup = template.dailyBackup
+    #expect(backup.name == "daily-backup")
+    #expect(backup.sourceTable == "time_series")
+}
+
+@Test func testDAISBigtableTemplateSetupScript() {
+    let template = DAISBigtableTemplate(
+        projectID: "my-project",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com"
+    )
+
+    let script = template.setupScript
+    #expect(script.contains("bigtable.googleapis.com"))
+    #expect(script.contains("gcloud bigtable instances create"))
+    #expect(script.contains("bigtable.user"))
+}
+
+@Test func testDAISBigtableTemplateTeardownScript() {
+    let template = DAISBigtableTemplate(projectID: "my-project")
+
+    let script = template.teardownScript
+    #expect(script.contains("Deleting Bigtable instance"))
+    #expect(script.contains("WARNING"))
+}
+
+@Test func testBigtableInstanceCodable() throws {
+    let instance = GoogleCloudBigtableInstance(
+        name: "my-instance",
+        projectID: "my-project",
+        displayName: "My Instance",
+        instanceType: .production,
+        labels: ["env": "prod"],
+        state: .ready
+    )
+
+    let data = try JSONEncoder().encode(instance)
+    let decoded = try JSONDecoder().decode(GoogleCloudBigtableInstance.self, from: data)
+
+    #expect(decoded.name == "my-instance")
+    #expect(decoded.instanceType == .production)
+    #expect(decoded.state == .ready)
+}
+
+@Test func testBigtableClusterCodable() throws {
+    let cluster = GoogleCloudBigtableCluster(
+        name: "cluster-1",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        zone: "us-central1-a",
+        serveNodes: 5,
+        storageType: .ssd,
+        state: .ready
+    )
+
+    let data = try JSONEncoder().encode(cluster)
+    let decoded = try JSONDecoder().decode(GoogleCloudBigtableCluster.self, from: data)
+
+    #expect(decoded.name == "cluster-1")
+    #expect(decoded.serveNodes == 5)
+    #expect(decoded.state == .ready)
+}
+
+@Test func testBigtableTableCodable() throws {
+    let table = GoogleCloudBigtableTable(
+        name: "my-table",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        columnFamilies: ["cf1", "cf2"],
+        granularity: .millis
+    )
+
+    let data = try JSONEncoder().encode(table)
+    let decoded = try JSONDecoder().decode(GoogleCloudBigtableTable.self, from: data)
+
+    #expect(decoded.name == "my-table")
+    #expect(decoded.columnFamilies?.count == 2)
+    #expect(decoded.granularity == .millis)
+}
+
+@Test func testBigtableBackupCodable() throws {
+    let backup = GoogleCloudBigtableBackup(
+        name: "my-backup",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        clusterID: "cluster-1",
+        sourceTable: "my-table",
+        state: .ready
+    )
+
+    let data = try JSONEncoder().encode(backup)
+    let decoded = try JSONDecoder().decode(GoogleCloudBigtableBackup.self, from: data)
+
+    #expect(decoded.name == "my-backup")
+    #expect(decoded.state == .ready)
+}
+
+@Test func testBigtableAppProfileCodable() throws {
+    let profile = GoogleCloudBigtableAppProfile(
+        name: "my-profile",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        description: "Test profile",
+        routingPolicy: .multiClusterRouting
+    )
+
+    let data = try JSONEncoder().encode(profile)
+    let decoded = try JSONDecoder().decode(GoogleCloudBigtableAppProfile.self, from: data)
+
+    #expect(decoded.name == "my-profile")
+    #expect(decoded.description == "Test profile")
+}
+
+@Test func testBigtableAppProfileSingleClusterCodable() throws {
+    let profile = GoogleCloudBigtableAppProfile(
+        name: "my-profile",
+        projectID: "my-project",
+        instanceID: "my-instance",
+        routingPolicy: .singleClusterRouting(clusterID: "cluster-1", allowTransactionalWrites: true)
+    )
+
+    let data = try JSONEncoder().encode(profile)
+    let decoded = try JSONDecoder().decode(GoogleCloudBigtableAppProfile.self, from: data)
+
+    #expect(decoded.name == "my-profile")
+    if case .singleClusterRouting(let clusterID, let allowWrites) = decoded.routingPolicy {
+        #expect(clusterID == "cluster-1")
+        #expect(allowWrites == true)
+    } else {
+        #expect(Bool(false), "Expected singleClusterRouting")
+    }
+}

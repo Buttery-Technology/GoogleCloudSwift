@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 43 Google Cloud services:
+GoogleCloudSwift provides models for 44 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -123,6 +123,7 @@ GoogleCloudSwift provides models for 43 Google Cloud services:
 | **Cloud Trace** | Distributed tracing | `GoogleCloudTraceSpan`, `GoogleCloudTraceSink`, `TraceOperations`, `DAISTraceTemplate` |
 | **Cloud Profiler** | Continuous profiling | `GoogleCloudProfilerProfile`, `GoogleCloudProfilerAgentConfig`, `ProfilerOperations`, `DAISProfilerTemplate` |
 | **Error Reporting** | Error collection and analysis | `GoogleCloudErrorEvent`, `GoogleCloudErrorGroup`, `ErrorReportingOperations`, `DAISErrorReportingTemplate` |
+| **Cloud Bigtable** | Wide-column NoSQL database | `GoogleCloudBigtableInstance`, `GoogleCloudBigtableCluster`, `GoogleCloudBigtableTable`, `DAISBigtableTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -5109,6 +5110,181 @@ print(template.setupScript)
 | `roles/errorreporting.viewer` | View errors |
 | `roles/errorreporting.writer` | Write errors |
 
+### GoogleCloudBigtableInstance (Cloud Bigtable API)
+
+Cloud Bigtable is a wide-column NoSQL database for large analytical and operational workloads:
+
+```swift
+// Create a production Bigtable instance
+let instance = GoogleCloudBigtableInstance(
+    name: "my-bigtable",
+    projectID: "my-project",
+    displayName: "My Bigtable Instance",
+    instanceType: .production,
+    labels: ["env": "production"]
+)
+
+print(instance.resourceName)  // projects/my-project/instances/my-bigtable
+print(instance.createCommand(clusterID: "cluster-1", zone: "us-central1-a", numNodes: 3))
+```
+
+**Development Instance:**
+
+```swift
+// Development instances don't require node count
+let devInstance = GoogleCloudBigtableInstance(
+    name: "dev-bigtable",
+    projectID: "my-project",
+    displayName: "Dev Instance",
+    instanceType: .development
+)
+
+print(devInstance.createCommand(clusterID: "dev-cluster", zone: "us-central1-a"))
+```
+
+**Bigtable Clusters:**
+
+```swift
+// Create a cluster within an instance
+let cluster = GoogleCloudBigtableCluster(
+    name: "cluster-1",
+    projectID: "my-project",
+    instanceID: "my-bigtable",
+    zone: "us-central1-a",
+    serveNodes: 5,
+    storageType: .ssd
+)
+
+print(cluster.resourceName)  // projects/my-project/instances/my-bigtable/clusters/cluster-1
+print(cluster.createCommand(numNodes: 5))
+print(cluster.updateCommand(numNodes: 10))  // Scale up
+```
+
+**Bigtable Tables:**
+
+```swift
+// Create a table with column families
+let table = GoogleCloudBigtableTable(
+    name: "events",
+    projectID: "my-project",
+    instanceID: "my-bigtable",
+    columnFamilies: ["metrics", "metadata", "raw"]
+)
+
+print(table.resourceName)  // projects/my-project/instances/my-bigtable/tables/events
+print(table.createCommand)
+
+// Add column family
+print(table.addColumnFamilyCommand(family: "new-cf", maxVersions: 5))
+
+// Read rows with prefix
+print(table.readCommand(prefix: "user#", limit: 100))
+```
+
+**Bigtable Backups:**
+
+```swift
+// Create and restore backups
+let backup = GoogleCloudBigtableBackup(
+    name: "daily-backup",
+    projectID: "my-project",
+    instanceID: "my-bigtable",
+    clusterID: "cluster-1",
+    sourceTable: "events"
+)
+
+print(backup.resourceName)
+print(backup.createCommand(expireDays: 30))
+print(backup.restoreCommand(targetTable: "events-restored"))
+```
+
+**App Profiles:**
+
+```swift
+// Multi-cluster routing (automatic failover)
+let defaultProfile = GoogleCloudBigtableAppProfile(
+    name: "default-profile",
+    projectID: "my-project",
+    instanceID: "my-bigtable",
+    routingPolicy: .multiClusterRouting
+)
+
+// Single-cluster routing (for transactions)
+let transactionalProfile = GoogleCloudBigtableAppProfile(
+    name: "transactional-profile",
+    projectID: "my-project",
+    instanceID: "my-bigtable",
+    routingPolicy: .singleClusterRouting(clusterID: "cluster-1", allowTransactionalWrites: true)
+)
+
+print(defaultProfile.createCommand)
+print(transactionalProfile.createCommand)
+```
+
+**Bigtable Operations:**
+
+```swift
+// Enable API
+print(BigtableOperations.enableAPICommand)
+
+// Install cbt CLI tool
+print(BigtableOperations.installCBTCommand)
+
+// Grant roles
+print(BigtableOperations.addAdminRoleCommand(projectID: "my-project", member: "user:admin@example.com"))
+print(BigtableOperations.addUserRoleCommand(projectID: "my-project", serviceAccount: "sa@my-project.iam.gserviceaccount.com"))
+```
+
+**DAIS Bigtable Templates:**
+
+```swift
+let template = DAISBigtableTemplate(
+    projectID: "my-project",
+    instanceName: "dais-bigtable",
+    zone: "us-central1-a",
+    serviceAccount: "sa@my-project.iam.gserviceaccount.com"
+)
+
+// Production and dev instances
+let prodInstance = template.productionInstance
+let devInstance = template.developmentInstance
+
+// Pre-configured tables
+let timeSeriesTable = template.timeSeriesTable  // metrics, events, metadata
+let entitiesTable = template.entitiesTable      // profile, activity, preferences
+
+// App profiles
+let defaultProfile = template.defaultAppProfile
+let txProfile = template.transactionalAppProfile(clusterID: "dais-bigtable-c1")
+
+// Setup and teardown scripts
+print(template.setupScript)
+print(template.teardownScript)
+```
+
+**Instance Types:**
+
+| Type | Description |
+|------|-------------|
+| `PRODUCTION` | Multi-node for production workloads |
+| `DEVELOPMENT` | Single-node for development (no SLA) |
+
+**Storage Types:**
+
+| Type | Description |
+|------|-------------|
+| `SSD` | Solid-state drive (lower latency) |
+| `HDD` | Hard disk drive (lower cost) |
+
+**IAM Roles:**
+
+| Role | Description |
+|------|-------------|
+| `roles/bigtable.admin` | Full access to instances |
+| `roles/bigtable.user` | Read/write to tables |
+| `roles/bigtable.reader` | Read-only access |
+| `roles/bigtable.viewer` | View metadata only |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -6584,6 +6760,18 @@ MIT License
 - [Python Client Library](https://cloud.google.com/error-reporting/docs/setup/python)
 - [Node.js Client Library](https://cloud.google.com/error-reporting/docs/setup/nodejs)
 - [Error Reporting IAM Roles](https://cloud.google.com/error-reporting/docs/iam)
+
+### Cloud Bigtable
+- [Cloud Bigtable Documentation](https://cloud.google.com/bigtable/docs)
+- [Bigtable Overview](https://cloud.google.com/bigtable/docs/overview)
+- [Schema Design](https://cloud.google.com/bigtable/docs/schema-design)
+- [Creating Instances](https://cloud.google.com/bigtable/docs/creating-instance)
+- [Creating Tables](https://cloud.google.com/bigtable/docs/creating-table)
+- [cbt CLI Reference](https://cloud.google.com/bigtable/docs/cbt-reference)
+- [App Profiles](https://cloud.google.com/bigtable/docs/app-profiles)
+- [Replication](https://cloud.google.com/bigtable/docs/replication-overview)
+- [Backups](https://cloud.google.com/bigtable/docs/backups)
+- [Bigtable IAM Roles](https://cloud.google.com/bigtable/docs/access-control)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)
