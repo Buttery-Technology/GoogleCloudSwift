@@ -4498,3 +4498,824 @@ import Testing
     #expect(decoded.message == entry.message)
     #expect(decoded.component == entry.component)
 }
+
+// MARK: - Cloud Monitoring Tests
+
+// MARK: - Alert Policy Tests
+
+@Test func testGoogleCloudAlertPolicy() {
+    let policy = GoogleCloudAlertPolicy(
+        displayName: "High CPU Usage",
+        projectID: "test-project",
+        conditions: [
+            .threshold(
+                displayName: "CPU > 80%",
+                filter: "metric.type=\"compute.googleapis.com/instance/cpu/utilization\"",
+                comparison: .greaterThan,
+                threshold: 0.8,
+                duration: "300s"
+            )
+        ],
+        notificationChannels: ["projects/test-project/notificationChannels/123"]
+    )
+
+    #expect(policy.displayName == "High CPU Usage")
+    #expect(policy.conditions.count == 1)
+    #expect(policy.notificationChannels.count == 1)
+}
+
+@Test func testAlertPolicyCreateCommand() {
+    let policy = GoogleCloudAlertPolicy(
+        displayName: "Test Alert",
+        projectID: "test-project",
+        conditions: []
+    )
+
+    let cmd = policy.createCommand
+    #expect(cmd.contains("gcloud alpha monitoring policies create"))
+    #expect(cmd.contains("--project=test-project"))
+}
+
+@Test func testAlertPolicyListCommand() {
+    let cmd = GoogleCloudAlertPolicy.listCommand(projectID: "test-project")
+    #expect(cmd.contains("gcloud alpha monitoring policies list"))
+    #expect(cmd.contains("--project=test-project"))
+}
+
+@Test func testAlertPolicyDescribeCommand() {
+    let cmd = GoogleCloudAlertPolicy.describeCommand(policyID: "policy-123", projectID: "test-project")
+    #expect(cmd.contains("gcloud alpha monitoring policies describe policy-123"))
+}
+
+@Test func testAlertPolicyDeleteCommand() {
+    let cmd = GoogleCloudAlertPolicy.deleteCommand(policyID: "policy-123", projectID: "test-project")
+    #expect(cmd.contains("gcloud alpha monitoring policies delete policy-123"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testAlertPolicyUpdateEnabledCommand() {
+    let enableCmd = GoogleCloudAlertPolicy.updateEnabledCommand(policyID: "policy-123", projectID: "test-project", enabled: true)
+    #expect(enableCmd.contains("--enabled"))
+
+    let disableCmd = GoogleCloudAlertPolicy.updateEnabledCommand(policyID: "policy-123", projectID: "test-project", enabled: false)
+    #expect(disableCmd.contains("--no-enabled"))
+}
+
+@Test func testConditionCombiner() {
+    #expect(GoogleCloudAlertPolicy.ConditionCombiner.or.rawValue == "OR")
+    #expect(GoogleCloudAlertPolicy.ConditionCombiner.and.rawValue == "AND")
+    #expect(GoogleCloudAlertPolicy.ConditionCombiner.andWithMatchingResource.rawValue == "AND_WITH_MATCHING_RESOURCE")
+}
+
+@Test func testAlertSeverity() {
+    #expect(GoogleCloudAlertPolicy.AlertSeverity.critical.rawValue == "CRITICAL")
+    #expect(GoogleCloudAlertPolicy.AlertSeverity.error.rawValue == "ERROR")
+    #expect(GoogleCloudAlertPolicy.AlertSeverity.warning.rawValue == "WARNING")
+}
+
+// MARK: - Alert Condition Tests
+
+@Test func testAlertConditionThreshold() {
+    let condition = AlertCondition.threshold(
+        displayName: "High CPU",
+        filter: "metric.type=\"compute.googleapis.com/instance/cpu/utilization\"",
+        comparison: .greaterThan,
+        threshold: 0.8,
+        duration: "300s"
+    )
+
+    if case .threshold(let name, _, let comparison, let threshold, _, _) = condition {
+        #expect(name == "High CPU")
+        #expect(comparison == .greaterThan)
+        #expect(threshold == 0.8)
+    } else {
+        Issue.record("Expected threshold condition")
+    }
+}
+
+@Test func testAlertConditionAbsence() {
+    let condition = AlertCondition.absence(
+        displayName: "No Data",
+        filter: "metric.type=\"custom.googleapis.com/my_metric\"",
+        duration: "600s"
+    )
+
+    if case .absence(let name, _, let duration) = condition {
+        #expect(name == "No Data")
+        #expect(duration == "600s")
+    } else {
+        Issue.record("Expected absence condition")
+    }
+}
+
+@Test func testAlertConditionMQL() {
+    let condition = AlertCondition.mql(
+        displayName: "MQL Query",
+        query: "fetch gce_instance | metric cpu/utilization",
+        duration: "300s"
+    )
+
+    if case .mql(let name, let query, _) = condition {
+        #expect(name == "MQL Query")
+        #expect(query.contains("gce_instance"))
+    } else {
+        Issue.record("Expected MQL condition")
+    }
+}
+
+@Test func testComparisonTypes() {
+    #expect(AlertCondition.ComparisonType.greaterThan.rawValue == "COMPARISON_GT")
+    #expect(AlertCondition.ComparisonType.lessThan.rawValue == "COMPARISON_LT")
+    #expect(AlertCondition.ComparisonType.equal.rawValue == "COMPARISON_EQ")
+    #expect(AlertCondition.ComparisonType.notEqual.rawValue == "COMPARISON_NE")
+}
+
+@Test func testAggregation() {
+    let agg = AlertCondition.Aggregation(
+        alignmentPeriod: "60s",
+        perSeriesAligner: .alignMean,
+        crossSeriesReducer: .reduceSum,
+        groupByFields: ["resource.label.zone"]
+    )
+
+    #expect(agg.alignmentPeriod == "60s")
+    #expect(agg.perSeriesAligner == .alignMean)
+    #expect(agg.crossSeriesReducer == .reduceSum)
+}
+
+@Test func testAlignerValues() {
+    #expect(AlertCondition.Aggregation.Aligner.alignMean.rawValue == "ALIGN_MEAN")
+    #expect(AlertCondition.Aggregation.Aligner.alignSum.rawValue == "ALIGN_SUM")
+    #expect(AlertCondition.Aggregation.Aligner.alignMax.rawValue == "ALIGN_MAX")
+    #expect(AlertCondition.Aggregation.Aligner.alignPercentile99.rawValue == "ALIGN_PERCENTILE_99")
+}
+
+@Test func testReducerValues() {
+    #expect(AlertCondition.Aggregation.Reducer.reduceMean.rawValue == "REDUCE_MEAN")
+    #expect(AlertCondition.Aggregation.Reducer.reduceSum.rawValue == "REDUCE_SUM")
+    #expect(AlertCondition.Aggregation.Reducer.reduceMax.rawValue == "REDUCE_MAX")
+}
+
+// MARK: - Alert Documentation Tests
+
+@Test func testAlertDocumentation() {
+    let doc = AlertDocumentation(
+        content: "This alert fires when CPU is high",
+        mimeType: "text/markdown",
+        subject: "High CPU Alert"
+    )
+
+    #expect(doc.content.contains("CPU"))
+    #expect(doc.mimeType == "text/markdown")
+    #expect(doc.subject == "High CPU Alert")
+}
+
+// MARK: - Notification Channel Tests
+
+@Test func testGoogleCloudNotificationChannel() {
+    let channel = GoogleCloudNotificationChannel(
+        displayName: "On-Call Team",
+        projectID: "test-project",
+        type: .email,
+        labels: ["email_address": "oncall@example.com"]
+    )
+
+    #expect(channel.displayName == "On-Call Team")
+    #expect(channel.type == .email)
+    #expect(channel.labels["email_address"] == "oncall@example.com")
+}
+
+@Test func testNotificationChannelCreateCommand() {
+    let channel = GoogleCloudNotificationChannel(
+        displayName: "Test Channel",
+        projectID: "test-project",
+        type: .email,
+        labels: ["email_address": "test@example.com"],
+        description: "Test channel"
+    )
+
+    let cmd = channel.createCommand
+    #expect(cmd.contains("gcloud alpha monitoring channels create"))
+    #expect(cmd.contains("--display-name=\"Test Channel\""))
+    #expect(cmd.contains("--type=email"))
+    #expect(cmd.contains("--channel-labels=email_address=test@example.com"))
+}
+
+@Test func testNotificationChannelListCommand() {
+    let cmd = GoogleCloudNotificationChannel.listCommand(projectID: "test-project")
+    #expect(cmd.contains("gcloud alpha monitoring channels list"))
+}
+
+@Test func testNotificationChannelTypes() {
+    #expect(GoogleCloudNotificationChannel.ChannelType.email.rawValue == "email")
+    #expect(GoogleCloudNotificationChannel.ChannelType.slack.rawValue == "slack")
+    #expect(GoogleCloudNotificationChannel.ChannelType.pagerDuty.rawValue == "pagerduty")
+    #expect(GoogleCloudNotificationChannel.ChannelType.webhook.rawValue == "webhook_tokenauth")
+    #expect(GoogleCloudNotificationChannel.ChannelType.pubsub.rawValue == "pubsub")
+}
+
+@Test func testNotificationChannelEmailFactory() {
+    let channel = GoogleCloudNotificationChannel.email(
+        displayName: "Email Alerts",
+        projectID: "test-project",
+        emailAddress: "alerts@example.com"
+    )
+
+    #expect(channel.type == .email)
+    #expect(channel.labels["email_address"] == "alerts@example.com")
+}
+
+@Test func testNotificationChannelSlackFactory() {
+    let channel = GoogleCloudNotificationChannel.slack(
+        displayName: "Slack Alerts",
+        projectID: "test-project",
+        channelName: "#alerts",
+        authToken: "xoxb-token"
+    )
+
+    #expect(channel.type == .slack)
+    #expect(channel.labels["channel_name"] == "#alerts")
+}
+
+@Test func testNotificationChannelPagerDutyFactory() {
+    let channel = GoogleCloudNotificationChannel.pagerDuty(
+        displayName: "PagerDuty",
+        projectID: "test-project",
+        serviceKey: "service-key-123"
+    )
+
+    #expect(channel.type == .pagerDuty)
+    #expect(channel.labels["service_key"] == "service-key-123")
+}
+
+@Test func testNotificationChannelWebhookFactory() {
+    let channel = GoogleCloudNotificationChannel.webhook(
+        displayName: "Webhook",
+        projectID: "test-project",
+        url: "https://example.com/webhook"
+    )
+
+    #expect(channel.type == .webhook)
+    #expect(channel.labels["url"] == "https://example.com/webhook")
+}
+
+@Test func testNotificationChannelPubSubFactory() {
+    let channel = GoogleCloudNotificationChannel.pubsub(
+        displayName: "Pub/Sub",
+        projectID: "test-project",
+        topic: "projects/test-project/topics/alerts"
+    )
+
+    #expect(channel.type == .pubsub)
+    #expect(channel.labels["topic"]?.contains("alerts") == true)
+}
+
+// MARK: - Uptime Check Tests
+
+@Test func testGoogleCloudUptimeCheck() {
+    let check = GoogleCloudUptimeCheck(
+        displayName: "API Health",
+        projectID: "test-project",
+        monitoredResource: .uptime(host: "api.example.com"),
+        httpCheck: GoogleCloudUptimeCheck.HTTPCheckConfig(
+            path: "/health",
+            port: 443,
+            useSsl: true
+        ),
+        period: .oneMinute
+    )
+
+    #expect(check.displayName == "API Health")
+    #expect(check.period == .oneMinute)
+}
+
+@Test func testUptimeCheckCreateCommand() {
+    let check = GoogleCloudUptimeCheck(
+        displayName: "Test Check",
+        projectID: "test-project",
+        monitoredResource: .uptime(host: "example.com"),
+        httpCheck: GoogleCloudUptimeCheck.HTTPCheckConfig(
+            path: "/health",
+            port: 443,
+            useSsl: true
+        )
+    )
+
+    let cmd = check.createCommand
+    #expect(cmd.contains("gcloud alpha monitoring uptime create"))
+    #expect(cmd.contains("--protocol=https"))
+    #expect(cmd.contains("--port=443"))
+    #expect(cmd.contains("--path=/health"))
+}
+
+@Test func testUptimeCheckListCommand() {
+    let cmd = GoogleCloudUptimeCheck.listCommand(projectID: "test-project")
+    #expect(cmd.contains("gcloud alpha monitoring uptime list-configs"))
+}
+
+@Test func testUptimeCheckTCP() {
+    let check = GoogleCloudUptimeCheck(
+        displayName: "TCP Check",
+        projectID: "test-project",
+        monitoredResource: .uptime(host: "example.com"),
+        tcpCheck: GoogleCloudUptimeCheck.TCPCheckConfig(port: 9090)
+    )
+
+    let cmd = check.createCommand
+    #expect(cmd.contains("--protocol=tcp"))
+    #expect(cmd.contains("--port=9090"))
+}
+
+@Test func testCheckPeriod() {
+    #expect(GoogleCloudUptimeCheck.CheckPeriod.oneMinute.rawValue == "60s")
+    #expect(GoogleCloudUptimeCheck.CheckPeriod.fiveMinutes.rawValue == "300s")
+    #expect(GoogleCloudUptimeCheck.CheckPeriod.tenMinutes.rawValue == "600s")
+}
+
+@Test func testCheckRegion() {
+    #expect(GoogleCloudUptimeCheck.CheckRegion.usa.rawValue == "USA")
+    #expect(GoogleCloudUptimeCheck.CheckRegion.europe.rawValue == "EUROPE")
+    #expect(GoogleCloudUptimeCheck.CheckRegion.asiaPacific.rawValue == "ASIA_PACIFIC")
+}
+
+@Test func testHTTPCheckConfig() {
+    let config = GoogleCloudUptimeCheck.HTTPCheckConfig(
+        path: "/api/health",
+        port: 8080,
+        useSsl: false,
+        validateSsl: false,
+        requestMethod: .post,
+        headers: ["Authorization": "Bearer token"]
+    )
+
+    #expect(config.path == "/api/health")
+    #expect(config.port == 8080)
+    #expect(config.requestMethod == .post)
+}
+
+@Test func testContentMatcher() {
+    let matcher = GoogleCloudUptimeCheck.ContentMatcher(
+        content: "healthy",
+        matcher: .contains
+    )
+
+    #expect(matcher.content == "healthy")
+    #expect(matcher.matcher == .contains)
+}
+
+@Test func testContentMatcherTypes() {
+    #expect(GoogleCloudUptimeCheck.ContentMatcher.MatcherType.contains.rawValue == "CONTAINS_STRING")
+    #expect(GoogleCloudUptimeCheck.ContentMatcher.MatcherType.matchesRegex.rawValue == "MATCHES_REGEX")
+    #expect(GoogleCloudUptimeCheck.ContentMatcher.MatcherType.matchesJsonPath.rawValue == "MATCHES_JSON_PATH")
+}
+
+// MARK: - Metric Descriptor Tests
+
+@Test func testGoogleCloudMetricDescriptor() {
+    let metric = GoogleCloudMetricDescriptor(
+        type: "custom.googleapis.com/my_app/request_count",
+        projectID: "test-project",
+        metricKind: .cumulative,
+        valueType: .int64,
+        description: "Request count"
+    )
+
+    #expect(metric.type == "custom.googleapis.com/my_app/request_count")
+    #expect(metric.metricKind == .cumulative)
+    #expect(metric.valueType == .int64)
+}
+
+@Test func testMetricDescriptorResourceName() {
+    let metric = GoogleCloudMetricDescriptor(
+        type: "custom.googleapis.com/my_metric",
+        projectID: "test-project",
+        metricKind: .gauge,
+        valueType: .double
+    )
+
+    #expect(metric.resourceName == "projects/test-project/metricDescriptors/custom.googleapis.com/my_metric")
+}
+
+@Test func testMetricDescriptorCreateCommand() {
+    let metric = GoogleCloudMetricDescriptor(
+        type: "custom.googleapis.com/my_metric",
+        projectID: "test-project",
+        metricKind: .gauge,
+        valueType: .int64,
+        unit: "1",
+        description: "My custom metric",
+        displayName: "My Metric"
+    )
+
+    let cmd = metric.createCommand
+    #expect(cmd.contains("gcloud alpha monitoring metrics-descriptors create"))
+    #expect(cmd.contains("--metric-kind=GAUGE"))
+    #expect(cmd.contains("--value-type=INT64"))
+    #expect(cmd.contains("--unit=\"1\""))
+}
+
+@Test func testMetricDescriptorListCommand() {
+    let cmd = GoogleCloudMetricDescriptor.listCommand(projectID: "test-project", filter: "metric.type=starts_with(\"custom\")")
+    #expect(cmd.contains("gcloud alpha monitoring metrics-descriptors list"))
+    #expect(cmd.contains("--filter"))
+}
+
+@Test func testMetricKind() {
+    #expect(GoogleCloudMetricDescriptor.MetricKind.gauge.rawValue == "GAUGE")
+    #expect(GoogleCloudMetricDescriptor.MetricKind.cumulative.rawValue == "CUMULATIVE")
+    #expect(GoogleCloudMetricDescriptor.MetricKind.delta.rawValue == "DELTA")
+}
+
+@Test func testValueType() {
+    #expect(GoogleCloudMetricDescriptor.ValueType.int64.rawValue == "INT64")
+    #expect(GoogleCloudMetricDescriptor.ValueType.double.rawValue == "DOUBLE")
+    #expect(GoogleCloudMetricDescriptor.ValueType.bool.rawValue == "BOOL")
+    #expect(GoogleCloudMetricDescriptor.ValueType.distribution.rawValue == "DISTRIBUTION")
+}
+
+@Test func testLabelDescriptor() {
+    let label = GoogleCloudMetricDescriptor.LabelDescriptor(
+        key: "method",
+        valueType: .string,
+        description: "HTTP method"
+    )
+
+    #expect(label.key == "method")
+    #expect(label.valueType == .string)
+}
+
+// MARK: - Dashboard Tests
+
+@Test func testGoogleCloudDashboard() {
+    let dashboard = GoogleCloudDashboard(
+        displayName: "DAIS Dashboard",
+        projectID: "test-project",
+        layout: .grid(columns: 3)
+    )
+
+    #expect(dashboard.displayName == "DAIS Dashboard")
+}
+
+@Test func testDashboardCreateCommand() {
+    let dashboard = GoogleCloudDashboard(
+        displayName: "Test Dashboard",
+        projectID: "test-project"
+    )
+
+    let cmd = dashboard.createCommand
+    #expect(cmd.contains("gcloud monitoring dashboards create"))
+    #expect(cmd.contains("--config-from-file"))
+}
+
+@Test func testDashboardListCommand() {
+    let cmd = GoogleCloudDashboard.listCommand(projectID: "test-project")
+    #expect(cmd.contains("gcloud monitoring dashboards list"))
+}
+
+// MARK: - Monitoring Group Tests
+
+@Test func testGoogleCloudMonitoringGroup() {
+    let group = GoogleCloudMonitoringGroup(
+        displayName: "DAIS Nodes",
+        projectID: "test-project",
+        filter: "resource.metadata.name=starts_with(\"dais\")",
+        isCluster: true
+    )
+
+    #expect(group.displayName == "DAIS Nodes")
+    #expect(group.isCluster == true)
+}
+
+@Test func testMonitoringGroupCreateCommand() {
+    let group = GoogleCloudMonitoringGroup(
+        displayName: "Test Group",
+        projectID: "test-project",
+        filter: "resource.type=\"gce_instance\"",
+        isCluster: true
+    )
+
+    let cmd = group.createCommand
+    #expect(cmd.contains("gcloud alpha monitoring groups create"))
+    #expect(cmd.contains("--display-name=\"Test Group\""))
+    #expect(cmd.contains("--is-cluster"))
+}
+
+@Test func testMonitoringGroupListCommand() {
+    let cmd = GoogleCloudMonitoringGroup.listCommand(projectID: "test-project")
+    #expect(cmd.contains("gcloud alpha monitoring groups list"))
+}
+
+// MARK: - SLO Tests
+
+@Test func testGoogleCloudSLO() {
+    let slo = GoogleCloudSLO(
+        displayName: "API Availability",
+        serviceName: "my-api",
+        projectID: "test-project",
+        goal: 0.999,
+        rollingPeriod: "30d",
+        sli: .requestBased(
+            goodTotalRatio: GoogleCloudSLO.ServiceLevelIndicator.GoodTotalRatio(
+                goodServiceFilter: "metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"2xx\"",
+                totalServiceFilter: "metric.type=\"run.googleapis.com/request_count\""
+            ),
+            distributionCut: nil
+        )
+    )
+
+    #expect(slo.displayName == "API Availability")
+    #expect(slo.goal == 0.999)
+}
+
+@Test func testCalendarPeriod() {
+    #expect(GoogleCloudSLO.CalendarPeriod.day.rawValue == "DAY")
+    #expect(GoogleCloudSLO.CalendarPeriod.week.rawValue == "WEEK")
+    #expect(GoogleCloudSLO.CalendarPeriod.month.rawValue == "MONTH")
+    #expect(GoogleCloudSLO.CalendarPeriod.quarter.rawValue == "QUARTER")
+}
+
+// MARK: - Predefined Metric Filter Tests
+
+@Test func testPredefinedMetricFilters() {
+    #expect(PredefinedMetricFilter.cpuUtilization.contains("compute.googleapis.com"))
+    #expect(PredefinedMetricFilter.cloudRunRequestCount.contains("run.googleapis.com"))
+    #expect(PredefinedMetricFilter.functionExecutionCount.contains("cloudfunctions.googleapis.com"))
+    #expect(PredefinedMetricFilter.sqlCPUUtilization.contains("cloudsql.googleapis.com"))
+    #expect(PredefinedMetricFilter.pubsubSubscriptionBacklog.contains("pubsub.googleapis.com"))
+}
+
+// MARK: - DAIS Monitoring Template Tests
+
+@Test func testDAISMonitoringTemplateEmailChannel() {
+    let channel = DAISMonitoringTemplate.emailChannel(
+        projectID: "test-project",
+        deploymentName: "prod",
+        email: "alerts@example.com"
+    )
+
+    #expect(channel.displayName == "prod Alerts")
+    #expect(channel.type == .email)
+}
+
+@Test func testDAISMonitoringTemplateSlackChannel() {
+    let channel = DAISMonitoringTemplate.slackChannel(
+        projectID: "test-project",
+        deploymentName: "prod",
+        channelName: "#alerts",
+        authToken: "token"
+    )
+
+    #expect(channel.displayName == "prod Slack Alerts")
+    #expect(channel.type == .slack)
+}
+
+@Test func testDAISMonitoringTemplateCPUAlertPolicy() {
+    let policy = DAISMonitoringTemplate.cpuAlertPolicy(
+        projectID: "test-project",
+        deploymentName: "prod",
+        threshold: 0.8
+    )
+
+    #expect(policy.displayName == "prod High CPU Usage")
+    #expect(policy.conditions.count == 1)
+    #expect(policy.severity == .warning)
+    #expect(policy.userLabels["app"] == "butteryai")
+}
+
+@Test func testDAISMonitoringTemplateMemoryAlertPolicy() {
+    let policy = DAISMonitoringTemplate.memoryAlertPolicy(
+        projectID: "test-project",
+        deploymentName: "prod",
+        threshold: 0.85
+    )
+
+    #expect(policy.displayName == "prod High Memory Usage")
+    #expect(policy.severity == .warning)
+}
+
+@Test func testDAISMonitoringTemplateErrorRateAlertPolicy() {
+    let policy = DAISMonitoringTemplate.errorRateAlertPolicy(
+        projectID: "test-project",
+        deploymentName: "prod",
+        threshold: 0.01
+    )
+
+    #expect(policy.displayName == "prod High Error Rate")
+    #expect(policy.severity == .error)
+}
+
+@Test func testDAISMonitoringTemplateHTTPUptimeCheck() {
+    let check = DAISMonitoringTemplate.httpUptimeCheck(
+        projectID: "test-project",
+        deploymentName: "prod",
+        host: "api.example.com",
+        path: "/health"
+    )
+
+    #expect(check.displayName == "prod HTTP Health")
+    #expect(check.httpCheck?.path == "/health")
+}
+
+@Test func testDAISMonitoringTemplateGRPCUptimeCheck() {
+    let check = DAISMonitoringTemplate.grpcUptimeCheck(
+        projectID: "test-project",
+        deploymentName: "prod",
+        host: "grpc.example.com",
+        port: 9090
+    )
+
+    #expect(check.displayName == "prod gRPC Health")
+    #expect(check.tcpCheck?.port == 9090)
+}
+
+@Test func testDAISMonitoringTemplateRequestLatencyMetric() {
+    let metric = DAISMonitoringTemplate.requestLatencyMetric(
+        projectID: "test-project",
+        deploymentName: "prod"
+    )
+
+    #expect(metric.type.contains("dais/prod/request_latency"))
+    #expect(metric.metricKind == .gauge)
+    #expect(metric.valueType == .distribution)
+}
+
+@Test func testDAISMonitoringTemplateActiveConnectionsMetric() {
+    let metric = DAISMonitoringTemplate.activeConnectionsMetric(
+        projectID: "test-project",
+        deploymentName: "prod"
+    )
+
+    #expect(metric.type.contains("dais/prod/active_connections"))
+    #expect(metric.valueType == .int64)
+}
+
+@Test func testDAISMonitoringTemplateInstanceGroup() {
+    let group = DAISMonitoringTemplate.instanceGroup(
+        projectID: "test-project",
+        deploymentName: "prod"
+    )
+
+    #expect(group.displayName == "prod DAIS Nodes")
+    #expect(group.isCluster == true)
+    #expect(group.filter.contains("prod"))
+}
+
+@Test func testDAISMonitoringTemplateSetupScript() {
+    let script = DAISMonitoringTemplate.setupScript(
+        projectID: "test-project",
+        deploymentName: "prod",
+        alertEmail: "alerts@example.com",
+        httpHost: "api.example.com",
+        grpcHost: "grpc.example.com"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("gcloud services enable monitoring.googleapis.com"))
+    #expect(script.contains("prod"))
+    #expect(script.contains("api.example.com"))
+    #expect(script.contains("grpc.example.com"))
+}
+
+// MARK: - MQL Query Builder Tests
+
+@Test func testMQLQueryBuilderFetch() {
+    let query = MQLQueryBuilder.fetch(
+        metricType: "compute.googleapis.com/instance/cpu/utilization",
+        resourceType: "gce_instance"
+    )
+
+    #expect(query.contains("fetch gce_instance"))
+    #expect(query.contains("metric 'compute.googleapis.com/instance/cpu/utilization'"))
+}
+
+@Test func testMQLQueryBuilderFilter() {
+    let query = MQLQueryBuilder.fetch(metricType: "my.metric")
+    let filtered = MQLQueryBuilder.filter(query, condition: "resource.zone = 'us-central1-a'")
+
+    #expect(filtered.contains("filter resource.zone"))
+}
+
+@Test func testMQLQueryBuilderGroupBy() {
+    let query = MQLQueryBuilder.fetch(metricType: "my.metric")
+    let grouped = MQLQueryBuilder.groupBy(query, fields: ["resource.zone"], reducer: "sum")
+
+    #expect(grouped.contains("group_by [resource.zone]"))
+    #expect(grouped.contains("sum(value)"))
+}
+
+@Test func testMQLQueryBuilderAlign() {
+    let query = MQLQueryBuilder.fetch(metricType: "my.metric")
+    let aligned = MQLQueryBuilder.align(query, aligner: "rate", period: "5m")
+
+    #expect(aligned.contains("align rate(5m)"))
+}
+
+// MARK: - Cloud Monitoring Codable Tests
+
+@Test func testAlertPolicyCodable() throws {
+    let policy = GoogleCloudAlertPolicy(
+        displayName: "Test Alert",
+        projectID: "test-project",
+        conditions: [
+            .threshold(
+                displayName: "Test",
+                filter: "test",
+                comparison: .greaterThan,
+                threshold: 0.5,
+                duration: "60s"
+            )
+        ]
+    )
+
+    let data = try JSONEncoder().encode(policy)
+    let decoded = try JSONDecoder().decode(GoogleCloudAlertPolicy.self, from: data)
+
+    #expect(decoded.displayName == policy.displayName)
+    #expect(decoded.conditions.count == policy.conditions.count)
+}
+
+@Test func testNotificationChannelCodable() throws {
+    let channel = GoogleCloudNotificationChannel(
+        displayName: "Test Channel",
+        projectID: "test-project",
+        type: .email,
+        labels: ["email_address": "test@example.com"]
+    )
+
+    let data = try JSONEncoder().encode(channel)
+    let decoded = try JSONDecoder().decode(GoogleCloudNotificationChannel.self, from: data)
+
+    #expect(decoded.displayName == channel.displayName)
+    #expect(decoded.type == channel.type)
+}
+
+@Test func testUptimeCheckCodable() throws {
+    let check = GoogleCloudUptimeCheck(
+        displayName: "Test Check",
+        projectID: "test-project",
+        monitoredResource: .uptime(host: "example.com"),
+        httpCheck: GoogleCloudUptimeCheck.HTTPCheckConfig(path: "/health")
+    )
+
+    let data = try JSONEncoder().encode(check)
+    let decoded = try JSONDecoder().decode(GoogleCloudUptimeCheck.self, from: data)
+
+    #expect(decoded.displayName == check.displayName)
+}
+
+@Test func testMetricDescriptorCodable() throws {
+    let metric = GoogleCloudMetricDescriptor(
+        type: "custom.googleapis.com/test",
+        projectID: "test-project",
+        metricKind: .gauge,
+        valueType: .int64
+    )
+
+    let data = try JSONEncoder().encode(metric)
+    let decoded = try JSONDecoder().decode(GoogleCloudMetricDescriptor.self, from: data)
+
+    #expect(decoded.type == metric.type)
+    #expect(decoded.metricKind == metric.metricKind)
+}
+
+@Test func testDashboardCodable() throws {
+    let dashboard = GoogleCloudDashboard(
+        displayName: "Test Dashboard",
+        projectID: "test-project"
+    )
+
+    let data = try JSONEncoder().encode(dashboard)
+    let decoded = try JSONDecoder().decode(GoogleCloudDashboard.self, from: data)
+
+    #expect(decoded.displayName == dashboard.displayName)
+}
+
+@Test func testMonitoringGroupCodable() throws {
+    let group = GoogleCloudMonitoringGroup(
+        displayName: "Test Group",
+        projectID: "test-project",
+        filter: "resource.type=\"gce_instance\""
+    )
+
+    let data = try JSONEncoder().encode(group)
+    let decoded = try JSONDecoder().decode(GoogleCloudMonitoringGroup.self, from: data)
+
+    #expect(decoded.displayName == group.displayName)
+    #expect(decoded.filter == group.filter)
+}
+
+@Test func testSLOCodable() throws {
+    let slo = GoogleCloudSLO(
+        displayName: "Test SLO",
+        serviceName: "my-service",
+        projectID: "test-project",
+        goal: 0.99,
+        sli: .requestBased(goodTotalRatio: nil, distributionCut: nil)
+    )
+
+    let data = try JSONEncoder().encode(slo)
+    let decoded = try JSONDecoder().decode(GoogleCloudSLO.self, from: data)
+
+    #expect(decoded.displayName == slo.displayName)
+    #expect(decoded.goal == slo.goal)
+}
