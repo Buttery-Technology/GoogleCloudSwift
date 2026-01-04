@@ -26143,3 +26143,414 @@ import Testing
     #expect(decoded.partnerName == "Megaport")
     #expect(decoded.portalUrl == "https://portal.megaport.com")
 }
+
+// MARK: - Healthcare API Tests
+
+@Test func testHealthcareDatasetBasic() {
+    let dataset = GoogleCloudHealthcareDataset(
+        name: "ehr-dataset",
+        projectID: "my-project",
+        location: "us-central1",
+        timeZone: "America/Los_Angeles"
+    )
+
+    #expect(dataset.name == "ehr-dataset")
+    #expect(dataset.location == "us-central1")
+    #expect(dataset.timeZone == "America/Los_Angeles")
+}
+
+@Test func testHealthcareDatasetResourceName() {
+    let dataset = GoogleCloudHealthcareDataset(
+        name: "patient-data",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(dataset.resourceName == "projects/my-project/locations/us-central1/datasets/patient-data")
+}
+
+@Test func testHealthcareDatasetCreateCommand() {
+    let dataset = GoogleCloudHealthcareDataset(
+        name: "clinical-data",
+        projectID: "my-project",
+        location: "us-central1",
+        timeZone: "America/New_York"
+    )
+
+    let cmd = dataset.createCommand
+    #expect(cmd.contains("gcloud healthcare datasets create clinical-data"))
+    #expect(cmd.contains("--location=us-central1"))
+    #expect(cmd.contains("--time-zone=America/New_York"))
+}
+
+@Test func testFHIRStoreBasic() {
+    let store = GoogleCloudFHIRStore(
+        name: "fhir-r4",
+        dataset: "ehr-dataset",
+        projectID: "my-project",
+        location: "us-central1",
+        version: .r4,
+        enableUpdateCreate: true
+    )
+
+    #expect(store.name == "fhir-r4")
+    #expect(store.version == .r4)
+    #expect(store.enableUpdateCreate == true)
+}
+
+@Test func testFHIRStoreResourceName() {
+    let store = GoogleCloudFHIRStore(
+        name: "patient-store",
+        dataset: "clinical-data",
+        projectID: "my-project",
+        location: "us-central1",
+        version: .r4
+    )
+
+    #expect(store.resourceName == "projects/my-project/locations/us-central1/datasets/clinical-data/fhirStores/patient-store")
+}
+
+@Test func testFHIRStoreCreateCommand() {
+    let store = GoogleCloudFHIRStore(
+        name: "fhir-store",
+        dataset: "ehr-dataset",
+        projectID: "my-project",
+        location: "us-central1",
+        version: .r4,
+        enableUpdateCreate: true,
+        disableReferentialIntegrity: true
+    )
+
+    let cmd = store.createCommand
+    #expect(cmd.contains("gcloud healthcare fhir-stores create fhir-store"))
+    #expect(cmd.contains("--dataset=ehr-dataset"))
+    #expect(cmd.contains("--version=R4"))
+    #expect(cmd.contains("--enable-update-create"))
+    #expect(cmd.contains("--disable-referential-integrity"))
+}
+
+@Test func testFHIRStoreEndpoint() {
+    let store = GoogleCloudFHIRStore(
+        name: "fhir-r4",
+        dataset: "my-dataset",
+        projectID: "my-project",
+        location: "us-central1",
+        version: .r4
+    )
+
+    #expect(store.fhirEndpoint.contains("healthcare.googleapis.com"))
+    #expect(store.fhirEndpoint.contains("/fhir"))
+}
+
+@Test func testFHIRVersionValues() {
+    #expect(GoogleCloudFHIRStore.FHIRVersion.dstu2.rawValue == "DSTU2")
+    #expect(GoogleCloudFHIRStore.FHIRVersion.stu3.rawValue == "STU3")
+    #expect(GoogleCloudFHIRStore.FHIRVersion.r4.rawValue == "R4")
+}
+
+@Test func testHL7v2StoreBasic() {
+    let store = GoogleCloudHL7v2Store(
+        name: "hl7-store",
+        dataset: "ehr-dataset",
+        projectID: "my-project",
+        location: "us-central1",
+        parserConfig: .init(version: .v3)
+    )
+
+    #expect(store.name == "hl7-store")
+    #expect(store.parserConfig?.version == .v3)
+}
+
+@Test func testHL7v2StoreResourceName() {
+    let store = GoogleCloudHL7v2Store(
+        name: "messages",
+        dataset: "clinical-data",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(store.resourceName == "projects/my-project/locations/us-central1/datasets/clinical-data/hl7V2Stores/messages")
+}
+
+@Test func testHL7v2StoreCreateCommand() {
+    let store = GoogleCloudHL7v2Store(
+        name: "hl7-messages",
+        dataset: "ehr-dataset",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let cmd = store.createCommand
+    #expect(cmd.contains("gcloud healthcare hl7v2-stores create hl7-messages"))
+    #expect(cmd.contains("--dataset=ehr-dataset"))
+}
+
+@Test func testDICOMStoreBasic() {
+    let store = GoogleCloudDICOMStore(
+        name: "imaging-store",
+        dataset: "radiology-data",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(store.name == "imaging-store")
+    #expect(store.dataset == "radiology-data")
+}
+
+@Test func testDICOMStoreResourceName() {
+    let store = GoogleCloudDICOMStore(
+        name: "xray-store",
+        dataset: "imaging",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(store.resourceName == "projects/my-project/locations/us-central1/datasets/imaging/dicomStores/xray-store")
+}
+
+@Test func testDICOMStoreEndpoint() {
+    let store = GoogleCloudDICOMStore(
+        name: "ct-scans",
+        dataset: "imaging",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(store.dicomWebEndpoint.contains("healthcare.googleapis.com"))
+    #expect(store.dicomWebEndpoint.contains("/dicomWeb"))
+}
+
+@Test func testConsentStoreBasic() {
+    let store = GoogleCloudConsentStore(
+        name: "patient-consent",
+        dataset: "ehr-dataset",
+        projectID: "my-project",
+        location: "us-central1",
+        enableConsentCreateOnUpdate: true,
+        defaultConsentTtl: "31536000s"
+    )
+
+    #expect(store.name == "patient-consent")
+    #expect(store.enableConsentCreateOnUpdate == true)
+    #expect(store.defaultConsentTtl == "31536000s")
+}
+
+@Test func testFHIRResourceTypeValues() {
+    #expect(FHIRResourceType.patient.rawValue == "Patient")
+    #expect(FHIRResourceType.observation.rawValue == "Observation")
+    #expect(FHIRResourceType.condition.rawValue == "Condition")
+    #expect(FHIRResourceType.medicationRequest.rawValue == "MedicationRequest")
+    #expect(FHIRResourceType.encounter.rawValue == "Encounter")
+    #expect(FHIRResourceType.immunization.rawValue == "Immunization")
+}
+
+@Test func testFHIROperationsRead() {
+    let store = GoogleCloudFHIRStore(
+        name: "fhir-store",
+        dataset: "ehr-dataset",
+        projectID: "my-project",
+        location: "us-central1",
+        version: .r4
+    )
+    let ops = FHIROperations(store: store)
+
+    let cmd = ops.readCommand(resourceType: .patient, resourceID: "12345")
+    #expect(cmd.contains("curl -X GET"))
+    #expect(cmd.contains("Patient/12345"))
+}
+
+@Test func testFHIROperationsSearch() {
+    let store = GoogleCloudFHIRStore(
+        name: "fhir-store",
+        dataset: "ehr-dataset",
+        projectID: "my-project",
+        location: "us-central1",
+        version: .r4
+    )
+    let ops = FHIROperations(store: store)
+
+    let cmd = ops.searchCommand(resourceType: .patient, parameters: ["name": "Smith"])
+    #expect(cmd.contains("Patient"))
+    #expect(cmd.contains("name=Smith"))
+}
+
+@Test func testFHIROperationsCreate() {
+    let store = GoogleCloudFHIRStore(
+        name: "fhir-store",
+        dataset: "ehr-dataset",
+        projectID: "my-project",
+        location: "us-central1",
+        version: .r4
+    )
+    let ops = FHIROperations(store: store)
+
+    let cmd = ops.createCommand(resourceType: .patient, dataFile: "patient.json")
+    #expect(cmd.contains("curl -X POST"))
+    #expect(cmd.contains("-d @patient.json"))
+    #expect(cmd.contains("Content-Type: application/fhir+json"))
+}
+
+@Test func testHealthcareOperationsEnableAPI() {
+    let ops = HealthcareOperations(projectID: "my-project", location: "us-central1")
+    #expect(ops.enableAPICommand == "gcloud services enable healthcare.googleapis.com --project=my-project")
+}
+
+@Test func testHealthcareOperationsListStores() {
+    let ops = HealthcareOperations(projectID: "my-project", location: "us-central1")
+
+    let fhirCmd = ops.listFHIRStoresCommand(dataset: "ehr-dataset")
+    #expect(fhirCmd.contains("gcloud healthcare fhir-stores list"))
+    #expect(fhirCmd.contains("--dataset=ehr-dataset"))
+
+    let hl7Cmd = ops.listHL7v2StoresCommand(dataset: "ehr-dataset")
+    #expect(hl7Cmd.contains("gcloud healthcare hl7v2-stores list"))
+
+    let dicomCmd = ops.listDICOMStoresCommand(dataset: "imaging")
+    #expect(dicomCmd.contains("gcloud healthcare dicom-stores list"))
+}
+
+@Test func testHealthcareOperationsImportExport() {
+    let ops = HealthcareOperations(projectID: "my-project", location: "us-central1")
+
+    let importCmd = ops.importFHIRCommand(
+        dataset: "ehr-dataset",
+        fhirStore: "fhir-store",
+        gcsUri: "gs://my-bucket/fhir-bundles/*"
+    )
+    #expect(importCmd.contains("fhir-stores import gcs"))
+    #expect(importCmd.contains("--gcs-uri=gs://my-bucket/fhir-bundles/*"))
+
+    let exportCmd = ops.exportFHIRCommand(
+        dataset: "ehr-dataset",
+        fhirStore: "fhir-store",
+        gcsUri: "gs://my-bucket/export/"
+    )
+    #expect(exportCmd.contains("fhir-stores export gcs"))
+}
+
+@Test func testHealthcareOperationsDeidentify() {
+    let ops = HealthcareOperations(projectID: "my-project", location: "us-central1")
+    let cmd = ops.deidentifyDatasetCommand(
+        sourceDataset: "patient-data",
+        destinationDataset: "deidentified-data"
+    )
+    #expect(cmd.contains("datasets deidentify patient-data"))
+    #expect(cmd.contains("--destination-dataset=deidentified-data"))
+}
+
+@Test func testHealthcareOperationsIAMRoles() {
+    #expect(HealthcareOperations.HealthcareRole.healthcareDatasetAdmin.rawValue == "roles/healthcare.datasetAdmin")
+    #expect(HealthcareOperations.HealthcareRole.healthcareFhirStoreAdmin.rawValue == "roles/healthcare.fhirStoreAdmin")
+    #expect(HealthcareOperations.HealthcareRole.healthcareFhirResourceReader.rawValue == "roles/healthcare.fhirResourceReader")
+    #expect(HealthcareOperations.HealthcareRole.healthcareDicomStoreAdmin.rawValue == "roles/healthcare.dicomStoreAdmin")
+}
+
+@Test func testDAISHealthcareTemplateDataset() {
+    let template = DAISHealthcareTemplate(projectID: "my-project", location: "us-central1")
+    let dataset = template.dataset(name: "clinical-data", timeZone: "America/Chicago")
+
+    #expect(dataset.name == "clinical-data")
+    #expect(dataset.timeZone == "America/Chicago")
+}
+
+@Test func testDAISHealthcareTemplateFHIRStore() {
+    let template = DAISHealthcareTemplate(projectID: "my-project", location: "us-central1")
+    let store = template.fhirStoreR4(
+        name: "patient-records",
+        dataset: "ehr-dataset",
+        bigQueryDataset: "analytics"
+    )
+
+    #expect(store.name == "patient-records")
+    #expect(store.version == .r4)
+    #expect(store.enableUpdateCreate == true)
+    #expect(store.streamConfigs != nil)
+}
+
+@Test func testDAISHealthcareTemplateHL7v2Store() {
+    let template = DAISHealthcareTemplate(projectID: "my-project", location: "us-central1")
+    let store = template.hl7v2Store(
+        name: "hl7-messages",
+        dataset: "ehr-dataset",
+        pubsubTopic: "projects/my-project/topics/hl7-events"
+    )
+
+    #expect(store.name == "hl7-messages")
+    #expect(store.parserConfig?.version == .v3)
+    #expect(store.notificationConfigs?.count == 1)
+}
+
+@Test func testDAISHealthcareTemplateDICOMStore() {
+    let template = DAISHealthcareTemplate(projectID: "my-project", location: "us-central1")
+    let store = template.dicomStore(
+        name: "radiology-images",
+        dataset: "imaging",
+        pubsubTopic: "projects/my-project/topics/dicom-events"
+    )
+
+    #expect(store.name == "radiology-images")
+    #expect(store.notificationConfig?.pubsubTopic == "projects/my-project/topics/dicom-events")
+}
+
+@Test func testDAISHealthcareTemplateSetupScript() {
+    let template = DAISHealthcareTemplate(projectID: "my-project", location: "us-central1")
+    let script = template.setupScript(
+        datasetName: "ehr-dataset",
+        fhirStoreName: "patient-records",
+        dicomStoreName: "imaging-store",
+        hl7v2StoreName: "hl7-messages"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("gcloud services enable healthcare.googleapis.com"))
+    #expect(script.contains("gcloud healthcare datasets create $DATASET"))
+    #expect(script.contains("gcloud healthcare fhir-stores create patient-records"))
+    #expect(script.contains("gcloud healthcare dicom-stores create imaging-store"))
+    #expect(script.contains("gcloud healthcare hl7v2-stores create hl7-messages"))
+}
+
+@Test func testHealthcareDatasetCodable() throws {
+    let dataset = GoogleCloudHealthcareDataset(
+        name: "test-dataset",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let data = try JSONEncoder().encode(dataset)
+    let decoded = try JSONDecoder().decode(GoogleCloudHealthcareDataset.self, from: data)
+
+    #expect(decoded.name == "test-dataset")
+    #expect(decoded.location == "us-central1")
+}
+
+@Test func testFHIRStoreCodable() throws {
+    let store = GoogleCloudFHIRStore(
+        name: "fhir-test",
+        dataset: "dataset1",
+        projectID: "my-project",
+        location: "us-central1",
+        version: .r4
+    )
+
+    let data = try JSONEncoder().encode(store)
+    let decoded = try JSONDecoder().decode(GoogleCloudFHIRStore.self, from: data)
+
+    #expect(decoded.name == "fhir-test")
+    #expect(decoded.version == .r4)
+}
+
+@Test func testFHIRStreamConfigCodable() throws {
+    let config = GoogleCloudFHIRStore.StreamConfig(
+        bigQueryDestination: .init(
+            datasetUri: "bq://project.dataset",
+            schemaConfig: .init(schemaType: .analyticsV2, recursiveStructureDepth: 3)
+        ),
+        resourceTypes: ["Patient", "Observation"]
+    )
+
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(GoogleCloudFHIRStore.StreamConfig.self, from: data)
+
+    #expect(decoded.bigQueryDestination?.datasetUri == "bq://project.dataset")
+    #expect(decoded.resourceTypes?.contains("Patient") == true)
+}
