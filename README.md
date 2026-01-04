@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 44 Google Cloud services:
+GoogleCloudSwift provides models for 45 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -124,6 +124,7 @@ GoogleCloudSwift provides models for 44 Google Cloud services:
 | **Cloud Profiler** | Continuous profiling | `GoogleCloudProfilerProfile`, `GoogleCloudProfilerAgentConfig`, `ProfilerOperations`, `DAISProfilerTemplate` |
 | **Error Reporting** | Error collection and analysis | `GoogleCloudErrorEvent`, `GoogleCloudErrorGroup`, `ErrorReportingOperations`, `DAISErrorReportingTemplate` |
 | **Cloud Bigtable** | Wide-column NoSQL database | `GoogleCloudBigtableInstance`, `GoogleCloudBigtableCluster`, `GoogleCloudBigtableTable`, `DAISBigtableTemplate` |
+| **Dataproc** | Managed Spark and Hadoop | `GoogleCloudDataprocCluster`, `GoogleCloudDataprocJob`, `GoogleCloudDataprocBatch`, `DAISDataprocTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -5285,6 +5286,228 @@ print(template.teardownScript)
 | `roles/bigtable.reader` | Read-only access |
 | `roles/bigtable.viewer` | View metadata only |
 
+### GoogleCloudDataprocCluster (Dataproc API)
+
+Cloud Dataproc is a managed Spark and Hadoop service for batch processing and analytics:
+
+```swift
+// Create a Dataproc cluster
+let cluster = GoogleCloudDataprocCluster(
+    name: "analytics-cluster",
+    projectID: "my-project",
+    region: "us-central1",
+    clusterConfig: GoogleCloudDataprocCluster.ClusterConfig(
+        masterConfig: GoogleCloudDataprocCluster.InstanceGroupConfig(
+            numInstances: 1,
+            machineType: "n1-standard-4",
+            diskConfig: GoogleCloudDataprocCluster.InstanceGroupConfig.DiskConfig(
+                bootDiskType: "pd-ssd",
+                bootDiskSizeGb: 500
+            )
+        ),
+        workerConfig: GoogleCloudDataprocCluster.InstanceGroupConfig(
+            numInstances: 2,
+            machineType: "n1-standard-4"
+        ),
+        softwareConfig: GoogleCloudDataprocCluster.SoftwareConfig(
+            imageVersion: "2.1-debian11",
+            optionalComponents: [.jupyter, .zeppelin]
+        )
+    ),
+    labels: ["env": "production"]
+)
+
+print(cluster.resourceName)  // projects/my-project/regions/us-central1/clusters/analytics-cluster
+print(cluster.createCommand)
+print(cluster.updateCommand(numWorkers: 5))  // Scale workers
+```
+
+**Spot/Preemptible Workers:**
+
+```swift
+// Add spot workers for cost savings
+let batchCluster = GoogleCloudDataprocCluster(
+    name: "batch-cluster",
+    projectID: "my-project",
+    region: "us-central1",
+    clusterConfig: GoogleCloudDataprocCluster.ClusterConfig(
+        masterConfig: GoogleCloudDataprocCluster.InstanceGroupConfig(numInstances: 1),
+        workerConfig: GoogleCloudDataprocCluster.InstanceGroupConfig(numInstances: 2),
+        secondaryWorkerConfig: GoogleCloudDataprocCluster.InstanceGroupConfig(
+            numInstances: 10,
+            machineType: "n1-standard-4",
+            preemptibility: .spot
+        )
+    )
+)
+
+print(batchCluster.createCommand)
+```
+
+**Dataproc Jobs:**
+
+```swift
+// Submit a Spark job
+let sparkJob = GoogleCloudDataprocJob(
+    projectID: "my-project",
+    region: "us-central1",
+    clusterName: "analytics-cluster",
+    jobType: .spark,
+    mainClass: "com.example.analytics.MainJob",
+    jarFiles: ["gs://my-bucket/analytics.jar"],
+    args: ["--input", "gs://my-bucket/data", "--output", "gs://my-bucket/results"],
+    properties: [
+        "spark.executor.memory": "4g",
+        "spark.driver.memory": "2g"
+    ]
+)
+
+print(sparkJob.submitCommand)
+
+// Submit a PySpark job
+let pysparkJob = GoogleCloudDataprocJob(
+    projectID: "my-project",
+    region: "us-central1",
+    clusterName: "analytics-cluster",
+    jobType: .pyspark,
+    mainFile: "gs://my-bucket/scripts/etl_job.py",
+    pyFiles: ["gs://my-bucket/scripts/utils.py"]
+)
+
+print(pysparkJob.submitCommand)
+
+// Job management
+print(GoogleCloudDataprocJob.describeCommand(projectID: "my-project", region: "us-central1", jobID: "job-123"))
+print(GoogleCloudDataprocJob.cancelCommand(projectID: "my-project", region: "us-central1", jobID: "job-123"))
+```
+
+**Serverless Batches:**
+
+```swift
+// Submit a serverless batch (no cluster required)
+let batch = GoogleCloudDataprocBatch(
+    batchID: "etl-batch-001",
+    projectID: "my-project",
+    region: "us-central1",
+    batchType: .pyspark,
+    mainFile: "gs://my-bucket/scripts/batch_job.py",
+    runtimeConfig: GoogleCloudDataprocBatch.RuntimeConfig(version: "2.0")
+)
+
+print(batch.resourceName)
+print(batch.submitCommand)
+print(batch.describeCommand)
+```
+
+**Workflow Templates:**
+
+```swift
+// Create workflow template
+let workflow = GoogleCloudDataprocWorkflowTemplate(
+    name: "daily-etl",
+    projectID: "my-project",
+    region: "us-central1"
+)
+
+print(workflow.createFromFileCommand(filePath: "workflow.yaml"))
+print(workflow.instantiateCommand)
+```
+
+**Autoscaling Policies:**
+
+```swift
+let policy = GoogleCloudDataprocAutoscalingPolicy(
+    name: "scale-policy",
+    projectID: "my-project",
+    region: "us-central1",
+    workerConfig: GoogleCloudDataprocAutoscalingPolicy.InstanceGroupAutoscalingConfig(
+        minInstances: 2,
+        maxInstances: 10
+    ),
+    secondaryWorkerConfig: GoogleCloudDataprocAutoscalingPolicy.InstanceGroupAutoscalingConfig(
+        minInstances: 0,
+        maxInstances: 20
+    )
+)
+
+print(policy.resourceName)
+```
+
+**Dataproc Operations:**
+
+```swift
+// Enable API
+print(DataprocOperations.enableAPICommand)
+
+// Grant roles
+print(DataprocOperations.addAdminRoleCommand(projectID: "my-project", member: "user:admin@example.com"))
+
+// SSH to cluster master
+print(DataprocOperations.sshCommand(projectID: "my-project", region: "us-central1", clusterName: "my-cluster", zone: "us-central1-a"))
+
+// Diagnose cluster issues
+print(DataprocOperations.diagnoseCommand(projectID: "my-project", region: "us-central1", clusterName: "my-cluster"))
+```
+
+**DAIS Dataproc Templates:**
+
+```swift
+let template = DAISDataprocTemplate(
+    projectID: "my-project",
+    region: "us-central1",
+    clusterName: "dais-dataproc",
+    serviceAccount: "sa@my-project.iam.gserviceaccount.com"
+)
+
+// Pre-configured clusters
+let analyticsCluster = template.analyticsCluster  // Standard analytics cluster
+let batchCluster = template.batchProcessingCluster  // Spot workers for batch
+let highMemCluster = template.highMemoryCluster  // For large datasets
+
+// Sample jobs
+let pysparkJob = template.samplePySparkJob
+let sparkJob = template.sampleSparkJob
+
+// Serverless batch
+let serverlessBatch = template.serverlessBatch
+
+// Setup and teardown
+print(template.setupScript)
+print(template.teardownScript)
+```
+
+**Job Types:**
+
+| Type | Description |
+|------|-------------|
+| `SPARK` | Scala/Java Spark jobs |
+| `PYSPARK` | Python Spark jobs |
+| `SPARK_SQL` | Spark SQL queries |
+| `HIVE` | Hive queries |
+| `PIG` | Pig scripts |
+| `HADOOP` | MapReduce jobs |
+| `PRESTO` | Presto queries |
+
+**Optional Components:**
+
+| Component | Description |
+|-----------|-------------|
+| `JUPYTER` | Jupyter notebooks |
+| `ZEPPELIN` | Zeppelin notebooks |
+| `PRESTO` | Presto SQL engine |
+| `HBASE` | HBase database |
+| `FLINK` | Apache Flink |
+| `DOCKER` | Docker support |
+
+**IAM Roles:**
+
+| Role | Description |
+|------|-------------|
+| `roles/dataproc.admin` | Full access |
+| `roles/dataproc.editor` | Create and manage |
+| `roles/dataproc.viewer` | View only |
+| `roles/dataproc.worker` | Worker node access |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -6772,6 +6995,17 @@ MIT License
 - [Replication](https://cloud.google.com/bigtable/docs/replication-overview)
 - [Backups](https://cloud.google.com/bigtable/docs/backups)
 - [Bigtable IAM Roles](https://cloud.google.com/bigtable/docs/access-control)
+
+### Dataproc
+- [Dataproc Documentation](https://cloud.google.com/dataproc/docs)
+- [Cluster Management](https://cloud.google.com/dataproc/docs/concepts/configuring-clusters)
+- [Submitting Jobs](https://cloud.google.com/dataproc/docs/concepts/jobs/life-of-a-job)
+- [Dataproc Serverless](https://cloud.google.com/dataproc-serverless/docs)
+- [Workflow Templates](https://cloud.google.com/dataproc/docs/concepts/workflows/overview)
+- [Autoscaling](https://cloud.google.com/dataproc/docs/concepts/configuring-clusters/autoscaling)
+- [Optional Components](https://cloud.google.com/dataproc/docs/concepts/components/overview)
+- [Preemptible/Spot VMs](https://cloud.google.com/dataproc/docs/concepts/compute/preemptible-vms)
+- [Dataproc IAM Roles](https://cloud.google.com/dataproc/docs/concepts/iam/iam)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)

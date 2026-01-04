@@ -21156,3 +21156,601 @@ import Testing
         #expect(Bool(false), "Expected singleClusterRouting")
     }
 }
+
+// MARK: - Cloud Dataproc Tests
+
+@Test func testDataprocClusterBasic() {
+    let cluster = GoogleCloudDataprocCluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        region: "us-central1"
+    )
+
+    #expect(cluster.name == "my-cluster")
+    #expect(cluster.projectID == "my-project")
+    #expect(cluster.region == "us-central1")
+}
+
+@Test func testDataprocClusterResourceName() {
+    let cluster = GoogleCloudDataprocCluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        region: "us-central1"
+    )
+
+    #expect(cluster.resourceName == "projects/my-project/regions/us-central1/clusters/my-cluster")
+}
+
+@Test func testDataprocClusterCreateCommand() {
+    let cluster = GoogleCloudDataprocCluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        region: "us-central1",
+        clusterConfig: GoogleCloudDataprocCluster.ClusterConfig(
+            masterConfig: GoogleCloudDataprocCluster.InstanceGroupConfig(
+                numInstances: 1,
+                machineType: "n1-standard-4"
+            ),
+            workerConfig: GoogleCloudDataprocCluster.InstanceGroupConfig(
+                numInstances: 2,
+                machineType: "n1-standard-4"
+            )
+        )
+    )
+
+    let cmd = cluster.createCommand
+    #expect(cmd.contains("gcloud dataproc clusters create my-cluster"))
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(cmd.contains("--master-machine-type=n1-standard-4"))
+    #expect(cmd.contains("--num-workers=2"))
+}
+
+@Test func testDataprocClusterWithSoftwareConfig() {
+    let cluster = GoogleCloudDataprocCluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        region: "us-central1",
+        clusterConfig: GoogleCloudDataprocCluster.ClusterConfig(
+            softwareConfig: GoogleCloudDataprocCluster.SoftwareConfig(
+                imageVersion: "2.1-debian11",
+                optionalComponents: [.jupyter, .zeppelin]
+            )
+        )
+    )
+
+    let cmd = cluster.createCommand
+    #expect(cmd.contains("--image-version=2.1-debian11"))
+    #expect(cmd.contains("--optional-components=JUPYTER,ZEPPELIN"))
+}
+
+@Test func testDataprocClusterWithSecondaryWorkers() {
+    let cluster = GoogleCloudDataprocCluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        region: "us-central1",
+        clusterConfig: GoogleCloudDataprocCluster.ClusterConfig(
+            secondaryWorkerConfig: GoogleCloudDataprocCluster.InstanceGroupConfig(
+                numInstances: 5,
+                preemptibility: .spot
+            )
+        )
+    )
+
+    let cmd = cluster.createCommand
+    #expect(cmd.contains("--num-secondary-workers=5"))
+    #expect(cmd.contains("--secondary-worker-type=SPOT"))
+}
+
+@Test func testDataprocClusterDescribeCommand() {
+    let cluster = GoogleCloudDataprocCluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        region: "us-central1"
+    )
+
+    #expect(cluster.describeCommand == "gcloud dataproc clusters describe my-cluster --region=us-central1 --project=my-project")
+}
+
+@Test func testDataprocClusterDeleteCommand() {
+    let cluster = GoogleCloudDataprocCluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        region: "us-central1"
+    )
+
+    #expect(cluster.deleteCommand == "gcloud dataproc clusters delete my-cluster --region=us-central1 --project=my-project")
+}
+
+@Test func testDataprocClusterUpdateCommand() {
+    let cluster = GoogleCloudDataprocCluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        region: "us-central1"
+    )
+
+    let cmd = cluster.updateCommand(numWorkers: 10)
+    #expect(cmd.contains("gcloud dataproc clusters update my-cluster"))
+    #expect(cmd.contains("--num-workers=10"))
+}
+
+@Test func testDataprocClusterStopStartCommands() {
+    let cluster = GoogleCloudDataprocCluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        region: "us-central1"
+    )
+
+    #expect(cluster.stopCommand == "gcloud dataproc clusters stop my-cluster --region=us-central1 --project=my-project")
+    #expect(cluster.startCommand == "gcloud dataproc clusters start my-cluster --region=us-central1 --project=my-project")
+}
+
+@Test func testDataprocClusterListCommand() {
+    let cmd = GoogleCloudDataprocCluster.listCommand(projectID: "my-project", region: "us-central1")
+    #expect(cmd == "gcloud dataproc clusters list --region=us-central1 --project=my-project")
+}
+
+@Test func testDataprocClusterStatusValues() {
+    #expect(GoogleCloudDataprocCluster.ClusterStatus.running.rawValue == "RUNNING")
+    #expect(GoogleCloudDataprocCluster.ClusterStatus.creating.rawValue == "CREATING")
+    #expect(GoogleCloudDataprocCluster.ClusterStatus.deleting.rawValue == "DELETING")
+    #expect(GoogleCloudDataprocCluster.ClusterStatus.stopped.rawValue == "STOPPED")
+}
+
+@Test func testDataprocJobSparkSubmit() {
+    let job = GoogleCloudDataprocJob(
+        projectID: "my-project",
+        region: "us-central1",
+        clusterName: "my-cluster",
+        jobType: .spark,
+        mainClass: "com.example.Main",
+        jarFiles: ["gs://bucket/app.jar"]
+    )
+
+    let cmd = job.submitCommand
+    #expect(cmd.contains("gcloud dataproc jobs submit spark"))
+    #expect(cmd.contains("--cluster=my-cluster"))
+    #expect(cmd.contains("--class=com.example.Main"))
+    #expect(cmd.contains("--jars=gs://bucket/app.jar"))
+}
+
+@Test func testDataprocJobPySparkSubmit() {
+    let job = GoogleCloudDataprocJob(
+        projectID: "my-project",
+        region: "us-central1",
+        clusterName: "my-cluster",
+        jobType: .pyspark,
+        mainFile: "gs://bucket/job.py",
+        pyFiles: ["gs://bucket/utils.py"],
+        args: ["--input", "gs://bucket/input"]
+    )
+
+    let cmd = job.submitCommand
+    #expect(cmd.contains("gcloud dataproc jobs submit pyspark"))
+    #expect(cmd.contains("gs://bucket/job.py"))
+    #expect(cmd.contains("--py-files=gs://bucket/utils.py"))
+    #expect(cmd.contains("-- --input gs://bucket/input"))
+}
+
+@Test func testDataprocJobHiveSubmit() {
+    let job = GoogleCloudDataprocJob(
+        projectID: "my-project",
+        region: "us-central1",
+        clusterName: "my-cluster",
+        jobType: .hive,
+        mainFile: "gs://bucket/query.hql"
+    )
+
+    let cmd = job.submitCommand
+    #expect(cmd.contains("gcloud dataproc jobs submit hive"))
+    #expect(cmd.contains("--file=gs://bucket/query.hql"))
+}
+
+@Test func testDataprocJobDescribeCommand() {
+    let cmd = GoogleCloudDataprocJob.describeCommand(projectID: "my-project", region: "us-central1", jobID: "job-123")
+    #expect(cmd == "gcloud dataproc jobs describe job-123 --region=us-central1 --project=my-project")
+}
+
+@Test func testDataprocJobCancelCommand() {
+    let cmd = GoogleCloudDataprocJob.cancelCommand(projectID: "my-project", region: "us-central1", jobID: "job-123")
+    #expect(cmd == "gcloud dataproc jobs kill job-123 --region=us-central1 --project=my-project")
+}
+
+@Test func testDataprocJobListCommand() {
+    let cmd = GoogleCloudDataprocJob.listCommand(projectID: "my-project", region: "us-central1", clusterName: "my-cluster")
+    #expect(cmd.contains("gcloud dataproc jobs list"))
+    #expect(cmd.contains("--cluster=my-cluster"))
+}
+
+@Test func testDataprocJobStatusValues() {
+    #expect(GoogleCloudDataprocJob.JobStatus.running.rawValue == "RUNNING")
+    #expect(GoogleCloudDataprocJob.JobStatus.done.rawValue == "DONE")
+    #expect(GoogleCloudDataprocJob.JobStatus.error.rawValue == "ERROR")
+    #expect(GoogleCloudDataprocJob.JobStatus.cancelled.rawValue == "CANCELLED")
+}
+
+@Test func testDataprocJobTypeValues() {
+    #expect(GoogleCloudDataprocJob.JobType.spark.rawValue == "SPARK")
+    #expect(GoogleCloudDataprocJob.JobType.pyspark.rawValue == "PYSPARK")
+    #expect(GoogleCloudDataprocJob.JobType.hive.rawValue == "HIVE")
+    #expect(GoogleCloudDataprocJob.JobType.hadoop.rawValue == "HADOOP")
+}
+
+@Test func testDataprocBatchBasic() {
+    let batch = GoogleCloudDataprocBatch(
+        batchID: "batch-123",
+        projectID: "my-project",
+        region: "us-central1",
+        batchType: .pyspark,
+        mainFile: "gs://bucket/job.py"
+    )
+
+    #expect(batch.batchID == "batch-123")
+    #expect(batch.batchType == .pyspark)
+}
+
+@Test func testDataprocBatchResourceName() {
+    let batch = GoogleCloudDataprocBatch(
+        batchID: "batch-123",
+        projectID: "my-project",
+        region: "us-central1",
+        batchType: .spark
+    )
+
+    #expect(batch.resourceName == "projects/my-project/locations/us-central1/batches/batch-123")
+}
+
+@Test func testDataprocBatchSubmitCommand() {
+    let batch = GoogleCloudDataprocBatch(
+        batchID: "batch-123",
+        projectID: "my-project",
+        region: "us-central1",
+        batchType: .pyspark,
+        mainFile: "gs://bucket/job.py",
+        runtimeConfig: GoogleCloudDataprocBatch.RuntimeConfig(version: "2.0")
+    )
+
+    let cmd = batch.submitCommand
+    #expect(cmd.contains("gcloud dataproc batches submit pyspark"))
+    #expect(cmd.contains("--batch=batch-123"))
+    #expect(cmd.contains("gs://bucket/job.py"))
+    #expect(cmd.contains("--version=2.0"))
+}
+
+@Test func testDataprocBatchDescribeCommand() {
+    let batch = GoogleCloudDataprocBatch(
+        batchID: "batch-123",
+        projectID: "my-project",
+        region: "us-central1",
+        batchType: .spark
+    )
+
+    #expect(batch.describeCommand == "gcloud dataproc batches describe batch-123 --region=us-central1 --project=my-project")
+}
+
+@Test func testDataprocBatchCancelCommand() {
+    let batch = GoogleCloudDataprocBatch(
+        batchID: "batch-123",
+        projectID: "my-project",
+        region: "us-central1",
+        batchType: .spark
+    )
+
+    #expect(batch.cancelCommand == "gcloud dataproc batches cancel batch-123 --region=us-central1 --project=my-project")
+}
+
+@Test func testDataprocBatchDeleteCommand() {
+    let batch = GoogleCloudDataprocBatch(
+        batchID: "batch-123",
+        projectID: "my-project",
+        region: "us-central1",
+        batchType: .spark
+    )
+
+    #expect(batch.deleteCommand == "gcloud dataproc batches delete batch-123 --region=us-central1 --project=my-project")
+}
+
+@Test func testDataprocBatchListCommand() {
+    let cmd = GoogleCloudDataprocBatch.listCommand(projectID: "my-project", region: "us-central1")
+    #expect(cmd == "gcloud dataproc batches list --region=us-central1 --project=my-project")
+}
+
+@Test func testDataprocBatchStateValues() {
+    #expect(GoogleCloudDataprocBatch.BatchState.running.rawValue == "RUNNING")
+    #expect(GoogleCloudDataprocBatch.BatchState.succeeded.rawValue == "SUCCEEDED")
+    #expect(GoogleCloudDataprocBatch.BatchState.failed.rawValue == "FAILED")
+    #expect(GoogleCloudDataprocBatch.BatchState.cancelled.rawValue == "CANCELLED")
+}
+
+@Test func testDataprocWorkflowTemplateBasic() {
+    let template = GoogleCloudDataprocWorkflowTemplate(
+        name: "my-workflow",
+        projectID: "my-project",
+        region: "us-central1"
+    )
+
+    #expect(template.name == "my-workflow")
+    #expect(template.region == "us-central1")
+}
+
+@Test func testDataprocWorkflowTemplateResourceName() {
+    let template = GoogleCloudDataprocWorkflowTemplate(
+        name: "my-workflow",
+        projectID: "my-project",
+        region: "us-central1"
+    )
+
+    #expect(template.resourceName == "projects/my-project/regions/us-central1/workflowTemplates/my-workflow")
+}
+
+@Test func testDataprocWorkflowTemplateCreateCommand() {
+    let template = GoogleCloudDataprocWorkflowTemplate(
+        name: "my-workflow",
+        projectID: "my-project",
+        region: "us-central1"
+    )
+
+    let cmd = template.createFromFileCommand(filePath: "/path/to/workflow.yaml")
+    #expect(cmd.contains("gcloud dataproc workflow-templates import my-workflow"))
+    #expect(cmd.contains("--source=/path/to/workflow.yaml"))
+}
+
+@Test func testDataprocWorkflowTemplateInstantiateCommand() {
+    let template = GoogleCloudDataprocWorkflowTemplate(
+        name: "my-workflow",
+        projectID: "my-project",
+        region: "us-central1"
+    )
+
+    #expect(template.instantiateCommand == "gcloud dataproc workflow-templates instantiate my-workflow --region=us-central1 --project=my-project")
+}
+
+@Test func testDataprocWorkflowTemplateListCommand() {
+    let cmd = GoogleCloudDataprocWorkflowTemplate.listCommand(projectID: "my-project", region: "us-central1")
+    #expect(cmd == "gcloud dataproc workflow-templates list --region=us-central1 --project=my-project")
+}
+
+@Test func testDataprocAutoscalingPolicyBasic() {
+    let policy = GoogleCloudDataprocAutoscalingPolicy(
+        name: "my-policy",
+        projectID: "my-project",
+        region: "us-central1",
+        workerConfig: GoogleCloudDataprocAutoscalingPolicy.InstanceGroupAutoscalingConfig(
+            minInstances: 2,
+            maxInstances: 10
+        )
+    )
+
+    #expect(policy.name == "my-policy")
+    #expect(policy.workerConfig?.minInstances == 2)
+    #expect(policy.workerConfig?.maxInstances == 10)
+}
+
+@Test func testDataprocAutoscalingPolicyResourceName() {
+    let policy = GoogleCloudDataprocAutoscalingPolicy(
+        name: "my-policy",
+        projectID: "my-project",
+        region: "us-central1"
+    )
+
+    #expect(policy.resourceName == "projects/my-project/regions/us-central1/autoscalingPolicies/my-policy")
+}
+
+@Test func testDataprocAutoscalingPolicyListCommand() {
+    let cmd = GoogleCloudDataprocAutoscalingPolicy.listCommand(projectID: "my-project", region: "us-central1")
+    #expect(cmd == "gcloud dataproc autoscaling-policies list --region=us-central1 --project=my-project")
+}
+
+@Test func testDataprocOperationsEnableAPI() {
+    let cmd = DataprocOperations.enableAPICommand
+    #expect(cmd == "gcloud services enable dataproc.googleapis.com")
+}
+
+@Test func testDataprocOperationsRoles() {
+    #expect(DataprocOperations.Roles.admin == "roles/dataproc.admin")
+    #expect(DataprocOperations.Roles.editor == "roles/dataproc.editor")
+    #expect(DataprocOperations.Roles.viewer == "roles/dataproc.viewer")
+    #expect(DataprocOperations.Roles.worker == "roles/dataproc.worker")
+}
+
+@Test func testDataprocOperationsAddAdminRole() {
+    let cmd = DataprocOperations.addAdminRoleCommand(projectID: "my-project", member: "user:admin@example.com")
+    #expect(cmd.contains("--member=user:admin@example.com"))
+    #expect(cmd.contains("--role=roles/dataproc.admin"))
+}
+
+@Test func testDataprocOperationsImageVersions() {
+    #expect(DataprocOperations.ImageVersions.latest == "2.1-debian11")
+    #expect(DataprocOperations.ImageVersions.spark33 == "2.1-debian11")
+}
+
+@Test func testDataprocOperationsSSHCommand() {
+    let cmd = DataprocOperations.sshCommand(projectID: "my-project", region: "us-central1", clusterName: "my-cluster", zone: "us-central1-a")
+    #expect(cmd.contains("gcloud compute ssh my-cluster-m"))
+    #expect(cmd.contains("--zone=us-central1-a"))
+}
+
+@Test func testDataprocOperationsDiagnoseCommand() {
+    let cmd = DataprocOperations.diagnoseCommand(projectID: "my-project", region: "us-central1", clusterName: "my-cluster")
+    #expect(cmd.contains("gcloud dataproc clusters diagnose my-cluster"))
+}
+
+@Test func testDAISDataprocTemplateBasic() {
+    let template = DAISDataprocTemplate(projectID: "my-project")
+
+    #expect(template.projectID == "my-project")
+    #expect(template.region == "us-central1")
+    #expect(template.clusterName == "dais-dataproc")
+}
+
+@Test func testDAISDataprocTemplateAnalyticsCluster() {
+    let template = DAISDataprocTemplate(projectID: "my-project")
+
+    let cluster = template.analyticsCluster
+    #expect(cluster.name == "dais-dataproc")
+    #expect(cluster.labels?["managed-by"] == "dais")
+}
+
+@Test func testDAISDataprocTemplateBatchCluster() {
+    let template = DAISDataprocTemplate(projectID: "my-project")
+
+    let cluster = template.batchProcessingCluster
+    #expect(cluster.name == "dais-dataproc-batch")
+    #expect(cluster.labels?["type"] == "batch")
+}
+
+@Test func testDAISDataprocTemplateHighMemoryCluster() {
+    let template = DAISDataprocTemplate(projectID: "my-project")
+
+    let cluster = template.highMemoryCluster
+    #expect(cluster.name == "dais-dataproc-highmem")
+    #expect(cluster.labels?["type"] == "highmem")
+}
+
+@Test func testDAISDataprocTemplateSamplePySparkJob() {
+    let template = DAISDataprocTemplate(projectID: "my-project")
+
+    let job = template.samplePySparkJob
+    #expect(job.jobType == .pyspark)
+    #expect(job.mainFile?.contains("etl_job.py") == true)
+}
+
+@Test func testDAISDataprocTemplateSampleSparkJob() {
+    let template = DAISDataprocTemplate(projectID: "my-project")
+
+    let job = template.sampleSparkJob
+    #expect(job.jobType == .spark)
+    #expect(job.mainClass == "com.dais.analytics.MainJob")
+}
+
+@Test func testDAISDataprocTemplateServerlessBatch() {
+    let template = DAISDataprocTemplate(projectID: "my-project")
+
+    let batch = template.serverlessBatch
+    #expect(batch.batchType == .pyspark)
+    #expect(batch.mainFile?.contains("batch_job.py") == true)
+}
+
+@Test func testDAISDataprocTemplateAutoscalingPolicy() {
+    let template = DAISDataprocTemplate(projectID: "my-project")
+
+    let policy = template.autoscalingPolicy
+    #expect(policy.name == "dais-dataproc-autoscaling")
+    #expect(policy.workerConfig?.maxInstances == 10)
+}
+
+@Test func testDAISDataprocTemplateSetupScript() {
+    let template = DAISDataprocTemplate(
+        projectID: "my-project",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com"
+    )
+
+    let script = template.setupScript
+    #expect(script.contains("dataproc.googleapis.com"))
+    #expect(script.contains("gcloud dataproc clusters create"))
+    #expect(script.contains("dataproc.editor"))
+}
+
+@Test func testDAISDataprocTemplateTeardownScript() {
+    let template = DAISDataprocTemplate(projectID: "my-project")
+
+    let script = template.teardownScript
+    #expect(script.contains("Deleting Dataproc cluster"))
+    #expect(script.contains("--quiet"))
+}
+
+@Test func testDataprocClusterCodable() throws {
+    let cluster = GoogleCloudDataprocCluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        region: "us-central1",
+        labels: ["env": "prod"],
+        status: .running
+    )
+
+    let data = try JSONEncoder().encode(cluster)
+    let decoded = try JSONDecoder().decode(GoogleCloudDataprocCluster.self, from: data)
+
+    #expect(decoded.name == "my-cluster")
+    #expect(decoded.status == .running)
+}
+
+@Test func testDataprocJobCodable() throws {
+    let job = GoogleCloudDataprocJob(
+        projectID: "my-project",
+        region: "us-central1",
+        clusterName: "my-cluster",
+        jobType: .spark,
+        mainClass: "com.example.Main",
+        status: .done
+    )
+
+    let data = try JSONEncoder().encode(job)
+    let decoded = try JSONDecoder().decode(GoogleCloudDataprocJob.self, from: data)
+
+    #expect(decoded.jobType == .spark)
+    #expect(decoded.status == .done)
+}
+
+@Test func testDataprocBatchCodable() throws {
+    let batch = GoogleCloudDataprocBatch(
+        batchID: "batch-123",
+        projectID: "my-project",
+        region: "us-central1",
+        batchType: .pyspark,
+        state: .succeeded
+    )
+
+    let data = try JSONEncoder().encode(batch)
+    let decoded = try JSONDecoder().decode(GoogleCloudDataprocBatch.self, from: data)
+
+    #expect(decoded.batchID == "batch-123")
+    #expect(decoded.state == .succeeded)
+}
+
+@Test func testDataprocWorkflowTemplateCodable() throws {
+    let template = GoogleCloudDataprocWorkflowTemplate(
+        name: "my-workflow",
+        projectID: "my-project",
+        region: "us-central1",
+        version: 1,
+        labels: ["env": "prod"]
+    )
+
+    let data = try JSONEncoder().encode(template)
+    let decoded = try JSONDecoder().decode(GoogleCloudDataprocWorkflowTemplate.self, from: data)
+
+    #expect(decoded.name == "my-workflow")
+    #expect(decoded.version == 1)
+}
+
+@Test func testDataprocAutoscalingPolicyCodable() throws {
+    let policy = GoogleCloudDataprocAutoscalingPolicy(
+        name: "my-policy",
+        projectID: "my-project",
+        region: "us-central1",
+        workerConfig: GoogleCloudDataprocAutoscalingPolicy.InstanceGroupAutoscalingConfig(
+            minInstances: 2,
+            maxInstances: 10
+        ),
+        cooldownPeriod: "120s"
+    )
+
+    let data = try JSONEncoder().encode(policy)
+    let decoded = try JSONDecoder().decode(GoogleCloudDataprocAutoscalingPolicy.self, from: data)
+
+    #expect(decoded.name == "my-policy")
+    #expect(decoded.cooldownPeriod == "120s")
+}
+
+@Test func testDataprocComponentValues() {
+    #expect(GoogleCloudDataprocCluster.SoftwareConfig.Component.jupyter.rawValue == "JUPYTER")
+    #expect(GoogleCloudDataprocCluster.SoftwareConfig.Component.zeppelin.rawValue == "ZEPPELIN")
+    #expect(GoogleCloudDataprocCluster.SoftwareConfig.Component.presto.rawValue == "PRESTO")
+    #expect(GoogleCloudDataprocCluster.SoftwareConfig.Component.hbase.rawValue == "HBASE")
+}
+
+@Test func testDataprocPreemptibilityValues() {
+    #expect(GoogleCloudDataprocCluster.InstanceGroupConfig.Preemptibility.spot.rawValue == "SPOT")
+    #expect(GoogleCloudDataprocCluster.InstanceGroupConfig.Preemptibility.preemptible.rawValue == "PREEMPTIBLE")
+    #expect(GoogleCloudDataprocCluster.InstanceGroupConfig.Preemptibility.nonPreemptible.rawValue == "NON_PREEMPTIBLE")
+}
