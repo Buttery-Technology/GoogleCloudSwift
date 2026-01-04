@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 28 Google Cloud services:
+GoogleCloudSwift provides models for 29 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -113,6 +113,7 @@ GoogleCloudSwift provides models for 28 Google Cloud services:
 | **Eventarc** | Event-driven architecture | `GoogleCloudEventarcTrigger`, `GoogleCloudEventarcChannel`, `GoogleCloudEventType` |
 | **Memorystore** | Managed Redis & Memcached | `GoogleCloudRedisInstance`, `GoogleCloudMemcachedInstance` |
 | **VPC Service Controls** | Data exfiltration prevention | `GoogleCloudAccessPolicy`, `GoogleCloudServicePerimeter`, `GoogleCloudAccessLevel` |
+| **Cloud Filestore** | Managed NFS file shares | `GoogleCloudFilestoreInstance`, `GoogleCloudFilestoreBackup`, `GoogleCloudFilestoreSnapshot` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -3600,6 +3601,117 @@ let script = DAISVPCServiceControlsTemplate.setupScript(
 )
 ```
 
+### GoogleCloudFilestoreInstance (Cloud Filestore)
+
+Deploy managed NFS file shares with Cloud Filestore:
+
+```swift
+// Create a basic Filestore instance
+let filestore = GoogleCloudFilestoreInstance(
+    name: "my-nfs-share",
+    projectID: "my-project",
+    zone: "us-central1-a",
+    tier: .basicSSD,
+    fileShares: [
+        GoogleCloudFilestoreInstance.FileShare(
+            name: "shared",
+            capacityGB: 2560
+        )
+    ],
+    networks: [
+        GoogleCloudFilestoreInstance.NetworkConfig(
+            network: "default"
+        )
+    ]
+)
+print(filestore.createCommand)
+
+// Create an enterprise-grade HA instance
+let enterprise = GoogleCloudFilestoreInstance(
+    name: "enterprise-storage",
+    projectID: "my-project",
+    zone: "us-central1",  // Region for enterprise tier
+    tier: .enterprise,
+    fileShares: [
+        GoogleCloudFilestoreInstance.FileShare(
+            name: "data",
+            capacityGB: 4096,
+            nfsExportOptions: [
+                GoogleCloudFilestoreInstance.FileShare.NFSExportOption(
+                    ipRanges: ["10.0.0.0/8"],
+                    accessMode: .readWrite,
+                    squashMode: .rootSquash
+                )
+            ]
+        )
+    ],
+    networks: [
+        GoogleCloudFilestoreInstance.NetworkConfig(
+            network: "prod-vpc",
+            connectMode: .privateServiceAccess
+        )
+    ],
+    kmsKeyName: "projects/my-project/locations/us-central1/keyRings/ring/cryptoKeys/key"
+)
+```
+
+**Filestore Tiers:**
+
+| Tier | Capacity | Use Case |
+|------|----------|----------|
+| `basic` | 1-63.9 TB | Dev/test, small workloads |
+| `basicSSD` | 2.5-63.9 TB | General purpose, low latency |
+| `highScaleSSD` | 10-100 TB | High throughput workloads |
+| `enterprise` | 1-10 TB | Regional HA, mission critical |
+
+**Backups and Snapshots:**
+
+```swift
+// Create a backup
+let backup = GoogleCloudFilestoreBackup(
+    name: "weekly-backup",
+    projectID: "my-project",
+    region: "us-central1",
+    sourceInstance: "projects/my-project/locations/us-central1-a/instances/my-fs",
+    sourceFileShare: "shared"
+)
+print(backup.createCommand)
+
+// Restore from backup
+print(backup.restoreCommand(
+    targetInstance: "restored-fs",
+    targetZone: "us-central1-a",
+    targetFileShare: "restored",
+    tier: .basicSSD,
+    network: "default"
+))
+```
+
+**DAIS Filestore Templates:**
+
+```swift
+// Create shared storage for applications
+let shared = DAISFilestoreTemplate.sharedStorage(
+    projectID: "my-project",
+    zone: "us-central1-a",
+    deploymentName: "dais-prod"
+)
+
+// Generate fstab entry for persistent mount
+let fstab = DAISFilestoreTemplate.fstabEntry(
+    filestoreIP: "10.0.0.2",
+    fileShareName: "shared",
+    mountPoint: "/mnt/filestore"
+)
+
+// Setup script for Filestore infrastructure
+let script = DAISFilestoreTemplate.setupScript(
+    projectID: "my-project",
+    zone: "us-central1-a",
+    deploymentName: "dais-prod"
+)
+```
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -4239,6 +4351,12 @@ MIT License
 - [Service Perimeters](https://cloud.google.com/vpc-service-controls/docs/service-perimeters)
 - [Access Levels](https://cloud.google.com/vpc-service-controls/docs/access-levels)
 - [Ingress and Egress Rules](https://cloud.google.com/vpc-service-controls/docs/ingress-egress-rules)
+
+### Cloud Filestore
+- [Filestore Documentation](https://cloud.google.com/filestore/docs)
+- [Filestore Tiers](https://cloud.google.com/filestore/docs/service-tiers)
+- [Filestore Backups](https://cloud.google.com/filestore/docs/backups)
+- [NFS Client Configuration](https://cloud.google.com/filestore/docs/mounting-fileshares)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
