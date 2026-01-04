@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 50 Google Cloud services:
+GoogleCloudSwift provides models for 51 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -130,6 +130,7 @@ GoogleCloudSwift provides models for 50 Google Cloud services:
 | **Vision AI** | Image analysis and understanding | `GoogleCloudVisionRequest`, `GoogleCloudVisionResponse`, `VisionOperations`, `DAISVisionAITemplate` |
 | **Speech-to-Text** | Audio transcription | `GoogleCloudSpeechRecognitionRequest`, `GoogleCloudSpeechRecognizer`, `SpeechToTextOperations`, `DAISSpeechToTextTemplate` |
 | **Text-to-Speech** | Speech synthesis | `GoogleCloudTextToSpeechRequest`, `GoogleCloudTextToSpeechVoice`, `SSMLBuilder`, `DAISTextToSpeechTemplate` |
+| **Translation AI** | Text translation | `GoogleCloudTranslationRequest`, `GoogleCloudGlossary`, `LanguageCode`, `DAISTranslationTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -6408,6 +6409,177 @@ print(template.setupScript)
 | `MULAW` | μ-law | Telephony |
 | `ALAW` | A-law | European telephony |
 
+### GoogleCloudTranslationRequest (Translation API)
+
+Cloud Translation enables dynamic text translation between over 100 languages:
+
+```swift
+// Basic translation request
+let request = GoogleCloudTranslationRequest(
+    projectID: "my-project",
+    contents: ["Hello, how are you?"],
+    targetLanguageCode: "es"  // Spanish
+)
+
+print(request.translateCommand)
+// gcloud translate text "Hello, how are you?" --target-language=es --project=my-project
+```
+
+**Translation with Source Language:**
+
+```swift
+// Translate with explicit source language
+let request = GoogleCloudTranslationRequest(
+    projectID: "my-project",
+    location: "us-central1",
+    contents: ["Good morning"],
+    sourceLanguageCode: "en",
+    targetLanguageCode: "ja",  // Japanese
+    model: .nmt  // Neural Machine Translation
+)
+```
+
+**Language Detection:**
+
+```swift
+// Detect the language of text
+let detectRequest = GoogleCloudDetectLanguageRequest(
+    projectID: "my-project",
+    content: "Bonjour, comment allez-vous?"
+)
+
+print(detectRequest.detectCommand)
+// gcloud translate detect-language "Bonjour..." --project=my-project
+```
+
+**Glossaries for Terminology:**
+
+```swift
+// Create a glossary for consistent terminology
+let glossary = GoogleCloudGlossary(
+    name: "product-terms",
+    projectID: "my-project",
+    location: "us-central1",
+    languagePair: GoogleCloudGlossary.LanguagePair(
+        sourceLanguageCode: "en",
+        targetLanguageCode: "de"
+    ),
+    inputConfig: GoogleCloudGlossary.InputConfig(
+        gcsSource: GoogleCloudGlossary.InputConfig.GCSSource(
+            inputUri: "gs://my-bucket/glossary.tsv"
+        )
+    )
+)
+
+print(glossary.createCommand)
+
+// Use glossary in translation
+let requestWithGlossary = GoogleCloudTranslationRequest(
+    projectID: "my-project",
+    location: "us-central1",
+    contents: ["Our product uses machine learning."],
+    targetLanguageCode: "de",
+    glossaryConfig: GoogleCloudTranslationRequest.GlossaryConfig(
+        glossary: glossary.resourceName
+    )
+)
+```
+
+**Batch Translation:**
+
+```swift
+// Translate large document sets
+let batchJob = GoogleCloudBatchTranslation(
+    projectID: "my-project",
+    location: "us-central1",
+    sourceLanguageCode: "en",
+    targetLanguageCodes: ["es", "fr", "de", "ja"],
+    inputConfigs: [
+        GoogleCloudBatchTranslation.InputConfig(
+            mimeType: .plainText,
+            gcsSource: GoogleCloudBatchTranslation.InputConfig.GCSSource(
+                inputUri: "gs://my-bucket/documents/"
+            )
+        )
+    ],
+    outputConfig: GoogleCloudBatchTranslation.OutputConfig(
+        gcsDestination: GoogleCloudBatchTranslation.OutputConfig.GCSDestination(
+            outputUriPrefix: "gs://my-bucket/translations/"
+        )
+    )
+)
+```
+
+**Translation Operations:**
+
+```swift
+let ops = GoogleCloudTranslationOperations(projectID: "my-project")
+
+// Translate text
+print(ops.translate("Hello", to: "es"))
+
+// With source language
+print(ops.translate("Goodbye", from: "en", to: "fr"))
+
+// Detect language
+print(ops.detectLanguage("Guten Tag"))
+
+// List languages
+print(ops.listLanguagesCommand)
+// gcloud translate list-languages --project=my-project
+
+// Enable API
+print(ops.enableAPICommand)
+```
+
+**DAIS Translation Template:**
+
+```swift
+let template = DAISTranslationTemplate(
+    projectID: "my-project",
+    location: "us-central1",
+    defaultSourceLanguage: .english,
+    defaultTargetLanguages: [.spanish, .french, .german]
+)
+
+// Quick translation
+let request = template.translate("Welcome to our platform", to: .spanish)
+
+// Translate to all default languages
+let allRequests = template.translateToAll("Hello, world!")
+// Creates requests for Spanish, French, and German
+
+// Create terminology glossary
+let glossary = template.createGlossary(
+    name: "product-terms",
+    sourceLanguage: .english,
+    targetLanguage: .german,
+    glossaryFile: "terms.tsv"
+)
+
+// Document translation
+let docTranslation = template.translateDocument(
+    inputUri: "gs://my-bucket/report.pdf",
+    outputUri: "gs://my-bucket/translated/",
+    targetLanguage: .japanese
+)
+
+// Generate setup script
+print(template.setupScript)
+```
+
+**Common Language Codes:**
+
+| Language | Code | Language | Code |
+|----------|------|----------|------|
+| English | `en` | Japanese | `ja` |
+| Spanish | `es` | Korean | `ko` |
+| French | `fr` | Chinese (Simplified) | `zh-CN` |
+| German | `de` | Chinese (Traditional) | `zh-TW` |
+| Italian | `it` | Arabic | `ar` |
+| Portuguese | `pt` | Hindi | `hi` |
+| Russian | `ru` | Dutch | `nl` |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -7959,6 +8131,16 @@ MIT License
 - [Long Audio Synthesis](https://cloud.google.com/text-to-speech/docs/create-audio-text-long-audio-synthesis)
 - [Pricing](https://cloud.google.com/text-to-speech/pricing)
 - [Text-to-Speech Client Libraries](https://cloud.google.com/text-to-speech/docs/libraries)
+
+### Translation AI
+- [Cloud Translation Documentation](https://cloud.google.com/translate/docs)
+- [Supported Languages](https://cloud.google.com/translate/docs/languages)
+- [Glossaries](https://cloud.google.com/translate/docs/advanced/glossary)
+- [Batch Translation](https://cloud.google.com/translate/docs/advanced/batch-translation)
+- [Document Translation](https://cloud.google.com/translate/docs/advanced/translate-documents)
+- [Custom Models](https://cloud.google.com/translate/docs/advanced/automl-overview)
+- [Adaptive MT](https://cloud.google.com/translate/docs/advanced/adaptive-mt)
+- [Translation Client Libraries](https://cloud.google.com/translate/docs/reference/libraries)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)

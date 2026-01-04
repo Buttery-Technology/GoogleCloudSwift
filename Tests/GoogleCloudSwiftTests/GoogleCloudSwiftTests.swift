@@ -23782,3 +23782,444 @@ import Testing
     #expect(voice.customVoice?.model == "projects/my-project/customVoices/my-voice")
     #expect(voice.customVoice?.reportedUsage == .realtime)
 }
+
+// MARK: - Translation AI Tests
+
+@Test func testTranslationRequestBasicInit() {
+    let request = GoogleCloudTranslationRequest(
+        projectID: "my-project",
+        contents: ["Hello, world!"],
+        targetLanguageCode: "es"
+    )
+
+    #expect(request.projectID == "my-project")
+    #expect(request.contents == ["Hello, world!"])
+    #expect(request.targetLanguageCode == "es")
+    #expect(request.location == "global")
+    #expect(request.parent == "projects/my-project/locations/global")
+}
+
+@Test func testTranslationRequestWithSource() {
+    let request = GoogleCloudTranslationRequest(
+        projectID: "my-project",
+        location: "us-central1",
+        contents: ["Hello"],
+        sourceLanguageCode: "en",
+        targetLanguageCode: "fr",
+        mimeType: .plainText,
+        model: .nmt
+    )
+
+    #expect(request.sourceLanguageCode == "en")
+    #expect(request.mimeType == .plainText)
+    #expect(request.model == .nmt)
+}
+
+@Test func testTranslationRequestTranslateCommand() {
+    let request = GoogleCloudTranslationRequest(
+        projectID: "my-project",
+        contents: ["Hello"],
+        targetLanguageCode: "de"
+    )
+
+    let command = request.translateCommand
+    #expect(command.contains("gcloud translate text"))
+    #expect(command.contains("--target-language=de"))
+}
+
+@Test func testTranslationResponse() {
+    let translation = GoogleCloudTranslationResponse.Translation(
+        translatedText: "Hola, mundo!",
+        detectedLanguageCode: "en"
+    )
+    let response = GoogleCloudTranslationResponse(translations: [translation])
+
+    #expect(response.translations.count == 1)
+    #expect(response.translations[0].translatedText == "Hola, mundo!")
+    #expect(response.translations[0].detectedLanguageCode == "en")
+}
+
+@Test func testDetectLanguageRequest() {
+    let request = GoogleCloudDetectLanguageRequest(
+        projectID: "my-project",
+        content: "Bonjour"
+    )
+
+    #expect(request.content == "Bonjour")
+    let command = request.detectCommand
+    #expect(command.contains("gcloud translate detect-language"))
+}
+
+@Test func testDetectLanguageResponse() {
+    let response = GoogleCloudDetectLanguageResponse(
+        languages: [
+            GoogleCloudDetectLanguageResponse.DetectedLanguage(languageCode: "fr", confidence: 0.95),
+            GoogleCloudDetectLanguageResponse.DetectedLanguage(languageCode: "en", confidence: 0.05)
+        ]
+    )
+
+    #expect(response.languages.count == 2)
+    #expect(response.mostLikely?.languageCode == "fr")
+    #expect(response.mostLikely?.confidence == 0.95)
+}
+
+@Test func testSupportedLanguage() {
+    let language = GoogleCloudSupportedLanguage(
+        languageCode: "es",
+        displayName: "Spanish",
+        supportSource: true,
+        supportTarget: true
+    )
+
+    #expect(language.languageCode == "es")
+    #expect(language.displayName == "Spanish")
+    #expect(language.supportSource == true)
+}
+
+@Test func testGlossaryLanguagePair() {
+    let glossary = GoogleCloudGlossary(
+        name: "my-glossary",
+        projectID: "my-project",
+        location: "us-central1",
+        languagePair: GoogleCloudGlossary.LanguagePair(
+            sourceLanguageCode: "en",
+            targetLanguageCode: "es"
+        ),
+        inputConfig: GoogleCloudGlossary.InputConfig(
+            gcsSource: GoogleCloudGlossary.InputConfig.GCSSource(
+                inputUri: "gs://my-bucket/glossary.tsv"
+            )
+        )
+    )
+
+    #expect(glossary.name == "my-glossary")
+    #expect(glossary.resourceName == "projects/my-project/locations/us-central1/glossaries/my-glossary")
+    #expect(glossary.languagePair?.sourceLanguageCode == "en")
+}
+
+@Test func testGlossaryMultiLanguage() {
+    let glossary = GoogleCloudGlossary(
+        name: "multi-glossary",
+        projectID: "my-project",
+        location: "us-central1",
+        languageCodesSet: GoogleCloudGlossary.LanguageCodesSet(
+            languageCodes: ["en", "es", "fr", "de"]
+        ),
+        inputConfig: GoogleCloudGlossary.InputConfig(
+            gcsSource: GoogleCloudGlossary.InputConfig.GCSSource(
+                inputUri: "gs://my-bucket/multi-glossary.csv"
+            )
+        )
+    )
+
+    #expect(glossary.languageCodesSet?.languageCodes.count == 4)
+}
+
+@Test func testGlossaryCreateCommand() {
+    let glossary = GoogleCloudGlossary(
+        name: "test-glossary",
+        projectID: "my-project",
+        location: "us-central1",
+        languagePair: GoogleCloudGlossary.LanguagePair(
+            sourceLanguageCode: "en",
+            targetLanguageCode: "ja"
+        ),
+        inputConfig: GoogleCloudGlossary.InputConfig(
+            gcsSource: GoogleCloudGlossary.InputConfig.GCSSource(
+                inputUri: "gs://my-bucket/glossary.tsv"
+            )
+        )
+    )
+
+    let command = glossary.createCommand
+    #expect(command.contains("gcloud translate glossaries create"))
+    #expect(command.contains("--source-language=en"))
+    #expect(command.contains("--target-language=ja"))
+}
+
+@Test func testBatchTranslation() {
+    let batch = GoogleCloudBatchTranslation(
+        projectID: "my-project",
+        location: "us-central1",
+        sourceLanguageCode: "en",
+        targetLanguageCodes: ["es", "fr"],
+        inputConfigs: [
+            GoogleCloudBatchTranslation.InputConfig(
+                mimeType: .plainText,
+                gcsSource: GoogleCloudBatchTranslation.InputConfig.GCSSource(
+                    inputUri: "gs://my-bucket/input/"
+                )
+            )
+        ],
+        outputConfig: GoogleCloudBatchTranslation.OutputConfig(
+            gcsDestination: GoogleCloudBatchTranslation.OutputConfig.GCSDestination(
+                outputUriPrefix: "gs://my-bucket/output/"
+            )
+        )
+    )
+
+    #expect(batch.targetLanguageCodes.count == 2)
+    #expect(batch.parent == "projects/my-project/locations/us-central1")
+}
+
+@Test func testAdaptiveMTDataset() {
+    let dataset = GoogleCloudAdaptiveMTDataset(
+        name: "my-dataset",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "Product Translations",
+        sourceLanguageCode: "en",
+        targetLanguageCode: "de",
+        exampleCount: 1000
+    )
+
+    #expect(dataset.displayName == "Product Translations")
+    #expect(dataset.resourceName == "projects/my-project/locations/us-central1/adaptiveMtDatasets/my-dataset")
+}
+
+@Test func testTranslationModel() {
+    let model = GoogleCloudTranslationModel(
+        name: "custom-model",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "Legal Translation Model",
+        sourceLanguageCode: "en",
+        targetLanguageCode: "de",
+        trainState: .succeeded
+    )
+
+    #expect(model.trainState == .succeeded)
+    #expect(model.resourceName == "projects/my-project/locations/us-central1/models/custom-model")
+}
+
+@Test func testTranslationModelTrainStates() {
+    #expect(GoogleCloudTranslationModel.TrainState.queued.rawValue == "QUEUED")
+    #expect(GoogleCloudTranslationModel.TrainState.training.rawValue == "TRAINING")
+    #expect(GoogleCloudTranslationModel.TrainState.succeeded.rawValue == "SUCCEEDED")
+    #expect(GoogleCloudTranslationModel.TrainState.failed.rawValue == "FAILED")
+}
+
+@Test func testDocumentTranslation() {
+    let doc = GoogleCloudDocumentTranslation(
+        projectID: "my-project",
+        location: "us-central1",
+        sourceLanguageCode: "en",
+        targetLanguageCode: "fr",
+        documentInputConfig: GoogleCloudDocumentTranslation.DocumentInputConfig(
+            mimeType: "application/pdf",
+            gcsSource: GoogleCloudDocumentTranslation.DocumentInputConfig.GCSSource(
+                inputUri: "gs://my-bucket/doc.pdf"
+            )
+        ),
+        documentOutputConfig: GoogleCloudDocumentTranslation.DocumentOutputConfig(
+            gcsDestination: GoogleCloudDocumentTranslation.DocumentOutputConfig.GCSDestination(
+                outputUriPrefix: "gs://my-bucket/output/"
+            )
+        )
+    )
+
+    #expect(doc.documentInputConfig.mimeType == "application/pdf")
+    #expect(doc.parent == "projects/my-project/locations/us-central1")
+}
+
+@Test func testLanguageCodeValues() {
+    #expect(LanguageCode.english.rawValue == "en")
+    #expect(LanguageCode.spanish.rawValue == "es")
+    #expect(LanguageCode.japanese.rawValue == "ja")
+    #expect(LanguageCode.chineseSimplified.rawValue == "zh-CN")
+    #expect(LanguageCode.chineseTraditional.rawValue == "zh-TW")
+}
+
+@Test func testLanguageCodeDisplayNames() {
+    #expect(LanguageCode.english.displayName == "English")
+    #expect(LanguageCode.spanish.displayName == "Spanish")
+    #expect(LanguageCode.french.displayName == "French")
+    #expect(LanguageCode.german.displayName == "German")
+    #expect(LanguageCode.japanese.displayName == "Japanese")
+}
+
+@Test func testTranslationOperations() {
+    let ops = GoogleCloudTranslationOperations(projectID: "my-project")
+
+    let translateCmd = ops.translate("Hello", to: "es")
+    #expect(translateCmd.contains("gcloud translate text"))
+    #expect(translateCmd.contains("--target-language=es"))
+
+    let translateWithSource = ops.translate("Hello", from: "en", to: "de")
+    #expect(translateWithSource.contains("--source-language=en"))
+
+    let detectCmd = ops.detectLanguage("Bonjour")
+    #expect(detectCmd.contains("gcloud translate detect-language"))
+
+    #expect(ops.listLanguagesCommand.contains("gcloud translate list-languages"))
+    #expect(ops.listGlossariesCommand.contains("gcloud translate glossaries list"))
+    #expect(ops.enableAPICommand.contains("translate.googleapis.com"))
+}
+
+@Test func testTranslationOperationsRoles() {
+    let roles = GoogleCloudTranslationOperations.roles
+    #expect(roles["roles/cloudtranslate.user"] == "Translation user")
+    #expect(roles["roles/cloudtranslate.admin"] == "Translation admin")
+}
+
+@Test func testDAISTranslationTemplateBasic() {
+    let template = DAISTranslationTemplate(
+        projectID: "my-project",
+        location: "us-central1",
+        serviceAccount: "trans-sa",
+        glossaryBucket: "trans-glossaries",
+        defaultSourceLanguage: .english,
+        defaultTargetLanguages: [.spanish, .french]
+    )
+
+    #expect(template.projectID == "my-project")
+    #expect(template.defaultSourceLanguage == .english)
+    #expect(template.defaultTargetLanguages.count == 2)
+}
+
+@Test func testDAISTranslationTemplateTranslate() {
+    let template = DAISTranslationTemplate(projectID: "my-project")
+
+    let request = template.translate("Hello", to: .spanish)
+    #expect(request.targetLanguageCode == "es")
+    #expect(request.contents == ["Hello"])
+}
+
+@Test func testDAISTranslationTemplateTranslateToAll() {
+    let template = DAISTranslationTemplate(
+        projectID: "my-project",
+        defaultTargetLanguages: [.spanish, .french, .german]
+    )
+
+    let requests = template.translateToAll("Hello")
+    #expect(requests.count == 3)
+    #expect(requests[0].targetLanguageCode == "es")
+    #expect(requests[1].targetLanguageCode == "fr")
+    #expect(requests[2].targetLanguageCode == "de")
+}
+
+@Test func testDAISTranslationTemplateGlossary() {
+    let template = DAISTranslationTemplate(
+        projectID: "my-project",
+        glossaryBucket: "my-glossaries"
+    )
+
+    let glossary = template.createGlossary(
+        name: "product-terms",
+        sourceLanguage: .english,
+        targetLanguage: .spanish,
+        glossaryFile: "product-terms.tsv"
+    )
+
+    #expect(glossary.name == "product-terms")
+    #expect(glossary.inputConfig.gcsSource.inputUri == "gs://my-glossaries/product-terms.tsv")
+}
+
+@Test func testDAISTranslationTemplateMultiLanguageGlossary() {
+    let template = DAISTranslationTemplate(projectID: "my-project")
+
+    let glossary = template.createMultiLanguageGlossary(
+        name: "multi-terms",
+        languages: [.english, .spanish, .french],
+        glossaryFile: "multi.csv"
+    )
+
+    #expect(glossary.languageCodesSet?.languageCodes.count == 3)
+}
+
+@Test func testDAISTranslationTemplateBatchTranslate() {
+    let template = DAISTranslationTemplate(projectID: "my-project")
+
+    let batch = template.batchTranslate(
+        inputUri: "gs://my-bucket/input/",
+        outputUri: "gs://my-bucket/output/",
+        targetLanguages: [.spanish, .french]
+    )
+
+    #expect(batch.targetLanguageCodes == ["es", "fr"])
+}
+
+@Test func testDAISTranslationTemplateDocumentTranslation() {
+    let template = DAISTranslationTemplate(projectID: "my-project")
+
+    let doc = template.translateDocument(
+        inputUri: "gs://my-bucket/doc.pdf",
+        outputUri: "gs://my-bucket/output/",
+        targetLanguage: .german
+    )
+
+    #expect(doc.targetLanguageCode == "de")
+    #expect(doc.documentInputConfig.mimeType == "application/pdf")
+}
+
+@Test func testDAISTranslationTemplateSetupScript() {
+    let template = DAISTranslationTemplate(
+        projectID: "my-project",
+        serviceAccount: "trans-sa",
+        glossaryBucket: "trans-glossaries"
+    )
+
+    let script = template.setupScript
+    #expect(script.contains("gcloud services enable translate.googleapis.com"))
+    #expect(script.contains("gcloud iam service-accounts create trans-sa"))
+    #expect(script.contains("roles/cloudtranslate.user"))
+    #expect(script.contains("gsutil mb"))
+}
+
+@Test func testDAISTranslationTemplateTeardownScript() {
+    let template = DAISTranslationTemplate(
+        projectID: "my-project",
+        glossaryBucket: "trans-glossaries"
+    )
+
+    let script = template.teardownScript
+    #expect(script.contains("gsutil rm -r gs://trans-glossaries"))
+}
+
+@Test func testDAISTranslationTemplatePythonScript() {
+    let template = DAISTranslationTemplate(projectID: "my-project")
+
+    let script = template.pythonScript
+    #expect(script.contains("from google.cloud import translate"))
+    #expect(script.contains("def translate_text"))
+    #expect(script.contains("def detect_language"))
+    #expect(script.contains("def list_languages"))
+}
+
+@Test func testTranslationRequestCodable() throws {
+    let request = GoogleCloudTranslationRequest(
+        projectID: "my-project",
+        contents: ["Hello"],
+        sourceLanguageCode: "en",
+        targetLanguageCode: "es",
+        mimeType: .html
+    )
+
+    let data = try JSONEncoder().encode(request)
+    let decoded = try JSONDecoder().decode(GoogleCloudTranslationRequest.self, from: data)
+
+    #expect(decoded.targetLanguageCode == "es")
+    #expect(decoded.mimeType == .html)
+}
+
+@Test func testGlossaryConfigCodable() throws {
+    let config = GoogleCloudTranslationRequest.GlossaryConfig(
+        glossary: "projects/my-project/locations/us/glossaries/my-glossary",
+        ignoreCase: true
+    )
+
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(GoogleCloudTranslationRequest.GlossaryConfig.self, from: data)
+
+    #expect(decoded.ignoreCase == true)
+}
+
+@Test func testTranslationMIMETypes() {
+    #expect(GoogleCloudTranslationRequest.MIMEType.plainText.rawValue == "text/plain")
+    #expect(GoogleCloudTranslationRequest.MIMEType.html.rawValue == "text/html")
+}
+
+@Test func testTranslationModelTypes() {
+    #expect(GoogleCloudTranslationRequest.TranslationModel.nmt.rawValue == "nmt")
+    #expect(GoogleCloudTranslationRequest.TranslationModel.base.rawValue == "base")
+}
