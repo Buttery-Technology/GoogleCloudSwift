@@ -18402,3 +18402,404 @@ import Testing
     #expect(decoded.name == "test-backup")
     #expect(decoded.databaseName == "my-db")
 }
+
+// MARK: - Firestore Database Tests
+
+@Test func testFirestoreDatabaseBasicInit() {
+    let database = GoogleCloudFirestoreDatabase(
+        projectID: "my-project",
+        locationID: "nam5"
+    )
+
+    #expect(database.name == "(default)")
+    #expect(database.projectID == "my-project")
+    #expect(database.locationID == "nam5")
+    #expect(database.type == .firestoreNative)
+}
+
+@Test func testFirestoreDatabaseResourceName() {
+    let database = GoogleCloudFirestoreDatabase(
+        name: "my-db",
+        projectID: "my-project",
+        locationID: "nam5"
+    )
+
+    #expect(database.resourceName == "projects/my-project/databases/my-db")
+}
+
+@Test func testFirestoreDatabaseCreateCommand() {
+    let database = GoogleCloudFirestoreDatabase(
+        projectID: "my-project",
+        locationID: "nam5",
+        pointInTimeRecoveryEnablement: .pointInTimeRecoveryEnabled,
+        deleteProtectionState: .deleteProtectionEnabled
+    )
+
+    let cmd = database.createCommand
+    #expect(cmd.contains("gcloud firestore databases create"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--location=nam5"))
+    #expect(cmd.contains("--delete-protection"))
+    #expect(cmd.contains("--enable-pitr"))
+}
+
+@Test func testFirestoreDatabaseCreateCommandNamed() {
+    let database = GoogleCloudFirestoreDatabase(
+        name: "my-db",
+        projectID: "my-project",
+        locationID: "us-east1"
+    )
+
+    let cmd = database.createCommand
+    #expect(cmd.contains("--database=my-db"))
+}
+
+@Test func testFirestoreDatabaseCreateCommandDatastoreMode() {
+    let database = GoogleCloudFirestoreDatabase(
+        projectID: "my-project",
+        locationID: "nam5",
+        type: .datastoreMode
+    )
+
+    let cmd = database.createCommand
+    #expect(cmd.contains("--type=datastore-mode"))
+}
+
+@Test func testFirestoreDatabaseDeleteCommand() {
+    let database = GoogleCloudFirestoreDatabase(
+        name: "my-db",
+        projectID: "my-project",
+        locationID: "nam5"
+    )
+
+    let cmd = database.deleteCommand
+    #expect(cmd.contains("gcloud firestore databases delete"))
+    #expect(cmd.contains("--database=my-db"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testFirestoreDatabaseDescribeCommand() {
+    let database = GoogleCloudFirestoreDatabase(
+        projectID: "my-project",
+        locationID: "nam5"
+    )
+
+    let cmd = database.describeCommand
+    #expect(cmd.contains("gcloud firestore databases describe"))
+    #expect(cmd.contains("--project=my-project"))
+}
+
+@Test func testFirestoreDatabaseUpdateCommand() {
+    let database = GoogleCloudFirestoreDatabase(
+        projectID: "my-project",
+        locationID: "nam5"
+    )
+
+    let cmd = database.updateCommand(deleteProtection: true, pitrEnabled: false)
+    #expect(cmd.contains("gcloud firestore databases update"))
+    #expect(cmd.contains("--delete-protection"))
+    #expect(cmd.contains("--no-enable-pitr"))
+}
+
+@Test func testFirestoreDatabaseListCommand() {
+    let cmd = GoogleCloudFirestoreDatabase.listCommand(projectID: "my-project")
+    #expect(cmd.contains("gcloud firestore databases list"))
+    #expect(cmd.contains("--project=my-project"))
+}
+
+@Test func testFirestoreDatabaseTypeValues() {
+    #expect(GoogleCloudFirestoreDatabase.DatabaseType.firestoreNative.rawValue == "FIRESTORE_NATIVE")
+    #expect(GoogleCloudFirestoreDatabase.DatabaseType.datastoreMode.rawValue == "DATASTORE_MODE")
+}
+
+@Test func testFirestoreDatabaseConcurrencyModeValues() {
+    #expect(GoogleCloudFirestoreDatabase.ConcurrencyMode.optimistic.rawValue == "OPTIMISTIC")
+    #expect(GoogleCloudFirestoreDatabase.ConcurrencyMode.pessimistic.rawValue == "PESSIMISTIC")
+}
+
+// MARK: - Firestore Index Tests
+
+@Test func testFirestoreIndexBasicInit() {
+    let index = GoogleCloudFirestoreIndex(
+        collectionGroup: "users",
+        projectID: "my-project",
+        fields: [
+            GoogleCloudFirestoreIndex.IndexField(fieldPath: "status", order: .ascending)
+        ]
+    )
+
+    #expect(index.collectionGroup == "users")
+    #expect(index.databaseID == "(default)")
+}
+
+@Test func testFirestoreIndexCreateCommand() {
+    let index = GoogleCloudFirestoreIndex(
+        collectionGroup: "users",
+        projectID: "my-project",
+        fields: [
+            GoogleCloudFirestoreIndex.IndexField(fieldPath: "status", order: .ascending),
+            GoogleCloudFirestoreIndex.IndexField(fieldPath: "createdAt", order: .descending)
+        ]
+    )
+
+    let cmd = index.createCommand
+    #expect(cmd.contains("gcloud firestore indexes composite create"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--collection-group=users"))
+    #expect(cmd.contains("--field-config="))
+}
+
+@Test func testFirestoreIndexListCommand() {
+    let cmd = GoogleCloudFirestoreIndex.listCommand(projectID: "my-project")
+    #expect(cmd.contains("gcloud firestore indexes composite list"))
+    #expect(cmd.contains("--project=my-project"))
+}
+
+@Test func testFirestoreIndexListCommandWithDatabase() {
+    let cmd = GoogleCloudFirestoreIndex.listCommand(projectID: "my-project", databaseID: "my-db")
+    #expect(cmd.contains("--database=my-db"))
+}
+
+@Test func testFirestoreIndexQueryScopeValues() {
+    #expect(GoogleCloudFirestoreIndex.QueryScope.collection.rawValue == "COLLECTION")
+    #expect(GoogleCloudFirestoreIndex.QueryScope.collectionGroup.rawValue == "COLLECTION_GROUP")
+}
+
+@Test func testFirestoreIndexFieldOrderValues() {
+    #expect(GoogleCloudFirestoreIndex.IndexField.Order.ascending.rawValue == "ASCENDING")
+    #expect(GoogleCloudFirestoreIndex.IndexField.Order.descending.rawValue == "DESCENDING")
+}
+
+@Test func testFirestoreIndexStateValues() {
+    #expect(GoogleCloudFirestoreIndex.IndexState.creating.rawValue == "CREATING")
+    #expect(GoogleCloudFirestoreIndex.IndexState.ready.rawValue == "READY")
+    #expect(GoogleCloudFirestoreIndex.IndexState.needsRepair.rawValue == "NEEDS_REPAIR")
+}
+
+// MARK: - Firestore Export/Import Tests
+
+@Test func testFirestoreExportBasicInit() {
+    let export = GoogleCloudFirestoreExport(
+        projectID: "my-project",
+        outputUriPrefix: "gs://my-bucket/exports"
+    )
+
+    #expect(export.projectID == "my-project")
+    #expect(export.outputUriPrefix == "gs://my-bucket/exports")
+}
+
+@Test func testFirestoreExportCommand() {
+    let export = GoogleCloudFirestoreExport(
+        projectID: "my-project",
+        outputUriPrefix: "gs://my-bucket/exports",
+        collectionIds: ["users", "orders"]
+    )
+
+    let cmd = export.exportCommand
+    #expect(cmd.contains("gcloud firestore export gs://my-bucket/exports"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--collection-ids=users,orders"))
+}
+
+@Test func testFirestoreExportCommandWithDatabase() {
+    let export = GoogleCloudFirestoreExport(
+        projectID: "my-project",
+        databaseID: "my-db",
+        outputUriPrefix: "gs://my-bucket/exports"
+    )
+
+    let cmd = export.exportCommand
+    #expect(cmd.contains("--database=my-db"))
+}
+
+@Test func testFirestoreImportBasicInit() {
+    let importOp = GoogleCloudFirestoreImport(
+        projectID: "my-project",
+        inputUriPrefix: "gs://my-bucket/exports/2024-01-01"
+    )
+
+    #expect(importOp.inputUriPrefix == "gs://my-bucket/exports/2024-01-01")
+}
+
+@Test func testFirestoreImportCommand() {
+    let importOp = GoogleCloudFirestoreImport(
+        projectID: "my-project",
+        inputUriPrefix: "gs://my-bucket/exports/2024-01-01",
+        collectionIds: ["users"]
+    )
+
+    let cmd = importOp.importCommand
+    #expect(cmd.contains("gcloud firestore import gs://my-bucket/exports/2024-01-01"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--collection-ids=users"))
+}
+
+// MARK: - Firestore Operations Tests
+
+@Test func testFirestoreOperationsEnableAPI() {
+    #expect(FirestoreOperations.enableAPICommand == "gcloud services enable firestore.googleapis.com")
+}
+
+@Test func testFirestoreOperationsListOperations() {
+    let cmd = FirestoreOperations.listOperationsCommand(projectID: "my-project")
+    #expect(cmd.contains("gcloud firestore operations list"))
+    #expect(cmd.contains("--project=my-project"))
+}
+
+@Test func testFirestoreOperationsDescribeOperation() {
+    let cmd = FirestoreOperations.describeOperationCommand(operationName: "op123", projectID: "my-project")
+    #expect(cmd.contains("gcloud firestore operations describe op123"))
+}
+
+@Test func testFirestoreOperationsCancelOperation() {
+    let cmd = FirestoreOperations.cancelOperationCommand(operationName: "op123", projectID: "my-project")
+    #expect(cmd.contains("gcloud firestore operations cancel op123"))
+}
+
+@Test func testFirestoreOperationsListFields() {
+    let cmd = FirestoreOperations.listFieldsCommand(projectID: "my-project", collectionGroup: "users")
+    #expect(cmd.contains("gcloud firestore indexes fields list"))
+    #expect(cmd.contains("--collection-group=users"))
+}
+
+@Test func testFirestoreOperationsStartEmulator() {
+    let cmd = FirestoreOperations.startEmulatorCommand(port: 9090, projectID: "test-project")
+    #expect(cmd.contains("gcloud emulators firestore start"))
+    #expect(cmd.contains("--host-port=localhost:9090"))
+    #expect(cmd.contains("--project=test-project"))
+}
+
+// MARK: - Firestore Location Tests
+
+@Test func testFirestoreLocationConstants() {
+    #expect(FirestoreLocation.nam5 == "nam5")
+    #expect(FirestoreLocation.eur3 == "eur3")
+    #expect(FirestoreLocation.usEast1 == "us-east1")
+    #expect(FirestoreLocation.europeWest1 == "europe-west1")
+}
+
+// MARK: - DAIS Firestore Template Tests
+
+@Test func testDAISFirestoreTemplateBasicInit() {
+    let template = DAISFirestoreTemplate(projectID: "my-project")
+
+    #expect(template.projectID == "my-project")
+    #expect(template.databaseID == "(default)")
+    #expect(template.location == FirestoreLocation.nam5)
+}
+
+@Test func testDAISFirestoreTemplateMainDatabase() {
+    let template = DAISFirestoreTemplate(projectID: "my-project")
+    let database = template.mainDatabase
+
+    #expect(database.type == .firestoreNative)
+    #expect(database.pointInTimeRecoveryEnablement == .pointInTimeRecoveryEnabled)
+    #expect(database.deleteProtectionState == .deleteProtectionEnabled)
+}
+
+@Test func testDAISFirestoreTemplateAnalyticsDatabase() {
+    let template = DAISFirestoreTemplate(projectID: "my-project")
+    let database = template.analyticsDatabase
+
+    #expect(database.name == "dais-analytics")
+    #expect(database.pointInTimeRecoveryEnablement == .pointInTimeRecoveryDisabled)
+}
+
+@Test func testDAISFirestoreTemplateDatastoreDatabase() {
+    let template = DAISFirestoreTemplate(projectID: "my-project")
+    let database = template.datastoreModeDatabase
+
+    #expect(database.name == "dais-datastore")
+    #expect(database.type == .datastoreMode)
+}
+
+@Test func testDAISFirestoreTemplateAgentsByStatusIndex() {
+    let template = DAISFirestoreTemplate(projectID: "my-project")
+    let index = template.agentsByStatusIndex
+
+    #expect(index.collectionGroup == "agents")
+    #expect(index.fields.count == 2)
+}
+
+@Test func testDAISFirestoreTemplateTasksByAgentIndex() {
+    let template = DAISFirestoreTemplate(projectID: "my-project")
+    let index = template.tasksByAgentIndex
+
+    #expect(index.collectionGroup == "tasks")
+    #expect(index.fields.count == 3)
+}
+
+@Test func testDAISFirestoreTemplateEventsCollectionGroupIndex() {
+    let template = DAISFirestoreTemplate(projectID: "my-project")
+    let index = template.eventsCollectionGroupIndex
+
+    #expect(index.collectionGroup == "events")
+    #expect(index.queryScope == .collectionGroup)
+}
+
+@Test func testDAISFirestoreTemplateDailyExport() {
+    let template = DAISFirestoreTemplate(projectID: "my-project")
+    let export = template.dailyExport(bucketName: "my-backup-bucket")
+
+    #expect(export.outputUriPrefix.contains("gs://my-backup-bucket/firestore-exports/"))
+}
+
+@Test func testDAISFirestoreTemplateSetupScript() {
+    let template = DAISFirestoreTemplate(projectID: "my-project")
+    let script = template.setupScript
+
+    #expect(script.contains("gcloud services enable firestore.googleapis.com"))
+    #expect(script.contains("gcloud firestore databases create"))
+    #expect(script.contains("gcloud firestore indexes composite create"))
+}
+
+@Test func testDAISFirestoreTemplateTeardownScript() {
+    let template = DAISFirestoreTemplate(projectID: "my-project")
+    let script = template.teardownScript
+
+    #expect(script.contains("gcloud firestore databases delete"))
+}
+
+// MARK: - Firestore Codable Tests
+
+@Test func testFirestoreDatabaseCodable() throws {
+    let database = GoogleCloudFirestoreDatabase(
+        name: "test-db",
+        projectID: "my-project",
+        locationID: "nam5",
+        type: .firestoreNative
+    )
+
+    let data = try JSONEncoder().encode(database)
+    let decoded = try JSONDecoder().decode(GoogleCloudFirestoreDatabase.self, from: data)
+
+    #expect(decoded.name == "test-db")
+    #expect(decoded.type == .firestoreNative)
+}
+
+@Test func testFirestoreIndexCodable() throws {
+    let index = GoogleCloudFirestoreIndex(
+        collectionGroup: "users",
+        projectID: "my-project",
+        fields: [
+            GoogleCloudFirestoreIndex.IndexField(fieldPath: "status", order: .ascending)
+        ]
+    )
+
+    let data = try JSONEncoder().encode(index)
+    let decoded = try JSONDecoder().decode(GoogleCloudFirestoreIndex.self, from: data)
+
+    #expect(decoded.collectionGroup == "users")
+}
+
+@Test func testFirestoreExportCodable() throws {
+    let export = GoogleCloudFirestoreExport(
+        projectID: "my-project",
+        outputUriPrefix: "gs://bucket/exports"
+    )
+
+    let data = try JSONEncoder().encode(export)
+    let decoded = try JSONDecoder().decode(GoogleCloudFirestoreExport.self, from: data)
+
+    #expect(decoded.outputUriPrefix == "gs://bucket/exports")
+}
