@@ -18803,3 +18803,466 @@ import Testing
 
     #expect(decoded.outputUriPrefix == "gs://bucket/exports")
 }
+
+// MARK: - Vertex AI Dataset Tests
+
+@Test func testVertexAIDatasetBasicInit() {
+    let dataset = GoogleCloudVertexAIDataset(
+        name: "my-dataset",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Dataset"
+    )
+
+    #expect(dataset.name == "my-dataset")
+    #expect(dataset.displayName == "My Dataset")
+    #expect(dataset.location == "us-central1")
+}
+
+@Test func testVertexAIDatasetResourceName() {
+    let dataset = GoogleCloudVertexAIDataset(
+        name: "my-dataset",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Dataset"
+    )
+
+    #expect(dataset.resourceName == "projects/my-project/locations/us-central1/datasets/my-dataset")
+}
+
+@Test func testVertexAIDatasetCreateCommand() {
+    let dataset = GoogleCloudVertexAIDataset(
+        name: "my-dataset",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Dataset",
+        labels: ["env": "prod"]
+    )
+
+    let cmd = dataset.createCommand
+    #expect(cmd.contains("gcloud ai datasets create"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(cmd.contains("--display-name='My Dataset'"))
+    #expect(cmd.contains("--labels="))
+}
+
+@Test func testVertexAIDatasetDeleteCommand() {
+    let dataset = GoogleCloudVertexAIDataset(
+        name: "my-dataset",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Dataset"
+    )
+
+    let cmd = dataset.deleteCommand
+    #expect(cmd.contains("gcloud ai datasets delete my-dataset"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testVertexAIDatasetListCommand() {
+    let cmd = GoogleCloudVertexAIDataset.listCommand(projectID: "my-project", location: "us-central1")
+    #expect(cmd.contains("gcloud ai datasets list"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--region=us-central1"))
+}
+
+// MARK: - Vertex AI Model Tests
+
+@Test func testVertexAIModelBasicInit() {
+    let model = GoogleCloudVertexAIModel(
+        name: "my-model",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Model",
+        artifactUri: "gs://my-bucket/model"
+    )
+
+    #expect(model.name == "my-model")
+    #expect(model.artifactUri == "gs://my-bucket/model")
+}
+
+@Test func testVertexAIModelResourceName() {
+    let model = GoogleCloudVertexAIModel(
+        name: "my-model",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Model"
+    )
+
+    #expect(model.resourceName == "projects/my-project/locations/us-central1/models/my-model")
+}
+
+@Test func testVertexAIModelUploadCommand() {
+    let model = GoogleCloudVertexAIModel(
+        name: "my-model",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Model",
+        artifactUri: "gs://my-bucket/model"
+    )
+
+    let cmd = model.uploadCommand
+    #expect(cmd.contains("gcloud ai models upload"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(cmd.contains("--artifact-uri=gs://my-bucket/model"))
+}
+
+@Test func testVertexAIModelUploadCommandWithContainer() {
+    let model = GoogleCloudVertexAIModel(
+        name: "my-model",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Model",
+        containerSpec: GoogleCloudVertexAIModel.ContainerSpec(
+            imageUri: "gcr.io/my-project/my-model:latest",
+            predictRoute: "/predict",
+            healthRoute: "/health"
+        )
+    )
+
+    let cmd = model.uploadCommand
+    #expect(cmd.contains("--container-image-uri=gcr.io/my-project/my-model:latest"))
+    #expect(cmd.contains("--container-predict-route=/predict"))
+    #expect(cmd.contains("--container-health-route=/health"))
+}
+
+@Test func testVertexAIModelDeleteCommand() {
+    let model = GoogleCloudVertexAIModel(
+        name: "my-model",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Model"
+    )
+
+    let cmd = model.deleteCommand
+    #expect(cmd.contains("gcloud ai models delete my-model"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testVertexAIModelListCommand() {
+    let cmd = GoogleCloudVertexAIModel.listCommand(projectID: "my-project", location: "us-central1")
+    #expect(cmd.contains("gcloud ai models list"))
+}
+
+// MARK: - Vertex AI Endpoint Tests
+
+@Test func testVertexAIEndpointBasicInit() {
+    let endpoint = GoogleCloudVertexAIEndpoint(
+        name: "my-endpoint",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Endpoint"
+    )
+
+    #expect(endpoint.name == "my-endpoint")
+    #expect(endpoint.displayName == "My Endpoint")
+}
+
+@Test func testVertexAIEndpointResourceName() {
+    let endpoint = GoogleCloudVertexAIEndpoint(
+        name: "my-endpoint",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Endpoint"
+    )
+
+    #expect(endpoint.resourceName == "projects/my-project/locations/us-central1/endpoints/my-endpoint")
+}
+
+@Test func testVertexAIEndpointCreateCommand() {
+    let endpoint = GoogleCloudVertexAIEndpoint(
+        name: "my-endpoint",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Endpoint",
+        labels: ["env": "prod"]
+    )
+
+    let cmd = endpoint.createCommand
+    #expect(cmd.contains("gcloud ai endpoints create"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(cmd.contains("--display-name='My Endpoint'"))
+}
+
+@Test func testVertexAIEndpointDeployModelCommand() {
+    let endpoint = GoogleCloudVertexAIEndpoint(
+        name: "my-endpoint",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Endpoint"
+    )
+
+    let cmd = endpoint.deployModelCommand(modelID: "12345", machineType: "n1-standard-8", minReplicaCount: 1, maxReplicaCount: 5)
+    #expect(cmd.contains("gcloud ai endpoints deploy-model my-endpoint"))
+    #expect(cmd.contains("--model=12345"))
+    #expect(cmd.contains("--machine-type=n1-standard-8"))
+    #expect(cmd.contains("--min-replica-count=1"))
+    #expect(cmd.contains("--max-replica-count=5"))
+}
+
+@Test func testVertexAIEndpointUndeployModelCommand() {
+    let endpoint = GoogleCloudVertexAIEndpoint(
+        name: "my-endpoint",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Endpoint"
+    )
+
+    let cmd = endpoint.undeployModelCommand(deployedModelID: "deployed-123")
+    #expect(cmd.contains("gcloud ai endpoints undeploy-model my-endpoint"))
+    #expect(cmd.contains("--deployed-model-id=deployed-123"))
+}
+
+@Test func testVertexAIEndpointPredictCommand() {
+    let endpoint = GoogleCloudVertexAIEndpoint(
+        name: "my-endpoint",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Endpoint"
+    )
+
+    let cmd = endpoint.predictCommand(jsonRequest: "{\"instances\": [[1,2,3]]}")
+    #expect(cmd.contains("gcloud ai endpoints predict my-endpoint"))
+    #expect(cmd.contains("--json-request="))
+}
+
+@Test func testVertexAIEndpointDeleteCommand() {
+    let endpoint = GoogleCloudVertexAIEndpoint(
+        name: "my-endpoint",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Endpoint"
+    )
+
+    let cmd = endpoint.deleteCommand
+    #expect(cmd.contains("gcloud ai endpoints delete my-endpoint"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testVertexAIEndpointListCommand() {
+    let cmd = GoogleCloudVertexAIEndpoint.listCommand(projectID: "my-project", location: "us-central1")
+    #expect(cmd.contains("gcloud ai endpoints list"))
+}
+
+// MARK: - Vertex AI Custom Job Tests
+
+@Test func testVertexAICustomJobBasicInit() {
+    let job = GoogleCloudVertexAICustomJob(
+        name: "my-job",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Job",
+        workerPoolSpecs: []
+    )
+
+    #expect(job.name == "my-job")
+    #expect(job.displayName == "My Job")
+}
+
+@Test func testVertexAICustomJobResourceName() {
+    let job = GoogleCloudVertexAICustomJob(
+        name: "my-job",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Job",
+        workerPoolSpecs: []
+    )
+
+    #expect(job.resourceName == "projects/my-project/locations/us-central1/customJobs/my-job")
+}
+
+@Test func testVertexAICustomJobRunContainerCommand() {
+    let job = GoogleCloudVertexAICustomJob(
+        name: "my-job",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Job",
+        workerPoolSpecs: [],
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com"
+    )
+
+    let cmd = job.runContainerCommand(imageUri: "gcr.io/my-project/trainer:latest", machineType: "n1-standard-8")
+    #expect(cmd.contains("gcloud ai custom-jobs create"))
+    #expect(cmd.contains("--display-name='My Job'"))
+    #expect(cmd.contains("container-image-uri=gcr.io/my-project/trainer:latest"))
+    #expect(cmd.contains("machine-type=n1-standard-8"))
+    #expect(cmd.contains("--service-account="))
+}
+
+@Test func testVertexAICustomJobListCommand() {
+    let cmd = GoogleCloudVertexAICustomJob.listCommand(projectID: "my-project", location: "us-central1")
+    #expect(cmd.contains("gcloud ai custom-jobs list"))
+}
+
+@Test func testVertexAICustomJobCancelCommand() {
+    let job = GoogleCloudVertexAICustomJob(
+        name: "my-job",
+        projectID: "my-project",
+        location: "us-central1",
+        displayName: "My Job",
+        workerPoolSpecs: []
+    )
+
+    let cmd = job.cancelCommand
+    #expect(cmd.contains("gcloud ai custom-jobs cancel my-job"))
+}
+
+@Test func testVertexAICustomJobStateValues() {
+    #expect(GoogleCloudVertexAICustomJob.JobState.jobStateRunning.rawValue == "JOB_STATE_RUNNING")
+    #expect(GoogleCloudVertexAICustomJob.JobState.jobStateSucceeded.rawValue == "JOB_STATE_SUCCEEDED")
+    #expect(GoogleCloudVertexAICustomJob.JobState.jobStateFailed.rawValue == "JOB_STATE_FAILED")
+}
+
+// MARK: - Vertex AI Operations Tests
+
+@Test func testVertexAIOperationsEnableAPI() {
+    #expect(VertexAIOperations.enableAPICommand == "gcloud services enable aiplatform.googleapis.com")
+}
+
+@Test func testVertexAITrainingContainers() {
+    #expect(VertexAIOperations.TrainingContainers.pytorchGpu.contains("pytorch-gpu"))
+    #expect(VertexAIOperations.TrainingContainers.tensorflowGpu.contains("tf-gpu"))
+    #expect(VertexAIOperations.TrainingContainers.scikitLearn.contains("sklearn"))
+}
+
+@Test func testVertexAIPredictionContainers() {
+    #expect(VertexAIOperations.PredictionContainers.pytorchCpu.contains("pytorch-cpu"))
+    #expect(VertexAIOperations.PredictionContainers.tensorflowCpu.contains("tf-cpu"))
+}
+
+@Test func testVertexAIMachineTypes() {
+    #expect(VertexAIOperations.MachineTypes.n1Standard4 == "n1-standard-4")
+    #expect(VertexAIOperations.MachineTypes.a2Highgpu1g == "a2-highgpu-1g")
+}
+
+@Test func testVertexAIAcceleratorTypes() {
+    #expect(VertexAIOperations.AcceleratorTypes.nvidiaT4 == "NVIDIA_TESLA_T4")
+    #expect(VertexAIOperations.AcceleratorTypes.nvidiaA100 == "NVIDIA_TESLA_A100")
+}
+
+@Test func testVertexAIListOperationsCommand() {
+    let cmd = VertexAIOperations.listOperationsCommand(projectID: "my-project", location: "us-central1")
+    #expect(cmd.contains("gcloud ai operations list"))
+}
+
+// MARK: - DAIS Vertex AI Template Tests
+
+@Test func testDAISVertexAITemplateBasicInit() {
+    let template = DAISVertexAITemplate(projectID: "my-project")
+
+    #expect(template.projectID == "my-project")
+    #expect(template.location == "us-central1")
+}
+
+@Test func testDAISVertexAITemplateTrainingDataset() {
+    let template = DAISVertexAITemplate(projectID: "my-project")
+    let dataset = template.trainingDataset
+
+    #expect(dataset.displayName == "DAIS Training Dataset")
+    #expect(dataset.labels?["app"] == "dais")
+}
+
+@Test func testDAISVertexAITemplatePredictionEndpoint() {
+    let template = DAISVertexAITemplate(projectID: "my-project")
+    let endpoint = template.predictionEndpoint
+
+    #expect(endpoint.displayName == "DAIS Prediction Endpoint")
+}
+
+@Test func testDAISVertexAITemplateCustomTrainingJob() {
+    let template = DAISVertexAITemplate(projectID: "my-project")
+    let job = template.customTrainingJob
+
+    #expect(job.displayName == "DAIS Custom Training Job")
+    #expect(job.workerPoolSpecs.first?.machineSpec.machineType == "n1-standard-8")
+    #expect(job.workerPoolSpecs.first?.machineSpec.acceleratorType == "NVIDIA_TESLA_T4")
+}
+
+@Test func testDAISVertexAITemplateDaisModel() {
+    let template = DAISVertexAITemplate(projectID: "my-project")
+    let model = template.daisModel(artifactUri: "gs://my-bucket/model")
+
+    #expect(model.displayName == "DAIS Model")
+    #expect(model.artifactUri == "gs://my-bucket/model")
+}
+
+@Test func testDAISVertexAITemplateSetupScript() {
+    let template = DAISVertexAITemplate(projectID: "my-project")
+    let script = template.setupScript
+
+    #expect(script.contains("gcloud services enable aiplatform.googleapis.com"))
+    #expect(script.contains("gcloud ai endpoints create"))
+}
+
+@Test func testDAISVertexAITemplateTeardownScript() {
+    let template = DAISVertexAITemplate(projectID: "my-project")
+    let script = template.teardownScript
+
+    #expect(script.contains("gcloud ai endpoints delete"))
+}
+
+// MARK: - Vertex AI Codable Tests
+
+@Test func testVertexAIDatasetCodable() throws {
+    let dataset = GoogleCloudVertexAIDataset(
+        name: "test-dataset",
+        projectID: "my-project",
+        displayName: "Test Dataset"
+    )
+
+    let data = try JSONEncoder().encode(dataset)
+    let decoded = try JSONDecoder().decode(GoogleCloudVertexAIDataset.self, from: data)
+
+    #expect(decoded.name == "test-dataset")
+}
+
+@Test func testVertexAIModelCodable() throws {
+    let model = GoogleCloudVertexAIModel(
+        name: "test-model",
+        projectID: "my-project",
+        displayName: "Test Model",
+        artifactUri: "gs://bucket/model"
+    )
+
+    let data = try JSONEncoder().encode(model)
+    let decoded = try JSONDecoder().decode(GoogleCloudVertexAIModel.self, from: data)
+
+    #expect(decoded.name == "test-model")
+    #expect(decoded.artifactUri == "gs://bucket/model")
+}
+
+@Test func testVertexAIEndpointCodable() throws {
+    let endpoint = GoogleCloudVertexAIEndpoint(
+        name: "test-endpoint",
+        projectID: "my-project",
+        displayName: "Test Endpoint"
+    )
+
+    let data = try JSONEncoder().encode(endpoint)
+    let decoded = try JSONDecoder().decode(GoogleCloudVertexAIEndpoint.self, from: data)
+
+    #expect(decoded.name == "test-endpoint")
+}
+
+@Test func testVertexAICustomJobCodable() throws {
+    let job = GoogleCloudVertexAICustomJob(
+        name: "test-job",
+        projectID: "my-project",
+        displayName: "Test Job",
+        workerPoolSpecs: [
+            GoogleCloudVertexAICustomJob.WorkerPoolSpec(
+                machineSpec: GoogleCloudVertexAICustomJob.WorkerPoolSpec.MachineSpec(machineType: "n1-standard-4"),
+                replicaCount: 1
+            )
+        ]
+    )
+
+    let data = try JSONEncoder().encode(job)
+    let decoded = try JSONDecoder().decode(GoogleCloudVertexAICustomJob.self, from: data)
+
+    #expect(decoded.name == "test-job")
+    #expect(decoded.workerPoolSpecs.count == 1)
+}

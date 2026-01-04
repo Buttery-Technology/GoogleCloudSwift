@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 39 Google Cloud services:
+GoogleCloudSwift provides models for 40 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -119,6 +119,7 @@ GoogleCloudSwift provides models for 39 Google Cloud services:
 | **BigQuery** | Data warehouse and analytics | `GoogleCloudBigQueryDataset`, `GoogleCloudBigQueryTable`, `GoogleCloudBigQueryJob`, `GoogleCloudBigQueryView` |
 | **Cloud Spanner** | Globally distributed relational database | `GoogleCloudSpannerInstance`, `GoogleCloudSpannerDatabase`, `GoogleCloudSpannerBackup`, `DAISSpannerTemplate` |
 | **Firestore** | NoSQL document database | `GoogleCloudFirestoreDatabase`, `GoogleCloudFirestoreIndex`, `GoogleCloudFirestoreExport`, `DAISFirestoreTemplate` |
+| **Vertex AI** | Machine learning platform | `GoogleCloudVertexAIModel`, `GoogleCloudVertexAIEndpoint`, `GoogleCloudVertexAICustomJob`, `DAISVertexAITemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -4499,6 +4500,162 @@ print(template.setupScript)
 | `europe-west1` | Belgium |
 | `asia-northeast1` | Tokyo |
 
+### GoogleCloudVertexAIModel (Vertex AI API)
+
+Vertex AI is Google Cloud's unified machine learning platform:
+
+```swift
+// Upload a model with custom container
+let model = GoogleCloudVertexAIModel(
+    name: "my-model",
+    projectID: "my-project",
+    location: "us-central1",
+    displayName: "My Custom Model",
+    artifactUri: "gs://my-bucket/models/v1",
+    containerSpec: GoogleCloudVertexAIModel.ContainerSpec(
+        imageUri: VertexAIOperations.PredictionContainers.pytorchCpu,
+        predictRoute: "/predict",
+        healthRoute: "/health"
+    )
+)
+
+print(model.uploadCommand)
+print(model.resourceName)  // projects/my-project/locations/us-central1/models/my-model
+```
+
+**Endpoints for Serving:**
+
+```swift
+// Create a prediction endpoint
+let endpoint = GoogleCloudVertexAIEndpoint(
+    name: "prediction-endpoint",
+    projectID: "my-project",
+    location: "us-central1",
+    displayName: "Production Endpoint",
+    labels: ["env": "production"]
+)
+
+print(endpoint.createCommand)
+
+// Deploy a model to the endpoint
+print(endpoint.deployModelCommand(
+    modelID: "123456789",
+    machineType: "n1-standard-4",
+    minReplicaCount: 1,
+    maxReplicaCount: 5
+))
+
+// Make predictions
+print(endpoint.predictCommand(jsonRequest: "{\"instances\": [[1,2,3]]}"))
+```
+
+**Custom Training Jobs:**
+
+```swift
+// Create a custom training job
+let job = GoogleCloudVertexAICustomJob(
+    name: "training-job",
+    projectID: "my-project",
+    location: "us-central1",
+    displayName: "Model Training",
+    workerPoolSpecs: [
+        GoogleCloudVertexAICustomJob.WorkerPoolSpec(
+            machineSpec: GoogleCloudVertexAICustomJob.WorkerPoolSpec.MachineSpec(
+                machineType: "n1-standard-8",
+                acceleratorType: VertexAIOperations.AcceleratorTypes.nvidiaT4,
+                acceleratorCount: 1
+            ),
+            replicaCount: 1
+        )
+    ],
+    serviceAccount: "ml-sa@my-project.iam.gserviceaccount.com"
+)
+
+// Run with container
+print(job.runContainerCommand(
+    imageUri: VertexAIOperations.TrainingContainers.pytorchGpu,
+    machineType: "n1-standard-8"
+))
+
+// Run with Python package
+print(job.runPythonCommand(
+    executorImage: VertexAIOperations.TrainingContainers.pytorchGpu,
+    packageUri: "gs://my-bucket/packages/trainer-0.1.tar.gz",
+    module: "trainer.task"
+))
+```
+
+**Datasets:**
+
+```swift
+// Create a dataset
+let dataset = GoogleCloudVertexAIDataset(
+    name: "training-data",
+    projectID: "my-project",
+    location: "us-central1",
+    displayName: "Training Dataset",
+    labels: ["version": "v1"]
+)
+
+print(dataset.createCommand)
+print(GoogleCloudVertexAIDataset.listCommand(projectID: "my-project", location: "us-central1"))
+```
+
+**Pre-built Containers:**
+
+```swift
+// Training containers
+VertexAIOperations.TrainingContainers.pytorchGpu    // PyTorch with GPU
+VertexAIOperations.TrainingContainers.tensorflowGpu // TensorFlow with GPU
+VertexAIOperations.TrainingContainers.scikitLearn   // Scikit-learn
+VertexAIOperations.TrainingContainers.xgboost       // XGBoost
+
+// Prediction containers
+VertexAIOperations.PredictionContainers.pytorchCpu  // PyTorch serving
+VertexAIOperations.PredictionContainers.tensorflowCpu // TensorFlow Serving
+```
+
+**DAIS Vertex AI Templates:**
+
+```swift
+let template = DAISVertexAITemplate(
+    projectID: "my-project",
+    location: "us-central1",
+    serviceAccount: "ml@my-project.iam.gserviceaccount.com"
+)
+
+// Prediction endpoint
+let endpoint = template.predictionEndpoint
+
+// Training dataset
+let dataset = template.trainingDataset
+
+// Custom training job with GPU
+let job = template.customTrainingJob
+
+// Model with artifact
+let model = template.daisModel(artifactUri: "gs://bucket/model")
+
+// Setup script
+print(template.setupScript)
+```
+
+**Machine Types and Accelerators:**
+
+| Machine Type | Description |
+|-------------|-------------|
+| `n1-standard-4` | 4 vCPUs, 15 GB memory |
+| `n1-standard-8` | 8 vCPUs, 30 GB memory |
+| `n1-highmem-16` | 16 vCPUs, 104 GB memory |
+| `a2-highgpu-1g` | 12 vCPUs, 85 GB, 1x A100 GPU |
+
+| Accelerator | Description |
+|-------------|-------------|
+| `NVIDIA_TESLA_T4` | Cost-effective GPU |
+| `NVIDIA_TESLA_V100` | High-performance GPU |
+| `NVIDIA_TESLA_A100` | Latest generation GPU |
+| `NVIDIA_L4` | Inference-optimized GPU |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -5934,6 +6091,16 @@ MIT License
 - [Firestore Locations](https://cloud.google.com/firestore/docs/locations)
 - [Point-in-Time Recovery](https://cloud.google.com/firestore/docs/backups)
 - [Firestore Emulator](https://cloud.google.com/firestore/docs/emulator)
+
+### Vertex AI
+- [Vertex AI Documentation](https://cloud.google.com/vertex-ai/docs)
+- [Model Training](https://cloud.google.com/vertex-ai/docs/training/overview)
+- [Custom Training Containers](https://cloud.google.com/vertex-ai/docs/training/containers-overview)
+- [Model Deployment](https://cloud.google.com/vertex-ai/docs/predictions/overview)
+- [Pre-built Containers](https://cloud.google.com/vertex-ai/docs/predictions/pre-built-containers)
+- [Machine Types](https://cloud.google.com/vertex-ai/docs/training/configure-compute)
+- [Accelerators (GPUs)](https://cloud.google.com/vertex-ai/docs/training/configure-compute#accelerators)
+- [Model Registry](https://cloud.google.com/vertex-ai/docs/model-registry/introduction)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)
