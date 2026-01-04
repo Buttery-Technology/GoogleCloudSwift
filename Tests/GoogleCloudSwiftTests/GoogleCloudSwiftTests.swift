@@ -936,3 +936,473 @@ import Testing
     #expect(decoded.projectID == project.projectID)
     #expect(decoded.labels == project.labels)
 }
+
+// MARK: - Deployment Manager Tests
+
+@Test func testGoogleCloudDeployment() {
+    let deployment = GoogleCloudDeployment(
+        name: "my-deployment",
+        projectID: "test-project",
+        description: "Test deployment"
+    )
+
+    #expect(deployment.name == "my-deployment")
+    #expect(deployment.resourceName == "projects/test-project/global/deployments/my-deployment")
+    #expect(deployment.description == "Test deployment")
+}
+
+@Test func testDeploymentCreateCommand() {
+    let deployment = GoogleCloudDeployment(
+        name: "test-deployment",
+        projectID: "my-project",
+        description: "Production infrastructure",
+        configPath: "/path/to/config.yaml"
+    )
+
+    let cmd = deployment.createCommand
+    #expect(cmd.contains("gcloud deployment-manager deployments create test-deployment"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--config=/path/to/config.yaml"))
+    #expect(cmd.contains("--description=\"Production infrastructure\""))
+}
+
+@Test func testDeploymentWithLabels() {
+    let deployment = GoogleCloudDeployment(
+        name: "labeled-deployment",
+        projectID: "test-project",
+        labels: ["env": "prod", "team": "platform"]
+    )
+
+    #expect(deployment.createCommand.contains("--labels="))
+}
+
+@Test func testDeploymentWithTemplate() {
+    let deployment = GoogleCloudDeployment(
+        name: "template-deployment",
+        projectID: "test-project",
+        templatePath: "/path/to/template.jinja",
+        properties: ["zone": "us-west1-a", "machineType": "e2-medium"]
+    )
+
+    let cmd = deployment.createCommand
+    #expect(cmd.contains("--template=/path/to/template.jinja"))
+    #expect(cmd.contains("--properties="))
+}
+
+@Test func testDeploymentDeleteCommand() {
+    let deployment = GoogleCloudDeployment(
+        name: "to-delete",
+        projectID: "test-project"
+    )
+
+    #expect(deployment.deleteCommand == "gcloud deployment-manager deployments delete to-delete --project=test-project --quiet")
+}
+
+@Test func testDeploymentDescribeCommand() {
+    let deployment = GoogleCloudDeployment(
+        name: "my-deployment",
+        projectID: "test-project"
+    )
+
+    #expect(deployment.describeCommand == "gcloud deployment-manager deployments describe my-deployment --project=test-project")
+}
+
+@Test func testDeploymentPreviewCommand() {
+    let deployment = GoogleCloudDeployment(
+        name: "preview-deployment",
+        projectID: "test-project",
+        configPath: "/path/to/config.yaml"
+    )
+
+    let cmd = deployment.previewCommand
+    #expect(cmd.contains("--preview"))
+    #expect(cmd.contains("--config=/path/to/config.yaml"))
+}
+
+@Test func testDeploymentState() {
+    #expect(GoogleCloudDeployment.DeploymentState.pending.rawValue == "PENDING")
+    #expect(GoogleCloudDeployment.DeploymentState.running.rawValue == "RUNNING")
+    #expect(GoogleCloudDeployment.DeploymentState.done.rawValue == "DONE")
+    #expect(GoogleCloudDeployment.DeploymentState.failed.rawValue == "FAILED")
+}
+
+@Test func testDeploymentManifest() {
+    let manifest = GoogleCloudDeploymentManifest(
+        deploymentName: "my-deployment",
+        projectID: "test-project",
+        manifestID: "manifest-12345"
+    )
+
+    #expect(manifest.resourceName == "projects/test-project/global/deployments/my-deployment/manifests/manifest-12345")
+    #expect(manifest.describeCommand.contains("gcloud deployment-manager manifests describe manifest-12345"))
+}
+
+@Test func testDeploymentResource() {
+    let resource = GoogleCloudDeploymentResource(
+        name: "my-instance",
+        type: "compute.v1.instance",
+        deploymentName: "my-deployment",
+        projectID: "test-project"
+    )
+
+    #expect(resource.describeCommand.contains("gcloud deployment-manager resources describe my-instance"))
+    #expect(resource.describeCommand.contains("--deployment=my-deployment"))
+}
+
+@Test func testDeploymentTypeEnum() {
+    #expect(GoogleCloudDeploymentType.instance.rawValue == "compute.v1.instance")
+    #expect(GoogleCloudDeploymentType.bucket.rawValue == "storage.v1.bucket")
+    #expect(GoogleCloudDeploymentType.firewall.rawValue == "compute.v1.firewall")
+    #expect(GoogleCloudDeploymentType.instance.displayName == "Compute Instance")
+    #expect(GoogleCloudDeploymentType.bucket.displayName == "Storage Bucket")
+}
+
+@Test func testDAISDeploymentManagerTemplateInstanceConfig() {
+    let config = DAISDeploymentManagerTemplate.instanceConfig(
+        name: "dais-node-1",
+        machineType: .e2Medium,
+        zone: "us-west1-a",
+        networkTags: ["dais-node", "allow-grpc"]
+    )
+
+    #expect(config.contains("name: dais-node-1"))
+    #expect(config.contains("type: compute.v1.instance"))
+    #expect(config.contains("machineType: zones/us-west1-a/machineTypes/e2-medium"))
+    #expect(config.contains("- dais-node"))
+    #expect(config.contains("- allow-grpc"))
+}
+
+@Test func testDAISDeploymentManagerTemplateCompleteConfig() {
+    let config = DAISDeploymentManagerTemplate.completeDeploymentConfig(
+        deploymentName: "test-dais",
+        nodeCount: 2,
+        machineType: .n2Standard2,
+        zone: "us-central1-a",
+        grpcPort: 9090,
+        httpPort: 8080
+    )
+
+    #expect(config.contains("resources:"))
+    #expect(config.contains("test-dais-allow-grpc"))
+    #expect(config.contains("test-dais-allow-http"))
+    #expect(config.contains("test-dais-node-1"))
+    #expect(config.contains("test-dais-node-2"))
+    #expect(config.contains("\"9090\""))
+    #expect(config.contains("\"8080\""))
+}
+
+// MARK: - Infrastructure Manager Tests
+
+@Test func testInfrastructureManagerDeployment() {
+    let deployment = InfrastructureManagerDeployment(
+        name: "my-infra",
+        projectID: "test-project",
+        location: "us-central1"
+    )
+
+    #expect(deployment.name == "my-infra")
+    #expect(deployment.resourceName == "projects/test-project/locations/us-central1/deployments/my-infra")
+}
+
+@Test func testInfrastructureManagerDeploymentCreateCommand() {
+    let deployment = InfrastructureManagerDeployment(
+        name: "test-deployment",
+        projectID: "my-project",
+        location: "us-west1",
+        serviceAccount: "infra@my-project.iam.gserviceaccount.com"
+    )
+
+    let cmd = deployment.createCommand
+    #expect(cmd.contains("gcloud infra-manager deployments apply test-deployment"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--location=us-west1"))
+    #expect(cmd.contains("--service-account=infra@my-project.iam.gserviceaccount.com"))
+}
+
+@Test func testInfrastructureManagerDeploymentWithLabels() {
+    let deployment = InfrastructureManagerDeployment(
+        name: "labeled-infra",
+        projectID: "test-project",
+        location: "us-central1",
+        labels: ["env": "prod", "app": "dais"]
+    )
+
+    #expect(deployment.createCommand.contains("--labels="))
+}
+
+@Test func testInfrastructureManagerDeploymentWithGitBlueprint() {
+    let blueprint = TerraformBlueprint(
+        source: .git(repo: "https://github.com/example/infra", directory: "terraform", ref: "main")
+    )
+
+    let deployment = InfrastructureManagerDeployment(
+        name: "git-infra",
+        projectID: "test-project",
+        location: "us-central1",
+        blueprint: blueprint
+    )
+
+    let cmd = deployment.createCommand
+    #expect(cmd.contains("--git-source-repo=https://github.com/example/infra"))
+    #expect(cmd.contains("--git-source-directory=terraform"))
+    #expect(cmd.contains("--git-source-ref=main"))
+}
+
+@Test func testInfrastructureManagerDeploymentWithGCSBlueprint() {
+    let blueprint = TerraformBlueprint(
+        source: .gcs(bucket: "my-tf-bucket", object: "configs/main.tar.gz")
+    )
+
+    let deployment = InfrastructureManagerDeployment(
+        name: "gcs-infra",
+        projectID: "test-project",
+        location: "us-central1",
+        blueprint: blueprint
+    )
+
+    let cmd = deployment.createCommand
+    #expect(cmd.contains("--gcs-source=gs://my-tf-bucket/configs/main.tar.gz"))
+}
+
+@Test func testInfrastructureManagerDeploymentWithLocalBlueprint() {
+    let blueprint = TerraformBlueprint(
+        source: .local(path: "/path/to/terraform")
+    )
+
+    let deployment = InfrastructureManagerDeployment(
+        name: "local-infra",
+        projectID: "test-project",
+        location: "us-central1",
+        blueprint: blueprint
+    )
+
+    #expect(deployment.createCommand.contains("--local-source=/path/to/terraform"))
+}
+
+@Test func testInfrastructureManagerDeploymentCommands() {
+    let deployment = InfrastructureManagerDeployment(
+        name: "my-infra",
+        projectID: "test-project",
+        location: "us-west1"
+    )
+
+    #expect(deployment.deleteCommand.contains("gcloud infra-manager deployments delete my-infra"))
+    #expect(deployment.describeCommand.contains("gcloud infra-manager deployments describe my-infra"))
+    #expect(deployment.exportStateCommand.contains("gcloud infra-manager deployments export-state my-infra"))
+    #expect(deployment.lockCommand.contains("gcloud infra-manager deployments lock my-infra"))
+    #expect(deployment.unlockCommand.contains("gcloud infra-manager deployments unlock my-infra"))
+}
+
+@Test func testInfrastructureManagerListCommand() {
+    let cmd = InfrastructureManagerDeployment.listCommand(projectID: "test-project", location: "us-central1")
+    #expect(cmd == "gcloud infra-manager deployments list --project=test-project --location=us-central1")
+}
+
+@Test func testInfrastructureManagerDeploymentState() {
+    #expect(InfrastructureManagerDeployment.DeploymentState.creating.rawValue == "CREATING")
+    #expect(InfrastructureManagerDeployment.DeploymentState.active.rawValue == "ACTIVE")
+    #expect(InfrastructureManagerDeployment.DeploymentState.updating.rawValue == "UPDATING")
+    #expect(InfrastructureManagerDeployment.DeploymentState.failed.rawValue == "FAILED")
+}
+
+@Test func testInfrastructureManagerLockState() {
+    #expect(InfrastructureManagerDeployment.LockState.unlocked.rawValue == "UNLOCKED")
+    #expect(InfrastructureManagerDeployment.LockState.locked.rawValue == "LOCKED")
+    #expect(InfrastructureManagerDeployment.LockState.locking.rawValue == "LOCKING")
+}
+
+@Test func testTerraformBlueprint() {
+    let blueprint = TerraformBlueprint(
+        source: .git(repo: "https://github.com/test/repo", directory: nil, ref: "v1.0.0"),
+        inputValues: ["region": "us-west1", "node_count": "3"]
+    )
+
+    #expect(blueprint.inputValues.count == 2)
+    #expect(blueprint.inputValues["region"] == "us-west1")
+}
+
+@Test func testInfrastructureManagerRevision() {
+    let revision = InfrastructureManagerRevision(
+        name: "revision-001",
+        deploymentName: "my-infra",
+        projectID: "test-project",
+        location: "us-central1",
+        state: .applied
+    )
+
+    #expect(revision.resourceName == "projects/test-project/locations/us-central1/deployments/my-infra/revisions/revision-001")
+    #expect(revision.describeCommand.contains("gcloud infra-manager revisions describe revision-001"))
+}
+
+@Test func testInfrastructureManagerRevisionState() {
+    #expect(InfrastructureManagerRevision.RevisionState.applying.rawValue == "APPLYING")
+    #expect(InfrastructureManagerRevision.RevisionState.applied.rawValue == "APPLIED")
+    #expect(InfrastructureManagerRevision.RevisionState.failed.rawValue == "FAILED")
+}
+
+@Test func testInfrastructureManagerPreview() {
+    let preview = InfrastructureManagerPreview(
+        name: "preview-001",
+        projectID: "test-project",
+        location: "us-central1",
+        deploymentName: "my-infra"
+    )
+
+    #expect(preview.resourceName == "projects/test-project/locations/us-central1/previews/preview-001")
+    #expect(preview.createCommand.contains("--deployment=my-infra"))
+}
+
+@Test func testInfrastructureManagerPreviewCommands() {
+    let preview = InfrastructureManagerPreview(
+        name: "test-preview",
+        projectID: "test-project",
+        location: "us-west1"
+    )
+
+    #expect(preview.deleteCommand.contains("gcloud infra-manager previews delete test-preview"))
+    #expect(preview.describeCommand.contains("gcloud infra-manager previews describe test-preview"))
+    #expect(preview.exportCommand.contains("gcloud infra-manager previews export test-preview"))
+}
+
+@Test func testInfrastructureManagerPreviewState() {
+    #expect(InfrastructureManagerPreview.PreviewState.creating.rawValue == "CREATING")
+    #expect(InfrastructureManagerPreview.PreviewState.succeeded.rawValue == "SUCCEEDED")
+    #expect(InfrastructureManagerPreview.PreviewState.failed.rawValue == "FAILED")
+}
+
+@Test func testDAISInfrastructureTemplateTerraformConfig() {
+    let config = DAISInfrastructureTemplate.terraformConfig(
+        deploymentName: "test-dais",
+        projectID: "my-project",
+        region: "us-west1",
+        zone: "us-west1-a",
+        nodeCount: 3,
+        machineType: .n2Standard2,
+        grpcPort: 9090,
+        httpPort: 8080
+    )
+
+    #expect(config.contains("terraform {"))
+    #expect(config.contains("provider \"google\""))
+    #expect(config.contains("project = \"my-project\""))
+    #expect(config.contains("region  = \"us-west1\""))
+    #expect(config.contains("google_compute_firewall"))
+    #expect(config.contains("test-dais-allow-grpc"))
+    #expect(config.contains("test-dais-allow-http"))
+    #expect(config.contains("google_compute_instance"))
+    #expect(config.contains("count        = 3"))
+    #expect(config.contains("n2-standard-2"))
+}
+
+@Test func testDAISInfrastructureTemplateDeployment() {
+    let deployment = DAISInfrastructureTemplate.deployment(
+        name: "prod-infra",
+        projectID: "my-project",
+        location: "us-central1",
+        gitRepo: "https://github.com/example/infra",
+        gitRef: "v1.0.0",
+        serviceAccountEmail: "infra@my-project.iam.gserviceaccount.com"
+    )
+
+    #expect(deployment.name == "prod-infra")
+    #expect(deployment.labels["app"] == "butteryai")
+    #expect(deployment.labels["managed-by"] == "dais")
+    #expect(deployment.serviceAccount == "infra@my-project.iam.gserviceaccount.com")
+}
+
+@Test func testDAISInfrastructureTemplateSetupScript() {
+    let deployment = InfrastructureManagerDeployment(
+        name: "test-infra",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let terraformConfig = DAISInfrastructureTemplate.terraformConfig(
+        deploymentName: "test",
+        projectID: "my-project",
+        region: "us-central1",
+        zone: "us-central1-a",
+        nodeCount: 2,
+        machineType: .e2Medium
+    )
+
+    let script = DAISInfrastructureTemplate.setupScript(
+        deployment: deployment,
+        terraformConfig: terraformConfig
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("gcloud services enable config.googleapis.com"))
+    #expect(script.contains("mkdir -p /tmp/dais-terraform"))
+    #expect(script.contains("TERRAFORM_EOF"))
+}
+
+// MARK: - Deployment Manager and Infrastructure Manager Codable Tests
+
+@Test func testDeploymentCodable() throws {
+    let deployment = GoogleCloudDeployment(
+        name: "test-deployment",
+        projectID: "test-project",
+        description: "Test",
+        labels: ["env": "test"]
+    )
+    let data = try JSONEncoder().encode(deployment)
+    let decoded = try JSONDecoder().decode(GoogleCloudDeployment.self, from: data)
+
+    #expect(decoded.name == deployment.name)
+    #expect(decoded.labels == deployment.labels)
+}
+
+@Test func testInfrastructureManagerDeploymentCodable() throws {
+    let deployment = InfrastructureManagerDeployment(
+        name: "test-infra",
+        projectID: "test-project",
+        location: "us-central1",
+        labels: ["env": "test"]
+    )
+    let data = try JSONEncoder().encode(deployment)
+    let decoded = try JSONDecoder().decode(InfrastructureManagerDeployment.self, from: data)
+
+    #expect(decoded.name == deployment.name)
+    #expect(decoded.location == deployment.location)
+    #expect(decoded.labels == deployment.labels)
+}
+
+@Test func testTerraformBlueprintCodable() throws {
+    let blueprint = TerraformBlueprint(
+        source: .git(repo: "https://github.com/test/repo", directory: "terraform", ref: "main"),
+        inputValues: ["key": "value"]
+    )
+    let data = try JSONEncoder().encode(blueprint)
+    let decoded = try JSONDecoder().decode(TerraformBlueprint.self, from: data)
+
+    #expect(decoded.inputValues == blueprint.inputValues)
+}
+
+@Test func testInfrastructureManagerRevisionCodable() throws {
+    let revision = InfrastructureManagerRevision(
+        name: "rev-001",
+        deploymentName: "my-deploy",
+        projectID: "test-project",
+        location: "us-central1"
+    )
+    let data = try JSONEncoder().encode(revision)
+    let decoded = try JSONDecoder().decode(InfrastructureManagerRevision.self, from: data)
+
+    #expect(decoded.name == revision.name)
+    #expect(decoded.deploymentName == revision.deploymentName)
+}
+
+@Test func testInfrastructureManagerPreviewCodable() throws {
+    let preview = InfrastructureManagerPreview(
+        name: "preview-001",
+        projectID: "test-project",
+        location: "us-central1",
+        deploymentName: "my-deploy"
+    )
+    let data = try JSONEncoder().encode(preview)
+    let decoded = try JSONDecoder().decode(InfrastructureManagerPreview.self, from: data)
+
+    #expect(decoded.name == preview.name)
+    #expect(decoded.deploymentName == preview.deploymentName)
+}
