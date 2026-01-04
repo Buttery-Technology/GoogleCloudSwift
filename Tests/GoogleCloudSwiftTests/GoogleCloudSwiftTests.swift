@@ -3690,3 +3690,811 @@ import Testing
     #expect(decoded.secretName == mount.secretName)
     #expect(decoded.version == mount.version)
 }
+
+// MARK: - Cloud Logging Tests
+
+@Test func testGoogleCloudLogEntry() {
+    let entry = GoogleCloudLogEntry(
+        logName: "my-app",
+        projectID: "test-project",
+        severity: .error,
+        textPayload: "Connection failed"
+    )
+
+    #expect(entry.logName == "my-app")
+    #expect(entry.projectID == "test-project")
+    #expect(entry.severity == .error)
+    #expect(entry.textPayload == "Connection failed")
+}
+
+@Test func testLogEntryResourceName() {
+    let entry = GoogleCloudLogEntry(
+        logName: "my-app",
+        projectID: "test-project",
+        severity: .info
+    )
+
+    #expect(entry.resourceName == "projects/test-project/logs/my-app")
+}
+
+@Test func testLogEntryWriteCommand() {
+    let entry = GoogleCloudLogEntry(
+        logName: "my-app",
+        projectID: "test-project",
+        severity: .warning,
+        textPayload: "Disk space low"
+    )
+
+    let cmd = entry.writeCommand
+    #expect(cmd.contains("gcloud logging write my-app"))
+    #expect(cmd.contains("\"Disk space low\""))
+    #expect(cmd.contains("--project=test-project"))
+    #expect(cmd.contains("--severity=WARNING"))
+}
+
+@Test func testLogEntryWithResourceType() {
+    let entry = GoogleCloudLogEntry(
+        logName: "my-app",
+        projectID: "test-project",
+        severity: .info,
+        textPayload: "Started",
+        resourceType: "gce_instance"
+    )
+
+    let cmd = entry.writeCommand
+    #expect(cmd.contains("--resource-type=gce_instance"))
+}
+
+@Test func testLogEntryReadCommand() {
+    let cmd = GoogleCloudLogEntry.readCommand(
+        projectID: "test-project",
+        logName: "my-app",
+        limit: 50
+    )
+
+    #expect(cmd.contains("gcloud logging read"))
+    #expect(cmd.contains("logName=\"projects/test-project/logs/my-app\""))
+    #expect(cmd.contains("--limit=50"))
+}
+
+@Test func testLogEntryReadCommandWithFilter() {
+    let cmd = GoogleCloudLogEntry.readCommand(
+        projectID: "test-project",
+        filter: "severity >= ERROR",
+        limit: 100
+    )
+
+    #expect(cmd.contains("severity >= ERROR"))
+    #expect(cmd.contains("--project=test-project"))
+}
+
+@Test func testLogEntryDeleteCommand() {
+    let cmd = GoogleCloudLogEntry.deleteCommand(projectID: "test-project", logName: "my-app")
+    #expect(cmd.contains("gcloud logging logs delete my-app"))
+    #expect(cmd.contains("--project=test-project"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testLogEntryListCommand() {
+    let cmd = GoogleCloudLogEntry.listCommand(projectID: "test-project")
+    #expect(cmd.contains("gcloud logging logs list"))
+    #expect(cmd.contains("--project=test-project"))
+}
+
+// MARK: - Log Severity Tests
+
+@Test func testLogSeverityValues() {
+    #expect(LogSeverity.default.rawValue == "DEFAULT")
+    #expect(LogSeverity.debug.rawValue == "DEBUG")
+    #expect(LogSeverity.info.rawValue == "INFO")
+    #expect(LogSeverity.notice.rawValue == "NOTICE")
+    #expect(LogSeverity.warning.rawValue == "WARNING")
+    #expect(LogSeverity.error.rawValue == "ERROR")
+    #expect(LogSeverity.critical.rawValue == "CRITICAL")
+    #expect(LogSeverity.alert.rawValue == "ALERT")
+    #expect(LogSeverity.emergency.rawValue == "EMERGENCY")
+}
+
+@Test func testLogSeverityNumericValues() {
+    #expect(LogSeverity.default.numericValue == 0)
+    #expect(LogSeverity.debug.numericValue == 100)
+    #expect(LogSeverity.info.numericValue == 200)
+    #expect(LogSeverity.error.numericValue == 500)
+    #expect(LogSeverity.emergency.numericValue == 800)
+}
+
+// MARK: - Log Sink Tests
+
+@Test func testGoogleCloudLogSink() {
+    let sink = GoogleCloudLogSink(
+        name: "error-logs",
+        projectID: "test-project",
+        destination: .bigQuery(datasetID: "logs_dataset"),
+        filter: "severity >= ERROR"
+    )
+
+    #expect(sink.name == "error-logs")
+    #expect(sink.filter == "severity >= ERROR")
+}
+
+@Test func testLogSinkResourceName() {
+    let sink = GoogleCloudLogSink(
+        name: "my-sink",
+        projectID: "test-project",
+        destination: .storage(bucketName: "my-bucket")
+    )
+
+    #expect(sink.resourceName == "projects/test-project/sinks/my-sink")
+}
+
+@Test func testLogSinkCreateCommandBigQuery() {
+    let sink = GoogleCloudLogSink(
+        name: "bq-sink",
+        projectID: "test-project",
+        destination: .bigQuery(datasetID: "logs"),
+        filter: "severity >= WARNING",
+        description: "Export warnings to BigQuery"
+    )
+
+    let cmd = sink.createCommand
+    #expect(cmd.contains("gcloud logging sinks create bq-sink"))
+    #expect(cmd.contains("bigquery.googleapis.com/projects/test-project/datasets/logs"))
+    #expect(cmd.contains("--log-filter='severity >= WARNING'"))
+    #expect(cmd.contains("--description=\"Export warnings to BigQuery\""))
+}
+
+@Test func testLogSinkCreateCommandStorage() {
+    let sink = GoogleCloudLogSink(
+        name: "storage-sink",
+        projectID: "test-project",
+        destination: .storage(bucketName: "logs-bucket")
+    )
+
+    let cmd = sink.createCommand
+    #expect(cmd.contains("storage.googleapis.com/logs-bucket"))
+}
+
+@Test func testLogSinkCreateCommandPubSub() {
+    let sink = GoogleCloudLogSink(
+        name: "pubsub-sink",
+        projectID: "test-project",
+        destination: .pubSub(topicName: "log-events")
+    )
+
+    let cmd = sink.createCommand
+    #expect(cmd.contains("pubsub.googleapis.com/projects/test-project/topics/log-events"))
+}
+
+@Test func testLogSinkCreateCommandLogBucket() {
+    let sink = GoogleCloudLogSink(
+        name: "bucket-sink",
+        projectID: "test-project",
+        destination: .logBucket(bucketID: "custom-bucket", location: "us-central1")
+    )
+
+    let cmd = sink.createCommand
+    #expect(cmd.contains("logging.googleapis.com/projects/test-project/locations/us-central1/buckets/custom-bucket"))
+}
+
+@Test func testLogSinkDeleteCommand() {
+    let sink = GoogleCloudLogSink(
+        name: "my-sink",
+        projectID: "test-project",
+        destination: .storage(bucketName: "bucket")
+    )
+
+    let cmd = sink.deleteCommand
+    #expect(cmd.contains("gcloud logging sinks delete my-sink"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testLogSinkListCommand() {
+    let cmd = GoogleCloudLogSink.listCommand(projectID: "test-project")
+    #expect(cmd.contains("gcloud logging sinks list"))
+    #expect(cmd.contains("--project=test-project"))
+}
+
+// MARK: - Log Bucket Tests
+
+@Test func testGoogleCloudLogBucket() {
+    let bucket = GoogleCloudLogBucket(
+        name: "long-term-logs",
+        projectID: "test-project",
+        location: "us-central1",
+        retentionDays: 365
+    )
+
+    #expect(bucket.name == "long-term-logs")
+    #expect(bucket.location == "us-central1")
+    #expect(bucket.retentionDays == 365)
+}
+
+@Test func testLogBucketResourceName() {
+    let bucket = GoogleCloudLogBucket(
+        name: "my-bucket",
+        projectID: "test-project",
+        location: "us-west1",
+        retentionDays: 30
+    )
+
+    #expect(bucket.resourceName == "projects/test-project/locations/us-west1/buckets/my-bucket")
+}
+
+@Test func testLogBucketCreateCommand() {
+    let bucket = GoogleCloudLogBucket(
+        name: "app-logs",
+        projectID: "test-project",
+        location: "us-central1",
+        retentionDays: 90,
+        description: "Application logs",
+        analyticsEnabled: true
+    )
+
+    let cmd = bucket.createCommand
+    #expect(cmd.contains("gcloud logging buckets create app-logs"))
+    #expect(cmd.contains("--location=us-central1"))
+    #expect(cmd.contains("--retention-days=90"))
+    #expect(cmd.contains("--description=\"Application logs\""))
+    #expect(cmd.contains("--enable-analytics"))
+}
+
+@Test func testLogBucketUpdateCommand() {
+    let bucket = GoogleCloudLogBucket(
+        name: "my-bucket",
+        projectID: "test-project",
+        location: "us-central1",
+        retentionDays: 180,
+        locked: true
+    )
+
+    let cmd = bucket.updateCommand
+    #expect(cmd.contains("gcloud logging buckets update my-bucket"))
+    #expect(cmd.contains("--retention-days=180"))
+    #expect(cmd.contains("--locked"))
+}
+
+@Test func testLogBucketDeleteCommand() {
+    let bucket = GoogleCloudLogBucket(
+        name: "my-bucket",
+        projectID: "test-project",
+        location: "us-central1"
+    )
+
+    let cmd = bucket.deleteCommand
+    #expect(cmd.contains("gcloud logging buckets delete my-bucket"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testLogBucketListCommand() {
+    let cmd = GoogleCloudLogBucket.listCommand(projectID: "test-project", location: "us-central1")
+    #expect(cmd.contains("gcloud logging buckets list"))
+    #expect(cmd.contains("--location=us-central1"))
+}
+
+// MARK: - Log View Tests
+
+@Test func testGoogleCloudLogView() {
+    let view = GoogleCloudLogView(
+        name: "error-logs",
+        bucketName: "_Default",
+        projectID: "test-project",
+        location: "global",
+        filter: "severity >= ERROR"
+    )
+
+    #expect(view.name == "error-logs")
+    #expect(view.bucketName == "_Default")
+    #expect(view.filter == "severity >= ERROR")
+}
+
+@Test func testLogViewResourceName() {
+    let view = GoogleCloudLogView(
+        name: "my-view",
+        bucketName: "my-bucket",
+        projectID: "test-project",
+        location: "us-central1"
+    )
+
+    #expect(view.resourceName == "projects/test-project/locations/us-central1/buckets/my-bucket/views/my-view")
+}
+
+@Test func testLogViewCreateCommand() {
+    let view = GoogleCloudLogView(
+        name: "errors-only",
+        bucketName: "_Default",
+        projectID: "test-project",
+        location: "global",
+        filter: "severity >= ERROR",
+        description: "Error logs view"
+    )
+
+    let cmd = view.createCommand
+    #expect(cmd.contains("gcloud logging views create errors-only"))
+    #expect(cmd.contains("--bucket=_Default"))
+    #expect(cmd.contains("--log-filter='severity >= ERROR'"))
+    #expect(cmd.contains("--description=\"Error logs view\""))
+}
+
+@Test func testLogViewDeleteCommand() {
+    let view = GoogleCloudLogView(
+        name: "my-view",
+        bucketName: "_Default",
+        projectID: "test-project",
+        location: "global"
+    )
+
+    let cmd = view.deleteCommand
+    #expect(cmd.contains("gcloud logging views delete my-view"))
+    #expect(cmd.contains("--bucket=_Default"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testLogViewListCommand() {
+    let cmd = GoogleCloudLogView.listCommand(
+        bucketName: "_Default",
+        projectID: "test-project",
+        location: "global"
+    )
+    #expect(cmd.contains("gcloud logging views list"))
+    #expect(cmd.contains("--bucket=_Default"))
+}
+
+// MARK: - Log Exclusion Tests
+
+@Test func testGoogleCloudLogExclusion() {
+    let exclusion = GoogleCloudLogExclusion(
+        name: "exclude-debug",
+        projectID: "test-project",
+        filter: "severity = DEBUG",
+        description: "Exclude debug logs"
+    )
+
+    #expect(exclusion.name == "exclude-debug")
+    #expect(exclusion.filter == "severity = DEBUG")
+}
+
+@Test func testLogExclusionResourceName() {
+    let exclusion = GoogleCloudLogExclusion(
+        name: "my-exclusion",
+        projectID: "test-project",
+        filter: "severity = DEBUG"
+    )
+
+    #expect(exclusion.resourceName == "projects/test-project/exclusions/my-exclusion")
+}
+
+@Test func testLogExclusionCreateCommand() {
+    let exclusion = GoogleCloudLogExclusion(
+        name: "exclude-debug",
+        projectID: "test-project",
+        filter: "severity = DEBUG",
+        description: "Skip debug logs"
+    )
+
+    let cmd = exclusion.createCommand
+    #expect(cmd.contains("gcloud logging exclusions create exclude-debug"))
+    #expect(cmd.contains("--filter='severity = DEBUG'"))
+    #expect(cmd.contains("--description=\"Skip debug logs\""))
+}
+
+@Test func testLogExclusionDeleteCommand() {
+    let exclusion = GoogleCloudLogExclusion(
+        name: "my-exclusion",
+        projectID: "test-project",
+        filter: "severity = DEBUG"
+    )
+
+    let cmd = exclusion.deleteCommand
+    #expect(cmd.contains("gcloud logging exclusions delete my-exclusion"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testLogExclusionListCommand() {
+    let cmd = GoogleCloudLogExclusion.listCommand(projectID: "test-project")
+    #expect(cmd.contains("gcloud logging exclusions list"))
+    #expect(cmd.contains("--project=test-project"))
+}
+
+// MARK: - Log-Based Metric Tests
+
+@Test func testGoogleCloudLogMetric() {
+    let metric = GoogleCloudLogMetric(
+        name: "error-count",
+        projectID: "test-project",
+        filter: "severity >= ERROR",
+        metricType: .counter
+    )
+
+    #expect(metric.name == "error-count")
+    #expect(metric.filter == "severity >= ERROR")
+    #expect(metric.metricType == .counter)
+}
+
+@Test func testLogMetricResourceName() {
+    let metric = GoogleCloudLogMetric(
+        name: "my-metric",
+        projectID: "test-project",
+        filter: "severity >= ERROR"
+    )
+
+    #expect(metric.resourceName == "projects/test-project/metrics/my-metric")
+}
+
+@Test func testLogMetricMonitoringName() {
+    let metric = GoogleCloudLogMetric(
+        name: "error-count",
+        projectID: "test-project",
+        filter: "severity >= ERROR"
+    )
+
+    #expect(metric.monitoringMetricName == "logging.googleapis.com/user/error-count")
+}
+
+@Test func testLogMetricCreateCommand() {
+    let metric = GoogleCloudLogMetric(
+        name: "http-errors",
+        projectID: "test-project",
+        filter: "httpRequest.status >= 500",
+        description: "HTTP 5xx errors"
+    )
+
+    let cmd = metric.createCommand
+    #expect(cmd.contains("gcloud logging metrics create http-errors"))
+    #expect(cmd.contains("--log-filter='httpRequest.status >= 500'"))
+    #expect(cmd.contains("--description=\"HTTP 5xx errors\""))
+}
+
+@Test func testLogMetricDeleteCommand() {
+    let metric = GoogleCloudLogMetric(
+        name: "my-metric",
+        projectID: "test-project",
+        filter: "severity >= ERROR"
+    )
+
+    let cmd = metric.deleteCommand
+    #expect(cmd.contains("gcloud logging metrics delete my-metric"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testLogMetricListCommand() {
+    let cmd = GoogleCloudLogMetric.listCommand(projectID: "test-project")
+    #expect(cmd.contains("gcloud logging metrics list"))
+    #expect(cmd.contains("--project=test-project"))
+}
+
+@Test func testLogMetricDistribution() {
+    let metric = GoogleCloudLogMetric(
+        name: "latency",
+        projectID: "test-project",
+        filter: "resource.type = \"cloud_run_revision\"",
+        metricType: .distribution,
+        valueExtractor: "EXTRACT(jsonPayload.latency_ms)",
+        bucketOptions: GoogleCloudLogMetric.BucketOptions(
+            type: .exponential(numBuckets: 20, growthFactor: 2, scale: 1)
+        )
+    )
+
+    #expect(metric.metricType == .distribution)
+    #expect(metric.valueExtractor == "EXTRACT(jsonPayload.latency_ms)")
+    #expect(metric.bucketOptions != nil)
+}
+
+// MARK: - Log Router Tests
+
+@Test func testLogRouterResourceFilter() {
+    let filter = LogRouter.resourceFilter(type: "gce_instance", labels: ["zone": "us-central1-a"])
+    #expect(filter.contains("resource.type=\"gce_instance\""))
+    #expect(filter.contains("resource.labels.zone=\"us-central1-a\""))
+}
+
+@Test func testLogRouterLogNameFilter() {
+    let filter = LogRouter.logNameFilter(projectID: "test-project", logNames: ["app", "db"])
+    #expect(filter.contains("logName=\"projects/test-project/logs/app\""))
+    #expect(filter.contains("logName=\"projects/test-project/logs/db\""))
+    #expect(filter.contains(" OR "))
+}
+
+@Test func testLogRouterSeverityFilter() {
+    let filter = LogRouter.severityFilter(minSeverity: .warning)
+    #expect(filter == "severity >= WARNING")
+}
+
+@Test func testLogRouterResourceTypes() {
+    #expect(LogRouter.ResourceType.gceInstance.rawValue == "gce_instance")
+    #expect(LogRouter.ResourceType.cloudFunction.rawValue == "cloud_function")
+    #expect(LogRouter.ResourceType.cloudRunRevision.rawValue == "cloud_run_revision")
+    #expect(LogRouter.ResourceType.gkeContainer.rawValue == "k8s_container")
+}
+
+// MARK: - Predefined Log Filter Tests
+
+@Test func testPredefinedLogFilters() {
+    #expect(PredefinedLogFilter.errorsOnly == "severity >= ERROR")
+    #expect(PredefinedLogFilter.warningsAndAbove == "severity >= WARNING")
+    #expect(PredefinedLogFilter.http5xxErrors == "httpRequest.status >= 500")
+    #expect(PredefinedLogFilter.cloudRunRequests == "resource.type = \"cloud_run_revision\"")
+    #expect(PredefinedLogFilter.cloudFunctions == "resource.type = \"cloud_function\"")
+}
+
+// MARK: - Log Alert Configuration Tests
+
+@Test func testLogAlertConfiguration() {
+    let metric = GoogleCloudLogMetric(
+        name: "error-count",
+        projectID: "test-project",
+        filter: "severity >= ERROR"
+    )
+
+    let alert = LogAlertConfiguration(
+        name: "high-error-rate",
+        metric: metric,
+        threshold: 100,
+        comparison: .greaterThan,
+        duration: "300s"
+    )
+
+    #expect(alert.name == "high-error-rate")
+    #expect(alert.threshold == 100)
+    #expect(alert.comparison == .greaterThan)
+    #expect(alert.duration == "300s")
+}
+
+@Test func testLogAlertComparisonTypes() {
+    #expect(LogAlertConfiguration.Comparison.greaterThan.rawValue == "COMPARISON_GT")
+    #expect(LogAlertConfiguration.Comparison.lessThan.rawValue == "COMPARISON_LT")
+    #expect(LogAlertConfiguration.Comparison.equal.rawValue == "COMPARISON_EQ")
+}
+
+// MARK: - DAIS Logging Template Tests
+
+@Test func testDAISLoggingTemplateErrorLogsSink() {
+    let sink = DAISLoggingTemplate.errorLogsSink(
+        projectID: "test-project",
+        deploymentName: "prod",
+        datasetID: "error_logs"
+    )
+
+    #expect(sink.name == "prod-error-logs")
+    #expect(sink.filter?.contains("butteryai") == true)
+    #expect(sink.filter?.contains("severity >= ERROR") == true)
+}
+
+@Test func testDAISLoggingTemplateAuditLogsSink() {
+    let sink = DAISLoggingTemplate.auditLogsSink(
+        projectID: "test-project",
+        deploymentName: "prod",
+        bucketName: "audit-logs-bucket"
+    )
+
+    #expect(sink.name == "prod-audit-logs")
+    #expect(sink.filter?.contains("audit") == true)
+}
+
+@Test func testDAISLoggingTemplateLogBucket() {
+    let bucket = DAISLoggingTemplate.logBucket(
+        projectID: "test-project",
+        deploymentName: "prod",
+        location: "us-central1",
+        retentionDays: 90
+    )
+
+    #expect(bucket.name == "prod-logs")
+    #expect(bucket.retentionDays == 90)
+    #expect(bucket.analyticsEnabled == true)
+}
+
+@Test func testDAISLoggingTemplateErrorLogsView() {
+    let view = DAISLoggingTemplate.errorLogsView(
+        projectID: "test-project",
+        deploymentName: "prod",
+        location: "us-central1"
+    )
+
+    #expect(view.name == "prod-errors")
+    #expect(view.filter?.contains("severity >= ERROR") == true)
+}
+
+@Test func testDAISLoggingTemplateDebugLogExclusion() {
+    let exclusion = DAISLoggingTemplate.debugLogExclusion(
+        projectID: "test-project",
+        deploymentName: "prod"
+    )
+
+    #expect(exclusion.name == "prod-exclude-debug")
+    #expect(exclusion.filter.contains("severity = DEBUG"))
+}
+
+@Test func testDAISLoggingTemplateErrorCountMetric() {
+    let metric = DAISLoggingTemplate.errorCountMetric(
+        projectID: "test-project",
+        deploymentName: "prod"
+    )
+
+    #expect(metric.name == "prod-error-count")
+    #expect(metric.metricType == .counter)
+    #expect(metric.labelExtractors["node"] != nil)
+}
+
+@Test func testDAISLoggingTemplateGRPCLatencyMetric() {
+    let metric = DAISLoggingTemplate.grpcLatencyMetric(
+        projectID: "test-project",
+        deploymentName: "prod"
+    )
+
+    #expect(metric.name == "prod-grpc-latency")
+    #expect(metric.metricType == .distribution)
+    #expect(metric.valueExtractor != nil)
+}
+
+@Test func testDAISLoggingTemplateSetupScript() {
+    let script = DAISLoggingTemplate.setupScript(
+        projectID: "test-project",
+        deploymentName: "prod",
+        location: "us-central1",
+        bigQueryDataset: "logs",
+        storageBucket: "audit-logs"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("gcloud services enable logging.googleapis.com"))
+    #expect(script.contains("prod-logs"))
+    #expect(script.contains("bigquery.googleapis.com"))
+    #expect(script.contains("storage.googleapis.com"))
+}
+
+@Test func testDAISLoggingTemplateLogQuery() {
+    let query = DAISLoggingTemplate.daisLogQuery(
+        projectID: "test-project",
+        deploymentName: "prod",
+        nodeName: "node-1",
+        component: "grpc",
+        minSeverity: .warning
+    )
+
+    #expect(query.contains("labels.app=\"butteryai\""))
+    #expect(query.contains("labels.deployment=\"prod\""))
+    #expect(query.contains("labels.node=\"node-1\""))
+    #expect(query.contains("labels.component=\"grpc\""))
+    #expect(query.contains("severity >= WARNING"))
+}
+
+// MARK: - Structured Log Entry Tests
+
+@Test func testStructuredLogEntry() {
+    let entry = StructuredLogEntry(
+        message: "Request processed",
+        severity: .info,
+        component: "api",
+        requestID: "req-123",
+        latencyMs: 45.5,
+        metadata: ["path": "/users"]
+    )
+
+    #expect(entry.message == "Request processed")
+    #expect(entry.severity == .info)
+    #expect(entry.component == "api")
+    #expect(entry.latencyMs == 45.5)
+}
+
+@Test func testStructuredLogEntryJSON() {
+    let entry = StructuredLogEntry(
+        message: "Test message",
+        severity: .error,
+        errorCode: "E001"
+    )
+
+    let json = entry.jsonString
+    #expect(json.contains("\"message\""))
+    #expect(json.contains("Test message"))
+    #expect(json.contains("ERROR"))
+    #expect(json.contains("E001"))
+}
+
+// MARK: - Cloud Logging Codable Tests
+
+@Test func testLogEntryCodable() throws {
+    let entry = GoogleCloudLogEntry(
+        logName: "my-app",
+        projectID: "test-project",
+        severity: .error,
+        textPayload: "Error occurred",
+        labels: ["env": "test"]
+    )
+
+    let data = try JSONEncoder().encode(entry)
+    let decoded = try JSONDecoder().decode(GoogleCloudLogEntry.self, from: data)
+
+    #expect(decoded.logName == entry.logName)
+    #expect(decoded.severity == entry.severity)
+    #expect(decoded.textPayload == entry.textPayload)
+    #expect(decoded.labels == entry.labels)
+}
+
+@Test func testLogSinkCodable() throws {
+    let sink = GoogleCloudLogSink(
+        name: "my-sink",
+        projectID: "test-project",
+        destination: .bigQuery(datasetID: "logs"),
+        filter: "severity >= ERROR"
+    )
+
+    let data = try JSONEncoder().encode(sink)
+    let decoded = try JSONDecoder().decode(GoogleCloudLogSink.self, from: data)
+
+    #expect(decoded.name == sink.name)
+    #expect(decoded.filter == sink.filter)
+}
+
+@Test func testLogBucketCodable() throws {
+    let bucket = GoogleCloudLogBucket(
+        name: "my-bucket",
+        projectID: "test-project",
+        location: "us-central1",
+        retentionDays: 90
+    )
+
+    let data = try JSONEncoder().encode(bucket)
+    let decoded = try JSONDecoder().decode(GoogleCloudLogBucket.self, from: data)
+
+    #expect(decoded.name == bucket.name)
+    #expect(decoded.retentionDays == bucket.retentionDays)
+}
+
+@Test func testLogViewCodable() throws {
+    let view = GoogleCloudLogView(
+        name: "my-view",
+        bucketName: "_Default",
+        projectID: "test-project",
+        location: "global",
+        filter: "severity >= ERROR"
+    )
+
+    let data = try JSONEncoder().encode(view)
+    let decoded = try JSONDecoder().decode(GoogleCloudLogView.self, from: data)
+
+    #expect(decoded.name == view.name)
+    #expect(decoded.filter == view.filter)
+}
+
+@Test func testLogExclusionCodable() throws {
+    let exclusion = GoogleCloudLogExclusion(
+        name: "my-exclusion",
+        projectID: "test-project",
+        filter: "severity = DEBUG"
+    )
+
+    let data = try JSONEncoder().encode(exclusion)
+    let decoded = try JSONDecoder().decode(GoogleCloudLogExclusion.self, from: data)
+
+    #expect(decoded.name == exclusion.name)
+    #expect(decoded.filter == exclusion.filter)
+}
+
+@Test func testLogMetricCodable() throws {
+    let metric = GoogleCloudLogMetric(
+        name: "error-count",
+        projectID: "test-project",
+        filter: "severity >= ERROR",
+        metricType: .counter
+    )
+
+    let data = try JSONEncoder().encode(metric)
+    let decoded = try JSONDecoder().decode(GoogleCloudLogMetric.self, from: data)
+
+    #expect(decoded.name == metric.name)
+    #expect(decoded.metricType == metric.metricType)
+}
+
+@Test func testStructuredLogEntryCodable() throws {
+    let entry = StructuredLogEntry(
+        message: "Test",
+        severity: .info,
+        component: "api"
+    )
+
+    let data = try JSONEncoder().encode(entry)
+    let decoded = try JSONDecoder().decode(StructuredLogEntry.self, from: data)
+
+    #expect(decoded.message == entry.message)
+    #expect(decoded.component == entry.component)
+}

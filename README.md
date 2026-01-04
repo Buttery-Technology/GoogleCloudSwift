@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 14 Google Cloud services:
+GoogleCloudSwift provides models for 15 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -99,6 +99,7 @@ GoogleCloudSwift provides models for 14 Google Cloud services:
 | **Cloud Pub/Sub** | Messaging and event streaming | `GoogleCloudPubSubTopic`, `GoogleCloudPubSubSubscription` |
 | **Cloud Functions** | Serverless compute | `GoogleCloudFunction`, `CloudFunctionRuntime` |
 | **Cloud Run** | Containerized services | `GoogleCloudRunService`, `GoogleCloudRunJob` |
+| **Cloud Logging** | Log management and analysis | `GoogleCloudLogEntry`, `GoogleCloudLogSink` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -766,6 +767,211 @@ print(ar.imageURL)  // us-central1-docker.pkg.dev/my-project/my-repo/my-app:late
 | `cpuAllocationType` | `requestBased` or `alwaysAllocated` |
 | `executionEnvironment` | `gen1` or `gen2` |
 
+### GoogleCloudLogEntry (Cloud Logging API)
+
+Cloud Logging is a fully managed service for storing, searching, analyzing, and alerting on log data:
+
+```swift
+// Create a log entry
+let entry = GoogleCloudLogEntry(
+    logName: "my-app",
+    projectID: "my-project",
+    severity: .error,
+    textPayload: "Database connection failed",
+    labels: ["component": "db", "environment": "production"]
+)
+
+print(entry.writeCommand)
+print(entry.resourceName)  // projects/my-project/logs/my-app
+
+// Read logs
+print(GoogleCloudLogEntry.readCommand(
+    projectID: "my-project",
+    logName: "my-app",
+    filter: "severity >= ERROR",
+    limit: 100
+))
+```
+
+**Log Sinks (Export Logs):**
+
+```swift
+// Export error logs to BigQuery
+let bigQuerySink = GoogleCloudLogSink(
+    name: "errors-to-bigquery",
+    projectID: "my-project",
+    destination: .bigQuery(datasetID: "logs_dataset"),
+    filter: "severity >= ERROR",
+    description: "Export error logs for analysis"
+)
+print(bigQuerySink.createCommand)
+
+// Export to Cloud Storage for archival
+let storageSink = GoogleCloudLogSink(
+    name: "audit-logs-archive",
+    projectID: "my-project",
+    destination: .storage(bucketName: "my-audit-logs"),
+    filter: "logName =~ \"audit\""
+)
+
+// Export to Pub/Sub for real-time processing
+let pubsubSink = GoogleCloudLogSink(
+    name: "logs-to-pubsub",
+    projectID: "my-project",
+    destination: .pubSub(topicName: "log-events")
+)
+```
+
+**Log Buckets and Views:**
+
+```swift
+// Create a log bucket with extended retention
+let bucket = GoogleCloudLogBucket(
+    name: "long-term-logs",
+    projectID: "my-project",
+    location: "us-central1",
+    retentionDays: 365,
+    analyticsEnabled: true
+)
+print(bucket.createCommand)
+
+// Create a filtered view for errors only
+let view = GoogleCloudLogView(
+    name: "errors-only",
+    bucketName: "_Default",
+    projectID: "my-project",
+    location: "global",
+    filter: "severity >= ERROR",
+    description: "View for error logs only"
+)
+print(view.createCommand)
+```
+
+**Log Exclusions (Cost Reduction):**
+
+```swift
+// Exclude debug logs to reduce costs
+let exclusion = GoogleCloudLogExclusion(
+    name: "exclude-debug",
+    projectID: "my-project",
+    filter: "severity = DEBUG",
+    description: "Skip debug logs in production"
+)
+print(exclusion.createCommand)
+```
+
+**Log-Based Metrics:**
+
+```swift
+// Create a counter metric for errors
+let errorMetric = GoogleCloudLogMetric(
+    name: "error-count",
+    projectID: "my-project",
+    filter: "severity >= ERROR",
+    description: "Count of error log entries",
+    metricType: .counter,
+    labelExtractors: [
+        "service": "EXTRACT(labels.service)",
+        "method": "EXTRACT(labels.method)"
+    ]
+)
+print(errorMetric.createCommand)
+print(errorMetric.monitoringMetricName)  // logging.googleapis.com/user/error-count
+
+// Create a distribution metric for latency
+let latencyMetric = GoogleCloudLogMetric(
+    name: "request-latency",
+    projectID: "my-project",
+    filter: "httpRequest.latency > 0",
+    metricType: .distribution,
+    valueExtractor: "EXTRACT(httpRequest.latency)",
+    bucketOptions: GoogleCloudLogMetric.BucketOptions(
+        type: .exponential(numBuckets: 20, growthFactor: 2, scale: 1)
+    )
+)
+```
+
+**Log Router Helpers:**
+
+```swift
+// Build filters programmatically
+let resourceFilter = LogRouter.resourceFilter(
+    type: "cloud_run_revision",
+    labels: ["service_name": "my-api"]
+)
+
+let severityFilter = LogRouter.severityFilter(minSeverity: .warning)
+
+let logNameFilter = LogRouter.logNameFilter(
+    projectID: "my-project",
+    logNames: ["app", "requests", "errors"]
+)
+```
+
+**Predefined Log Filters:**
+
+```swift
+// Use common filters
+let errorsOnly = PredefinedLogFilter.errorsOnly        // "severity >= ERROR"
+let http5xx = PredefinedLogFilter.http5xxErrors        // "httpRequest.status >= 500"
+let slowRequests = PredefinedLogFilter.slowRequests    // "httpRequest.latency > \"1s\""
+let cloudRun = PredefinedLogFilter.cloudRunRequests    // "resource.type = \"cloud_run_revision\""
+```
+
+**DAIS Logging Templates:**
+
+```swift
+// Create error logs sink for DAIS deployment
+let errorSink = DAISLoggingTemplate.errorLogsSink(
+    projectID: "my-project",
+    deploymentName: "prod",
+    datasetID: "dais_errors"
+)
+
+// Create log bucket with extended retention
+let logBucket = DAISLoggingTemplate.logBucket(
+    projectID: "my-project",
+    deploymentName: "prod",
+    location: "us-central1",
+    retentionDays: 90
+)
+
+// Create error count metric
+let errorMetric = DAISLoggingTemplate.errorCountMetric(
+    projectID: "my-project",
+    deploymentName: "prod"
+)
+
+// Create gRPC latency metric
+let latencyMetric = DAISLoggingTemplate.grpcLatencyMetric(
+    projectID: "my-project",
+    deploymentName: "prod"
+)
+
+// Generate complete setup script
+let script = DAISLoggingTemplate.setupScript(
+    projectID: "my-project",
+    deploymentName: "prod",
+    location: "us-central1",
+    bigQueryDataset: "logs",
+    storageBucket: "audit-logs"
+)
+```
+
+**Log Severity Levels:**
+
+| Severity | Value | Description |
+|----------|-------|-------------|
+| `default` | 0 | Default level |
+| `debug` | 100 | Debug information |
+| `info` | 200 | Routine information |
+| `notice` | 300 | Normal but significant |
+| `warning` | 400 | Warning events |
+| `error` | 500 | Error events |
+| `critical` | 600 | Critical events |
+| `alert` | 700 | Action required |
+| `emergency` | 800 | System unusable |
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -1345,6 +1551,8 @@ MIT License
 - [Cloud Scheduler Documentation](https://cloud.google.com/scheduler/docs)
 - [Cloud Run Documentation](https://cloud.google.com/run/docs)
 - [Cloud Run Jobs Documentation](https://cloud.google.com/run/docs/create-jobs)
+- [Cloud Logging Documentation](https://cloud.google.com/logging/docs)
+- [Log-Based Metrics Documentation](https://cloud.google.com/logging/docs/logs-based-metrics)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
