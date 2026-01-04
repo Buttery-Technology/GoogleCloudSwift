@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 47 Google Cloud services:
+GoogleCloudSwift provides models for 48 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -127,6 +127,7 @@ GoogleCloudSwift provides models for 47 Google Cloud services:
 | **Dataproc** | Managed Spark and Hadoop | `GoogleCloudDataprocCluster`, `GoogleCloudDataprocJob`, `GoogleCloudDataprocBatch`, `DAISDataprocTemplate` |
 | **Cloud Composer** | Managed Apache Airflow | `GoogleCloudComposerEnvironment`, `GoogleCloudComposerDAG`, `ComposerOperations`, `DAISComposerTemplate` |
 | **Document AI** | Intelligent document processing | `GoogleCloudDocumentAIProcessor`, `GoogleCloudDocument`, `DocumentAIOperations`, `DAISDocumentAITemplate` |
+| **Vision AI** | Image analysis and understanding | `GoogleCloudVisionRequest`, `GoogleCloudVisionResponse`, `VisionOperations`, `DAISVisionAITemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -5897,6 +5898,188 @@ print(template.pythonProcessingScript)
 | `roles/documentai.viewer` | View processors only |
 | `roles/documentai.apiUser` | Use processors via API |
 
+### GoogleCloudVisionRequest (Vision AI API)
+
+Vision AI provides powerful image analysis including object detection, face detection, OCR, and more:
+
+```swift
+// Create a label detection request
+let request = GoogleCloudVisionRequest(
+    projectID: "my-project",
+    image: GoogleCloudVisionRequest.ImageSource.fromGCS("gs://my-bucket/image.jpg"),
+    features: [
+        GoogleCloudVisionRequest.Feature(type: .labelDetection, maxResults: 10),
+        GoogleCloudVisionRequest.Feature(type: .faceDetection),
+        GoogleCloudVisionRequest.Feature(type: .textDetection)
+    ]
+)
+
+// With image context
+let ocrRequest = GoogleCloudVisionRequest(
+    projectID: "my-project",
+    image: GoogleCloudVisionRequest.ImageSource.fromGCS("gs://my-bucket/document.jpg"),
+    features: [
+        GoogleCloudVisionRequest.Feature(type: .documentTextDetection)
+    ],
+    imageContext: GoogleCloudVisionRequest.ImageContext(
+        languageHints: ["en", "es"]
+    )
+)
+
+print(request.curlCommand(inputFile: "image.jpg"))
+```
+
+**Detection Results:**
+
+```swift
+// Label detection response
+let response = GoogleCloudVisionResponse(
+    labelAnnotations: [
+        EntityAnnotation(description: "Cat", score: 0.95, topicality: 0.95),
+        EntityAnnotation(description: "Animal", score: 0.90)
+    ]
+)
+
+// Face detection
+let faceAnnotation = FaceAnnotation(
+    detectionConfidence: 0.98,
+    joyLikelihood: .veryLikely,
+    sorrowLikelihood: .veryUnlikely,
+    angerLikelihood: .unlikely
+)
+
+// Safe search detection
+let safeSearch = SafeSearchAnnotation(
+    adult: .veryUnlikely,
+    spoof: .unlikely,
+    medical: .possible,
+    violence: .veryUnlikely,
+    racy: .unlikely
+)
+```
+
+**Object Localization:**
+
+```swift
+let object = LocalizedObjectAnnotation(
+    mid: "/m/01yrx",
+    name: "Cat",
+    score: 0.95,
+    boundingPoly: BoundingPoly(
+        normalizedVertices: [
+            BoundingPoly.NormalizedVertex(x: 0.1, y: 0.1),
+            BoundingPoly.NormalizedVertex(x: 0.9, y: 0.9)
+        ]
+    )
+)
+
+print("Object: \(object.name ?? "") at \(object.boundingPoly?.normalizedVertices ?? [])")
+```
+
+**Batch Processing:**
+
+```swift
+let batch = GoogleCloudVisionBatchRequest(
+    projectID: "my-project",
+    inputGcsUri: "gs://input-bucket/images/",
+    outputGcsUri: "gs://output-bucket/results/",
+    features: [
+        GoogleCloudVisionRequest.Feature(type: .labelDetection),
+        GoogleCloudVisionRequest.Feature(type: .safeSearchDetection)
+    ]
+)
+
+print(batch.batchAnnotateCommand)
+```
+
+**Product Search:**
+
+```swift
+// Create product set
+let productSet = GoogleCloudVisionProductSet(
+    name: "my-products",
+    projectID: "my-project",
+    location: "us-east1",
+    displayName: "My Products"
+)
+
+print(productSet.resourceName)
+print(productSet.createCommand)
+
+// Create product
+let product = GoogleCloudVisionProduct(
+    name: "shoes-001",
+    projectID: "my-project",
+    location: "us-east1",
+    displayName: "Running Shoes",
+    productCategory: "apparel-v2",
+    productLabels: [
+        GoogleCloudVisionProduct.KeyValue(key: "style", value: "running")
+    ]
+)
+
+print(product.createCommand)
+```
+
+**Vision Operations:**
+
+```swift
+// Enable API
+print(VisionOperations.enableAPICommand)
+
+// Detection commands
+print(VisionOperations.detectLabelsCommand(imageUri: "gs://bucket/img.jpg", projectID: "my-project"))
+print(VisionOperations.detectTextCommand(imageUri: "gs://bucket/img.jpg", projectID: "my-project"))
+print(VisionOperations.detectFacesCommand(imageUri: "gs://bucket/img.jpg", projectID: "my-project"))
+print(VisionOperations.detectObjectsCommand(imageUri: "gs://bucket/img.jpg", projectID: "my-project"))
+print(VisionOperations.safeSearchCommand(imageUri: "gs://bucket/img.jpg", projectID: "my-project"))
+```
+
+**DAIS Vision AI Template:**
+
+```swift
+let template = DAISVisionAITemplate(
+    projectID: "my-project",
+    location: "us-central1",
+    serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+    imageBucket: "my-project-images"
+)
+
+// Pre-configured requests
+let labelRequest = template.labelDetectionRequest(imageUri: "gs://bucket/img.jpg")
+let comprehensiveRequest = template.comprehensiveAnalysisRequest(imageUri: "gs://bucket/img.jpg")
+let ocrRequest = template.ocrRequest(imageUri: "gs://bucket/doc.jpg")
+let moderationRequest = template.moderationRequest(imageUri: "gs://bucket/img.jpg")
+
+// Setup and teardown
+print(template.setupScript)
+print(template.teardownScript)
+print(template.pythonProcessingScript)
+```
+
+**Feature Types:**
+
+| Type | Description |
+|------|-------------|
+| `FACE_DETECTION` | Detect faces and emotions |
+| `LANDMARK_DETECTION` | Detect famous landmarks |
+| `LOGO_DETECTION` | Detect company logos |
+| `LABEL_DETECTION` | General image labels |
+| `TEXT_DETECTION` | OCR for sparse text |
+| `DOCUMENT_TEXT_DETECTION` | OCR for dense documents |
+| `SAFE_SEARCH_DETECTION` | Content moderation |
+| `IMAGE_PROPERTIES` | Dominant colors |
+| `CROP_HINTS` | Suggested crop regions |
+| `WEB_DETECTION` | Web entity search |
+| `OBJECT_LOCALIZATION` | Object detection with bounding boxes |
+
+**IAM Roles:**
+
+| Role | Description |
+|------|-------------|
+| `roles/ml.developer` | Full access to Vision API |
+| `roles/ml.viewer` | Read-only access |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -7417,6 +7600,17 @@ MIT License
 - [Processor Versions](https://cloud.google.com/document-ai/docs/manage-processor-versions)
 - [Specialized Processors](https://cloud.google.com/document-ai/docs/specialized-processors)
 - [Document AI IAM Roles](https://cloud.google.com/document-ai/docs/access-control)
+
+### Vision AI
+- [Cloud Vision Documentation](https://cloud.google.com/vision/docs)
+- [Detecting Labels](https://cloud.google.com/vision/docs/labels)
+- [Detecting Faces](https://cloud.google.com/vision/docs/detecting-faces)
+- [Detecting Text (OCR)](https://cloud.google.com/vision/docs/ocr)
+- [Detecting Objects](https://cloud.google.com/vision/docs/object-localizer)
+- [Safe Search Detection](https://cloud.google.com/vision/docs/detecting-safe-search)
+- [Product Search](https://cloud.google.com/vision/docs/product-search)
+- [Batch Processing](https://cloud.google.com/vision/docs/batch)
+- [Vision AI Client Libraries](https://cloud.google.com/vision/docs/libraries)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)

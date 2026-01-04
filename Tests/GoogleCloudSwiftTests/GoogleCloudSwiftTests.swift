@@ -22566,3 +22566,416 @@ import Testing
     #expect(GoogleCloudDocumentAIProcessor.ProcessorState.creating.rawValue == "CREATING")
     #expect(GoogleCloudDocumentAIProcessor.ProcessorState.deleting.rawValue == "DELETING")
 }
+
+// MARK: - Vision AI Tests
+
+@Test func testVisionRequestBasicInit() {
+    let request = GoogleCloudVisionRequest(
+        projectID: "my-project",
+        image: GoogleCloudVisionRequest.ImageSource.fromGCS("gs://my-bucket/image.jpg"),
+        features: [
+            GoogleCloudVisionRequest.Feature(type: .labelDetection, maxResults: 10)
+        ]
+    )
+
+    #expect(request.projectID == "my-project")
+    #expect(request.image.gcsUri == "gs://my-bucket/image.jpg")
+    #expect(request.features.count == 1)
+    #expect(request.features.first?.type == .labelDetection)
+}
+
+@Test func testVisionImageSourceTypes() {
+    let gcsSource = GoogleCloudVisionRequest.ImageSource.fromGCS("gs://bucket/image.jpg")
+    #expect(gcsSource.gcsUri == "gs://bucket/image.jpg")
+    #expect(gcsSource.imageUri == nil)
+
+    let urlSource = GoogleCloudVisionRequest.ImageSource.fromURL("https://example.com/image.jpg")
+    #expect(urlSource.imageUri == "https://example.com/image.jpg")
+    #expect(urlSource.gcsUri == nil)
+}
+
+@Test func testVisionFeatureTypes() {
+    #expect(GoogleCloudVisionRequest.FeatureType.faceDetection.rawValue == "FACE_DETECTION")
+    #expect(GoogleCloudVisionRequest.FeatureType.landmarkDetection.rawValue == "LANDMARK_DETECTION")
+    #expect(GoogleCloudVisionRequest.FeatureType.logoDetection.rawValue == "LOGO_DETECTION")
+    #expect(GoogleCloudVisionRequest.FeatureType.labelDetection.rawValue == "LABEL_DETECTION")
+    #expect(GoogleCloudVisionRequest.FeatureType.textDetection.rawValue == "TEXT_DETECTION")
+    #expect(GoogleCloudVisionRequest.FeatureType.documentTextDetection.rawValue == "DOCUMENT_TEXT_DETECTION")
+    #expect(GoogleCloudVisionRequest.FeatureType.safeSearchDetection.rawValue == "SAFE_SEARCH_DETECTION")
+    #expect(GoogleCloudVisionRequest.FeatureType.objectLocalization.rawValue == "OBJECT_LOCALIZATION")
+}
+
+@Test func testVisionImageContext() {
+    let context = GoogleCloudVisionRequest.ImageContext(
+        languageHints: ["en", "es"],
+        cropHintsParams: GoogleCloudVisionRequest.CropHintsParams(aspectRatios: [1.0, 1.5])
+    )
+
+    #expect(context.languageHints?.count == 2)
+    #expect(context.cropHintsParams?.aspectRatios?.count == 2)
+}
+
+@Test func testVisionResponseWithLabels() {
+    let response = GoogleCloudVisionResponse(
+        labelAnnotations: [
+            EntityAnnotation(description: "Cat", score: 0.95),
+            EntityAnnotation(description: "Animal", score: 0.90)
+        ]
+    )
+
+    #expect(response.labelAnnotations?.count == 2)
+    #expect(response.labelAnnotations?.first?.description == "Cat")
+    #expect(response.labelAnnotations?.first?.score == 0.95)
+}
+
+@Test func testFaceAnnotation() {
+    let face = FaceAnnotation(
+        detectionConfidence: 0.98,
+        joyLikelihood: .veryLikely,
+        sorrowLikelihood: .veryUnlikely,
+        angerLikelihood: .unlikely
+    )
+
+    #expect(face.detectionConfidence == 0.98)
+    #expect(face.joyLikelihood == .veryLikely)
+    #expect(face.sorrowLikelihood == .veryUnlikely)
+}
+
+@Test func testLikelihoodValues() {
+    #expect(Likelihood.unknown.rawValue == "UNKNOWN")
+    #expect(Likelihood.veryUnlikely.rawValue == "VERY_UNLIKELY")
+    #expect(Likelihood.unlikely.rawValue == "UNLIKELY")
+    #expect(Likelihood.possible.rawValue == "POSSIBLE")
+    #expect(Likelihood.likely.rawValue == "LIKELY")
+    #expect(Likelihood.veryLikely.rawValue == "VERY_LIKELY")
+}
+
+@Test func testSafeSearchAnnotation() {
+    let safeSearch = SafeSearchAnnotation(
+        adult: .veryUnlikely,
+        spoof: .unlikely,
+        medical: .possible,
+        violence: .veryUnlikely,
+        racy: .unlikely
+    )
+
+    #expect(safeSearch.adult == .veryUnlikely)
+    #expect(safeSearch.medical == .possible)
+}
+
+@Test func testEntityAnnotation() {
+    let entity = EntityAnnotation(
+        mid: "/m/01yrx",
+        description: "Cat",
+        score: 0.95,
+        topicality: 0.95,
+        locations: [
+            EntityAnnotation.LocationInfo(latLng: EntityAnnotation.LatLng(latitude: 37.7749, longitude: -122.4194))
+        ]
+    )
+
+    #expect(entity.mid == "/m/01yrx")
+    #expect(entity.description == "Cat")
+    #expect(entity.locations?.first?.latLng?.latitude == 37.7749)
+}
+
+@Test func testTextAnnotation() {
+    let text = TextAnnotation(
+        pages: [
+            TextAnnotation.Page(width: 800, height: 600, confidence: 0.95)
+        ],
+        text: "Hello World"
+    )
+
+    #expect(text.text == "Hello World")
+    #expect(text.pages?.first?.width == 800)
+}
+
+@Test func testTextAnnotationBlockTypes() {
+    #expect(TextAnnotation.Block.BlockType.text.rawValue == "TEXT")
+    #expect(TextAnnotation.Block.BlockType.table.rawValue == "TABLE")
+    #expect(TextAnnotation.Block.BlockType.picture.rawValue == "PICTURE")
+    #expect(TextAnnotation.Block.BlockType.barcode.rawValue == "BARCODE")
+}
+
+@Test func testImagePropertiesAnnotation() {
+    let props = ImagePropertiesAnnotation(
+        dominantColors: ImagePropertiesAnnotation.DominantColorsAnnotation(
+            colors: [
+                ImagePropertiesAnnotation.ColorInfo(
+                    color: ImagePropertiesAnnotation.ColorInfo.Color(red: 255, green: 0, blue: 0),
+                    score: 0.5,
+                    pixelFraction: 0.3
+                )
+            ]
+        )
+    )
+
+    #expect(props.dominantColors?.colors?.first?.color?.red == 255)
+    #expect(props.dominantColors?.colors?.first?.score == 0.5)
+}
+
+@Test func testCropHintsAnnotation() {
+    let cropHints = CropHintsAnnotation(
+        cropHints: [
+            CropHintsAnnotation.CropHint(confidence: 0.9, importanceFraction: 0.8)
+        ]
+    )
+
+    #expect(cropHints.cropHints?.first?.confidence == 0.9)
+    #expect(cropHints.cropHints?.first?.importanceFraction == 0.8)
+}
+
+@Test func testWebDetection() {
+    let webDetection = WebDetection(
+        webEntities: [
+            WebDetection.WebEntity(entityId: "abc123", score: 0.9, description: "Test Entity")
+        ],
+        bestGuessLabels: [
+            WebDetection.WebLabel(label: "test image", languageCode: "en")
+        ]
+    )
+
+    #expect(webDetection.webEntities?.first?.description == "Test Entity")
+    #expect(webDetection.bestGuessLabels?.first?.label == "test image")
+}
+
+@Test func testLocalizedObjectAnnotation() {
+    let obj = LocalizedObjectAnnotation(
+        mid: "/m/01yrx",
+        name: "Cat",
+        score: 0.95,
+        boundingPoly: BoundingPoly(
+            normalizedVertices: [
+                BoundingPoly.NormalizedVertex(x: 0.1, y: 0.1),
+                BoundingPoly.NormalizedVertex(x: 0.9, y: 0.9)
+            ]
+        )
+    )
+
+    #expect(obj.name == "Cat")
+    #expect(obj.score == 0.95)
+    #expect(obj.boundingPoly?.normalizedVertices?.count == 2)
+}
+
+@Test func testBoundingPoly() {
+    let poly = BoundingPoly(
+        vertices: [
+            BoundingPoly.Vertex(x: 10, y: 20),
+            BoundingPoly.Vertex(x: 100, y: 200)
+        ]
+    )
+
+    #expect(poly.vertices?.count == 2)
+    #expect(poly.vertices?.first?.x == 10)
+    #expect(poly.vertices?.first?.y == 20)
+}
+
+@Test func testPosition() {
+    let pos = Position(x: 100.5, y: 200.5, z: 50.0)
+    #expect(pos.x == 100.5)
+    #expect(pos.y == 200.5)
+    #expect(pos.z == 50.0)
+}
+
+@Test func testVisionBatchRequest() {
+    let batch = GoogleCloudVisionBatchRequest(
+        projectID: "my-project",
+        inputGcsUri: "gs://input-bucket/images/",
+        outputGcsUri: "gs://output-bucket/results/",
+        features: [
+            GoogleCloudVisionRequest.Feature(type: .labelDetection)
+        ]
+    )
+
+    #expect(batch.inputGcsUri.contains("input-bucket"))
+    #expect(batch.batchAnnotateCommand.contains("asyncBatchAnnotate"))
+}
+
+@Test func testVisionProductSet() {
+    let productSet = GoogleCloudVisionProductSet(
+        name: "my-products",
+        projectID: "my-project",
+        location: "us-east1",
+        displayName: "My Products"
+    )
+
+    #expect(productSet.resourceName == "projects/my-project/locations/us-east1/productSets/my-products")
+    #expect(productSet.createCommand.contains("product-sets create"))
+}
+
+@Test func testVisionProduct() {
+    let product = GoogleCloudVisionProduct(
+        name: "shoes-001",
+        projectID: "my-project",
+        location: "us-east1",
+        displayName: "Running Shoes",
+        productCategory: "apparel-v2",
+        productLabels: [
+            GoogleCloudVisionProduct.KeyValue(key: "style", value: "running")
+        ]
+    )
+
+    #expect(product.resourceName == "projects/my-project/locations/us-east1/products/shoes-001")
+    #expect(product.createCommand.contains("products create"))
+    #expect(product.createCommand.contains("--category=apparel-v2"))
+}
+
+@Test func testVisionOperationsEnableAPI() {
+    #expect(VisionOperations.enableAPICommand == "gcloud services enable vision.googleapis.com")
+}
+
+@Test func testVisionOperationsDetectCommands() {
+    let labelsCmd = VisionOperations.detectLabelsCommand(imageUri: "gs://bucket/img.jpg", projectID: "my-project")
+    #expect(labelsCmd.contains("detect-labels"))
+
+    let textCmd = VisionOperations.detectTextCommand(imageUri: "gs://bucket/img.jpg", projectID: "my-project")
+    #expect(textCmd.contains("detect-text"))
+
+    let facesCmd = VisionOperations.detectFacesCommand(imageUri: "gs://bucket/img.jpg", projectID: "my-project")
+    #expect(facesCmd.contains("detect-faces"))
+
+    let landmarksCmd = VisionOperations.detectLandmarksCommand(imageUri: "gs://bucket/img.jpg", projectID: "my-project")
+    #expect(landmarksCmd.contains("detect-landmarks"))
+}
+
+@Test func testVisionOperationsMoreCommands() {
+    let logosCmd = VisionOperations.detectLogosCommand(imageUri: "gs://bucket/img.jpg", projectID: "my-project")
+    #expect(logosCmd.contains("detect-logos"))
+
+    let objectsCmd = VisionOperations.detectObjectsCommand(imageUri: "gs://bucket/img.jpg", projectID: "my-project")
+    #expect(objectsCmd.contains("detect-objects"))
+
+    let safeCmd = VisionOperations.safeSearchCommand(imageUri: "gs://bucket/img.jpg", projectID: "my-project")
+    #expect(safeCmd.contains("detect-safe-search"))
+
+    let webCmd = VisionOperations.detectWebCommand(imageUri: "gs://bucket/img.jpg", projectID: "my-project")
+    #expect(webCmd.contains("detect-web"))
+}
+
+@Test func testDAISVisionAITemplateBasic() {
+    let template = DAISVisionAITemplate(
+        projectID: "my-project",
+        location: "us-central1",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+        imageBucket: "my-project-images"
+    )
+
+    #expect(template.projectID == "my-project")
+    #expect(template.location == "us-central1")
+}
+
+@Test func testDAISVisionAITemplateLabelDetection() {
+    let template = DAISVisionAITemplate(
+        projectID: "my-project",
+        location: "us-central1",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+        imageBucket: "my-project-images"
+    )
+
+    let request = template.labelDetectionRequest(imageUri: "gs://bucket/test.jpg")
+    #expect(request.features.count == 1)
+    #expect(request.features.first?.type == .labelDetection)
+    #expect(request.features.first?.maxResults == 10)
+}
+
+@Test func testDAISVisionAITemplateComprehensiveAnalysis() {
+    let template = DAISVisionAITemplate(
+        projectID: "my-project",
+        location: "us-central1",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+        imageBucket: "my-project-images"
+    )
+
+    let request = template.comprehensiveAnalysisRequest(imageUri: "gs://bucket/test.jpg")
+    #expect(request.features.count == 6)
+
+    let featureTypes = request.features.map { $0.type }
+    #expect(featureTypes.contains(.labelDetection))
+    #expect(featureTypes.contains(.textDetection))
+    #expect(featureTypes.contains(.faceDetection))
+    #expect(featureTypes.contains(.objectLocalization))
+    #expect(featureTypes.contains(.safeSearchDetection))
+}
+
+@Test func testDAISVisionAITemplateOCRRequest() {
+    let template = DAISVisionAITemplate(
+        projectID: "my-project",
+        location: "us-central1",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+        imageBucket: "my-project-images"
+    )
+
+    let request = template.ocrRequest(imageUri: "gs://bucket/doc.jpg")
+    #expect(request.features.first?.type == .documentTextDetection)
+    #expect(request.imageContext?.languageHints?.contains("en") == true)
+}
+
+@Test func testDAISVisionAITemplateSetupScript() {
+    let template = DAISVisionAITemplate(
+        projectID: "my-project",
+        location: "us-central1",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+        imageBucket: "my-project-images"
+    )
+
+    let script = template.setupScript
+    #expect(script.contains("gcloud services enable vision.googleapis.com"))
+    #expect(script.contains("gsutil mb"))
+    #expect(script.contains("my-project-images"))
+}
+
+@Test func testDAISVisionAITemplatePythonScript() {
+    let template = DAISVisionAITemplate(
+        projectID: "my-project",
+        location: "us-central1",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+        imageBucket: "my-project-images"
+    )
+
+    let script = template.pythonProcessingScript
+    #expect(script.contains("from google.cloud import vision"))
+    #expect(script.contains("def detect_labels"))
+    #expect(script.contains("def detect_text"))
+    #expect(script.contains("def detect_faces"))
+    #expect(script.contains("def safe_search"))
+}
+
+@Test func testVisionRequestCodable() throws {
+    let request = GoogleCloudVisionRequest(
+        projectID: "my-project",
+        image: GoogleCloudVisionRequest.ImageSource(gcsUri: "gs://bucket/img.jpg"),
+        features: [
+            GoogleCloudVisionRequest.Feature(type: .labelDetection, maxResults: 5)
+        ]
+    )
+
+    let data = try JSONEncoder().encode(request)
+    let decoded = try JSONDecoder().decode(GoogleCloudVisionRequest.self, from: data)
+
+    #expect(decoded.projectID == "my-project")
+    #expect(decoded.image.gcsUri == "gs://bucket/img.jpg")
+    #expect(decoded.features.first?.maxResults == 5)
+}
+
+@Test func testVisionResponseCodable() throws {
+    let response = GoogleCloudVisionResponse(
+        labelAnnotations: [
+            EntityAnnotation(description: "Test", score: 0.9)
+        ],
+        safeSearchAnnotation: SafeSearchAnnotation(adult: .veryUnlikely)
+    )
+
+    let data = try JSONEncoder().encode(response)
+    let decoded = try JSONDecoder().decode(GoogleCloudVisionResponse.self, from: data)
+
+    #expect(decoded.labelAnnotations?.first?.description == "Test")
+    #expect(decoded.safeSearchAnnotation?.adult == .veryUnlikely)
+}
+
+@Test func testFaceLandmarkTypes() {
+    #expect(FaceAnnotation.Landmark.LandmarkType.leftEye.rawValue == "LEFT_EYE")
+    #expect(FaceAnnotation.Landmark.LandmarkType.rightEye.rawValue == "RIGHT_EYE")
+    #expect(FaceAnnotation.Landmark.LandmarkType.noseTip.rawValue == "NOSE_TIP")
+    #expect(FaceAnnotation.Landmark.LandmarkType.mouthCenter.rawValue == "MOUTH_CENTER")
+}
