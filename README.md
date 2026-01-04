@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 59 Google Cloud services:
+GoogleCloudSwift provides models for 60 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -139,6 +139,7 @@ GoogleCloudSwift provides models for 59 Google Cloud services:
 | **Cloud Healthcare API** | Healthcare data storage (FHIR, HL7v2, DICOM) | `GoogleCloudHealthcareDataset`, `GoogleCloudFHIRStore`, `GoogleCloudDICOMStore`, `DAISHealthcareTemplate` |
 | **Retail API** | Product catalog and recommendations | `GoogleCloudRetailCatalog`, `GoogleCloudRetailProduct`, `GoogleCloudRetailUserEvent`, `DAISRetailTemplate` |
 | **Media CDN** | Content delivery for streaming media | `GoogleCloudEdgeCacheService`, `GoogleCloudEdgeCacheOrigin`, `GoogleCloudEdgeCacheKeyset`, `DAISMediaCDNTemplate` |
+| **Anthos** | Hybrid and multi-cloud platform | `GoogleCloudAnthosMembership`, `GoogleCloudAnthosFeature`, `GoogleCloudAnthosConfigManagement`, `DAISAnthosTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -8067,6 +8068,213 @@ print(template.cacheInvalidationScript(serviceName: "video-cdn"))
 | Force Cache All | `.forceCacheAll` | Caches everything regardless of headers |
 | Bypass Cache | `.bypassCache` | No caching, always fetch from origin |
 
+### GoogleCloudAnthosMembership (Anthos)
+
+Anthos provides hybrid and multi-cloud Kubernetes management with fleet-wide policies:
+
+```swift
+// Register a GKE cluster as an Anthos membership
+let membership = GoogleCloudAnthosMembership(
+    name: "prod-cluster",
+    projectID: "my-project",
+    description: "Production GKE cluster",
+    endpoint: .init(
+        gkeCluster: .init(
+            resourceLink: "//container.googleapis.com/projects/my-project/locations/us-central1/clusters/prod-cluster"
+        )
+    )
+)
+
+print(membership.registerCommand)
+print(membership.resourceName)
+```
+
+**Anthos Features:**
+
+```swift
+// Enable Config Management feature
+let configMgmt = GoogleCloudAnthosFeature(
+    name: "configmanagement",
+    projectID: "my-project",
+    featureType: .configManagement
+)
+
+print(configMgmt.enableCommand)
+print(configMgmt.describeCommand)
+
+// Enable Service Mesh feature
+let serviceMesh = GoogleCloudAnthosFeature(
+    name: "servicemesh",
+    projectID: "my-project",
+    featureType: .serviceMesh
+)
+
+print(serviceMesh.enableCommand)
+```
+
+**Config Management with GitOps:**
+
+```swift
+// Configure Config Sync with Git repository
+let acm = GoogleCloudAnthosConfigManagement(
+    membership: "prod-cluster",
+    projectID: "my-project",
+    configSync: .init(
+        enabled: true,
+        sourceFormat: .unstructured,
+        git: .init(
+            syncRepo: "https://github.com/org/config-repo",
+            syncBranch: "main",
+            policyDir: "/kubernetes",
+            secretType: .none
+        ),
+        preventDrift: true
+    ),
+    policyController: .init(
+        enabled: true,
+        templateLibraryInstalled: true,
+        referentialRulesEnabled: true,
+        logDeniesEnabled: true
+    )
+)
+
+print(acm.applyCommand)
+print(acm.statusCommand)
+```
+
+**Anthos Service Mesh:**
+
+```swift
+// Configure automatic service mesh management
+let asm = GoogleCloudAnthosServiceMesh(
+    membership: "prod-cluster",
+    projectID: "my-project",
+    controlPlane: .init(management: .automatic),
+    dataPlane: .init(management: .automatic),
+    meshConfig: .init(
+        accessLogging: .init(enabled: true),
+        enableAutoMtls: true
+    )
+)
+
+print(asm.applyCommand)
+print(asm.describeCommand)
+```
+
+**Fleet Management:**
+
+```swift
+// Create a fleet with security posture
+let fleet = GoogleCloudAnthosFleet(
+    projectID: "my-project",
+    displayName: "Production Fleet",
+    defaultClusterConfig: .init(
+        securityPostureConfig: .init(
+            mode: .basic,
+            vulnerabilityMode: .vulnerabilityBasic
+        )
+    )
+)
+
+print(fleet.createCommand)
+```
+
+**Anthos Operations:**
+
+```swift
+let ops = AnthosOperations(projectID: "my-project")
+
+// Enable APIs
+print(ops.enableAPICommand)
+
+// List resources
+print(ops.listMembershipsCommand)
+print(ops.listFeaturesCommand)
+
+// Register GKE cluster
+print(ops.registerGKEClusterCommand(
+    membershipName: "prod-membership",
+    clusterName: "prod-cluster",
+    location: "us-central1"
+))
+
+// Register external cluster (EKS, AKS, etc.)
+print(ops.registerExternalClusterCommand(
+    membershipName: "eks-cluster",
+    kubeconfigPath: "/path/to/kubeconfig",
+    context: "eks-context"
+))
+
+// Add IAM binding
+print(ops.addIAMBindingCommand(
+    member: "user:admin@example.com",
+    role: .gkehubAdmin
+))
+```
+
+**DAIS Anthos Template:**
+
+```swift
+let template = DAISAnthosTemplate(projectID: "my-project")
+
+// Create GKE membership
+let gkeMembership = template.gkeMembership(
+    name: "gke-prod",
+    clusterResourceLink: "//container.googleapis.com/projects/my-project/locations/us-central1/clusters/prod"
+)
+
+// Create on-prem membership
+let onPremMembership = template.onPremMembership(
+    name: "on-prem-cluster",
+    clusterType: .user
+)
+
+// Configure GitOps with Config Management
+let acm = template.configManagementWithGit(
+    membership: "prod-cluster",
+    gitRepo: "https://github.com/org/config-repo",
+    branch: "production",
+    policyDir: "/kubernetes"
+)
+
+// Configure automatic service mesh
+let asm = template.serviceMeshAutomatic(membership: "prod-cluster")
+
+// Create secure fleet
+let fleet = template.secureFleet(displayName: "Production Fleet")
+
+// Generate fleet setup script
+print(template.fleetSetupScript(
+    fleetName: "prod-fleet",
+    clusterNames: ["cluster-a", "cluster-b", "cluster-c"],
+    region: "us-central1"
+))
+
+// Generate Config Management YAML
+print(template.configManagementYAML(
+    gitRepo: "https://github.com/org/config",
+    branch: "main",
+    policyDir: "/policies"
+))
+
+// Generate multi-cluster ingress setup
+print(template.multiClusterIngressSetupScript(
+    configCluster: "config-cluster",
+    region: "us-central1"
+))
+```
+
+**Feature Types:**
+
+| Feature | Type | Description |
+|---------|------|-------------|
+| Config Management | `.configManagement` | GitOps and policy management |
+| Service Mesh | `.serviceMesh` | Istio-based service mesh |
+| Identity Service | `.identityService` | Identity federation |
+| Multi-Cluster Ingress | `.multiClusterIngress` | Cross-cluster load balancing |
+| Policy Controller | `.policyController` | OPA Gatekeeper policies |
+| Fleet Observability | `.fleetObservability` | Fleet-wide logging and monitoring |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -9711,6 +9919,16 @@ MIT License
 - [Token Authentication](https://cloud.google.com/media-cdn/docs/token-authentication)
 - [Live Streaming](https://cloud.google.com/media-cdn/docs/live-streaming)
 - [Cache Invalidation](https://cloud.google.com/media-cdn/docs/invalidating-cache)
+
+### Anthos
+- [Anthos Documentation](https://cloud.google.com/anthos/docs)
+- [Fleet Management](https://cloud.google.com/anthos/fleet-management/docs)
+- [Anthos Clusters](https://cloud.google.com/anthos/clusters/docs)
+- [Config Management](https://cloud.google.com/anthos-config-management/docs)
+- [Service Mesh](https://cloud.google.com/service-mesh/docs)
+- [Multi-Cluster Ingress](https://cloud.google.com/kubernetes-engine/docs/concepts/multi-cluster-ingress)
+- [Policy Controller](https://cloud.google.com/anthos-config-management/docs/concepts/policy-controller)
+- [Connect Gateway](https://cloud.google.com/anthos/multicluster-management/gateway)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)
