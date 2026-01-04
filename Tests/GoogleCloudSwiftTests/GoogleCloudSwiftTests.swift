@@ -14976,3 +14976,597 @@ import Testing
     #expect(BigQueryOperations.ExportFormat.json.rawValue == "NEWLINE_DELIMITED_JSON")
     #expect(BigQueryOperations.ExportFormat.avro.rawValue == "AVRO")
 }
+
+// MARK: - Dataflow Tests
+
+@Test func testDataflowJobBasicInit() {
+    let job = GoogleCloudDataflowJob(
+        name: "my-job",
+        projectID: "my-project",
+        region: "us-central1",
+        type: .batch
+    )
+
+    #expect(job.name == "my-job")
+    #expect(job.projectID == "my-project")
+    #expect(job.region == "us-central1")
+    #expect(job.type == .batch)
+    #expect(job.resourceName == "projects/my-project/locations/us-central1/jobs/my-job")
+}
+
+@Test func testDataflowJobWithJobID() {
+    let job = GoogleCloudDataflowJob(
+        jobID: "2024-01-15_12_34_56-1234567890",
+        name: "my-job",
+        projectID: "my-project",
+        region: "us-central1"
+    )
+
+    #expect(job.resourceName == "projects/my-project/locations/us-central1/jobs/2024-01-15_12_34_56-1234567890")
+}
+
+@Test func testDataflowJobRunClassicTemplateCommand() {
+    let job = GoogleCloudDataflowJob(
+        name: "word-count-job",
+        projectID: "my-project",
+        region: "us-central1",
+        type: .batch,
+        templatePath: "gs://dataflow-templates/latest/Word_Count",
+        parameters: [
+            "inputFile": "gs://my-bucket/input.txt",
+            "output": "gs://my-bucket/output"
+        ],
+        environment: GoogleCloudDataflowJob.EnvironmentConfig(
+            tempLocation: "gs://my-bucket/temp",
+            machineType: "n1-standard-2",
+            numWorkers: 2,
+            maxWorkers: 10
+        )
+    )
+
+    let cmd = job.runClassicTemplateCommand
+    #expect(cmd.contains("gcloud dataflow jobs run word-count-job"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(cmd.contains("--gcs-location=gs://dataflow-templates/latest/Word_Count"))
+    #expect(cmd.contains("--parameters="))
+    #expect(cmd.contains("--staging-location=gs://my-bucket/temp"))
+    #expect(cmd.contains("--worker-machine-type=n1-standard-2"))
+    #expect(cmd.contains("--num-workers=2"))
+    #expect(cmd.contains("--max-workers=10"))
+}
+
+@Test func testDataflowJobRunFlexTemplateCommand() {
+    let job = GoogleCloudDataflowJob(
+        name: "flex-job",
+        projectID: "my-project",
+        region: "us-central1",
+        type: .streaming,
+        containerSpecGcsPath: "gs://my-bucket/templates/my-template.json",
+        parameters: ["param1": "value1"],
+        environment: GoogleCloudDataflowJob.EnvironmentConfig(
+            tempLocation: "gs://my-bucket/temp",
+            enableStreamingEngine: true
+        )
+    )
+
+    let cmd = job.runFlexTemplateCommand
+    #expect(cmd.contains("gcloud dataflow flex-template run flex-job"))
+    #expect(cmd.contains("--template-file-gcs-location=gs://my-bucket/templates/my-template.json"))
+    #expect(cmd.contains("--enable-streaming-engine"))
+}
+
+@Test func testDataflowJobDescribeCommand() {
+    let job = GoogleCloudDataflowJob(
+        jobID: "job-123",
+        name: "my-job",
+        projectID: "my-project",
+        region: "us-central1"
+    )
+
+    #expect(job.describeCommand == "gcloud dataflow jobs describe job-123 --project=my-project --region=us-central1")
+}
+
+@Test func testDataflowJobCancelCommand() {
+    let job = GoogleCloudDataflowJob(
+        jobID: "job-456",
+        name: "my-job",
+        projectID: "my-project",
+        region: "us-west1"
+    )
+
+    #expect(job.cancelCommand == "gcloud dataflow jobs cancel job-456 --project=my-project --region=us-west1")
+}
+
+@Test func testDataflowJobDrainCommand() {
+    let job = GoogleCloudDataflowJob(
+        jobID: "streaming-job-789",
+        name: "streaming-job",
+        projectID: "my-project",
+        region: "europe-west1",
+        type: .streaming
+    )
+
+    #expect(job.drainCommand == "gcloud dataflow jobs drain streaming-job-789 --project=my-project --region=europe-west1")
+}
+
+@Test func testDataflowJobListCommand() {
+    let cmd = GoogleCloudDataflowJob.listCommand(projectID: "my-project", region: "us-central1")
+    #expect(cmd == "gcloud dataflow jobs list --project=my-project --region=us-central1")
+
+    let cmdWithStatus = GoogleCloudDataflowJob.listCommand(
+        projectID: "my-project",
+        region: "us-central1",
+        status: .running
+    )
+    #expect(cmdWithStatus.contains("--status=running"))
+}
+
+@Test func testDataflowJobTypes() {
+    #expect(GoogleCloudDataflowJob.JobType.batch.rawValue == "JOB_TYPE_BATCH")
+    #expect(GoogleCloudDataflowJob.JobType.streaming.rawValue == "JOB_TYPE_STREAMING")
+}
+
+@Test func testDataflowJobStates() {
+    #expect(GoogleCloudDataflowJob.JobState.running.rawValue == "JOB_STATE_RUNNING")
+    #expect(GoogleCloudDataflowJob.JobState.done.rawValue == "JOB_STATE_DONE")
+    #expect(GoogleCloudDataflowJob.JobState.failed.rawValue == "JOB_STATE_FAILED")
+    #expect(GoogleCloudDataflowJob.JobState.cancelled.rawValue == "JOB_STATE_CANCELLED")
+    #expect(GoogleCloudDataflowJob.JobState.draining.rawValue == "JOB_STATE_DRAINING")
+    #expect(GoogleCloudDataflowJob.JobState.drained.rawValue == "JOB_STATE_DRAINED")
+}
+
+@Test func testDataflowJobWithNetworkConfig() {
+    let job = GoogleCloudDataflowJob(
+        name: "vpc-job",
+        projectID: "my-project",
+        region: "us-central1",
+        environment: GoogleCloudDataflowJob.EnvironmentConfig(
+            network: "my-vpc",
+            subnetwork: "regions/us-central1/subnetworks/my-subnet",
+            serviceAccountEmail: "dataflow@my-project.iam.gserviceaccount.com"
+        )
+    )
+
+    let cmd = job.runClassicTemplateCommand
+    #expect(cmd.contains("--network=my-vpc"))
+    #expect(cmd.contains("--subnetwork=regions/us-central1/subnetworks/my-subnet"))
+    #expect(cmd.contains("--service-account-email=dataflow@my-project.iam.gserviceaccount.com"))
+}
+
+@Test func testDataflowFlexTemplateBasicInit() {
+    let template = GoogleCloudDataflowFlexTemplate(
+        name: "my-template",
+        projectID: "my-project",
+        templatePath: "gs://my-bucket/templates/my-template.json",
+        containerImage: "gcr.io/my-project/my-pipeline:latest"
+    )
+
+    #expect(template.name == "my-template")
+    #expect(template.containerImage.contains("my-pipeline"))
+}
+
+@Test func testDataflowFlexTemplateBuildCommand() {
+    let template = GoogleCloudDataflowFlexTemplate(
+        name: "my-template",
+        projectID: "my-project",
+        templatePath: "gs://my-bucket/templates/my-template.json",
+        containerImage: "gcr.io/my-project/my-pipeline:latest"
+    )
+
+    let cmd = template.buildTemplateCommand(
+        jarPath: "target/my-pipeline.jar",
+        tempLocation: "gs://my-bucket/temp"
+    )
+
+    #expect(cmd.contains("gcloud dataflow flex-template build"))
+    #expect(cmd.contains("--image=gcr.io/my-project/my-pipeline:latest"))
+    #expect(cmd.contains("--jar=target/my-pipeline.jar"))
+    #expect(cmd.contains("--temp-location=gs://my-bucket/temp"))
+}
+
+@Test func testDataflowFlexTemplateSDKLanguages() {
+    #expect(GoogleCloudDataflowFlexTemplate.SDKInfo.Language.java.rawValue == "JAVA")
+    #expect(GoogleCloudDataflowFlexTemplate.SDKInfo.Language.python.rawValue == "PYTHON")
+    #expect(GoogleCloudDataflowFlexTemplate.SDKInfo.Language.go.rawValue == "GO")
+}
+
+@Test func testDataflowSQLBasicInit() {
+    let sql = GoogleCloudDataflowSQL(
+        name: "sql-job",
+        projectID: "my-project",
+        region: "us-central1",
+        query: "SELECT * FROM pubsub.topic.`my-project`.`my-topic`",
+        bigqueryDataset: "my_dataset",
+        bigqueryTable: "my_table"
+    )
+
+    #expect(sql.name == "sql-job")
+    #expect(sql.query.contains("SELECT"))
+}
+
+@Test func testDataflowSQLRunCommand() {
+    let sql = GoogleCloudDataflowSQL(
+        name: "streaming-sql",
+        projectID: "my-project",
+        region: "us-central1",
+        query: "SELECT * FROM pubsub.topic.`my-project`.`my-topic`",
+        bigqueryDataset: "analytics",
+        bigqueryTable: "events"
+    )
+
+    let cmd = sql.runCommand
+    #expect(cmd.contains("gcloud dataflow sql query"))
+    #expect(cmd.contains("--job-name=streaming-sql"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(cmd.contains("--bigquery-dataset=analytics"))
+    #expect(cmd.contains("--bigquery-table=events"))
+}
+
+@Test func testDataflowSQLDryRun() {
+    let sql = GoogleCloudDataflowSQL(
+        name: "test-sql",
+        projectID: "my-project",
+        region: "us-central1",
+        query: "SELECT 1",
+        dryRun: true
+    )
+
+    let cmd = sql.runCommand
+    #expect(cmd.contains("--dry-run"))
+}
+
+@Test func testDataflowSnapshotBasicInit() {
+    let snapshot = GoogleCloudDataflowSnapshot(
+        projectID: "my-project",
+        region: "us-central1",
+        sourceJobID: "streaming-job-123",
+        description: "Daily snapshot"
+    )
+
+    #expect(snapshot.sourceJobID == "streaming-job-123")
+}
+
+@Test func testDataflowSnapshotCreateCommand() {
+    let snapshot = GoogleCloudDataflowSnapshot(
+        projectID: "my-project",
+        region: "us-central1",
+        sourceJobID: "job-456",
+        description: "Backup before update",
+        ttl: "7d"
+    )
+
+    let cmd = snapshot.createCommand
+    #expect(cmd.contains("gcloud dataflow snapshots create"))
+    #expect(cmd.contains("--job-id=job-456"))
+    #expect(cmd.contains("--snapshot-description=\"Backup before update\""))
+    #expect(cmd.contains("--snapshot-ttl=7d"))
+}
+
+@Test func testDataflowSnapshotDeleteCommand() {
+    let snapshot = GoogleCloudDataflowSnapshot(
+        snapshotID: "snap-789",
+        projectID: "my-project",
+        region: "us-central1",
+        sourceJobID: "job-123"
+    )
+
+    #expect(snapshot.deleteCommand == "gcloud dataflow snapshots delete snap-789 --project=my-project --region=us-central1")
+}
+
+@Test func testDataflowSnapshotDescribeCommand() {
+    let snapshot = GoogleCloudDataflowSnapshot(
+        snapshotID: "snap-abc",
+        projectID: "my-project",
+        region: "europe-west1",
+        sourceJobID: "job-xyz"
+    )
+
+    #expect(snapshot.describeCommand == "gcloud dataflow snapshots describe snap-abc --project=my-project --region=europe-west1")
+}
+
+@Test func testDataflowSnapshotListCommand() {
+    let cmd = GoogleCloudDataflowSnapshot.listCommand(projectID: "my-project", region: "us-central1")
+    #expect(cmd == "gcloud dataflow snapshots list --project=my-project --region=us-central1")
+
+    let cmdWithJob = GoogleCloudDataflowSnapshot.listCommand(
+        projectID: "my-project",
+        region: "us-central1",
+        jobID: "job-123"
+    )
+    #expect(cmdWithJob.contains("--job-id=job-123"))
+}
+
+@Test func testDataflowOperationsEnableAPI() {
+    let cmd = DataflowOperations.enableAPICommand(projectID: "my-project")
+    #expect(cmd == "gcloud services enable dataflow.googleapis.com --project=my-project")
+}
+
+@Test func testDataflowOperationsMetrics() {
+    let cmd = DataflowOperations.metricsCommand(
+        jobID: "job-123",
+        projectID: "my-project",
+        region: "us-central1"
+    )
+    #expect(cmd == "gcloud dataflow metrics list job-123 --project=my-project --region=us-central1")
+}
+
+@Test func testDataflowOperationsLogs() {
+    let cmd = DataflowOperations.logsCommand(
+        jobID: "job-456",
+        projectID: "my-project",
+        region: "us-west1"
+    )
+    #expect(cmd == "gcloud dataflow logs list job-456 --project=my-project --region=us-west1")
+}
+
+@Test func testDataflowOperationsUpdateJob() {
+    let cmd = DataflowOperations.updateJobCommand(
+        jobID: "streaming-job",
+        projectID: "my-project",
+        region: "us-central1",
+        templatePath: "gs://bucket/template.json"
+    )
+    #expect(cmd.contains("gcloud dataflow jobs update-options"))
+    #expect(cmd.contains("--job-id=streaming-job"))
+    #expect(cmd.contains("--template-gcs-path=gs://bucket/template.json"))
+}
+
+@Test func testGoogleDataflowTemplatesConstants() {
+    #expect(GoogleDataflowTemplates.wordCount == "gs://dataflow-templates/latest/Word_Count")
+    #expect(GoogleDataflowTemplates.pubSubToBigQuery == "gs://dataflow-templates/latest/PubSub_to_BigQuery")
+    #expect(GoogleDataflowTemplates.bigQueryToGCS == "gs://dataflow-templates/latest/BigQuery_to_GCS_Export")
+    #expect(GoogleDataflowTemplates.textToBigQuery == "gs://dataflow-templates/latest/GCS_Text_to_BigQuery")
+}
+
+@Test func testGoogleDataflowTemplatesWordCountJob() {
+    let job = GoogleDataflowTemplates.wordCountJob(
+        name: "word-count",
+        projectID: "my-project",
+        region: "us-central1",
+        inputFile: "gs://bucket/input.txt",
+        outputLocation: "gs://bucket/output",
+        tempLocation: "gs://bucket/temp"
+    )
+
+    #expect(job.name == "word-count")
+    #expect(job.type == .batch)
+    #expect(job.templatePath == GoogleDataflowTemplates.wordCount)
+    #expect(job.parameters?["inputFile"] == "gs://bucket/input.txt")
+}
+
+@Test func testGoogleDataflowTemplatesPubSubToBigQueryJob() {
+    let job = GoogleDataflowTemplates.pubSubToBigQueryJob(
+        name: "streaming-job",
+        projectID: "my-project",
+        region: "us-central1",
+        inputTopic: "projects/my-project/topics/my-topic",
+        outputTable: "my-project:dataset.table",
+        tempLocation: "gs://bucket/temp",
+        enableStreamingEngine: true
+    )
+
+    #expect(job.name == "streaming-job")
+    #expect(job.type == .streaming)
+    #expect(job.environment?.enableStreamingEngine == true)
+}
+
+@Test func testGoogleDataflowTemplatesTextToBigQueryJob() {
+    let job = GoogleDataflowTemplates.textToBigQueryJob(
+        name: "text-to-bq",
+        projectID: "my-project",
+        region: "us-central1",
+        inputFilePattern: "gs://bucket/data/*.json",
+        jsonSchemaPath: "gs://bucket/schema.json",
+        outputTable: "my-project:dataset.table",
+        bigQueryLoadingTemporaryDirectory: "gs://bucket/bq-temp",
+        tempLocation: "gs://bucket/temp"
+    )
+
+    #expect(job.parameters?["inputFilePattern"] == "gs://bucket/data/*.json")
+    #expect(job.parameters?["JSONPath"] == "gs://bucket/schema.json")
+}
+
+@Test func testGoogleDataflowTemplatesBigQueryToGCSJob() {
+    let job = GoogleDataflowTemplates.bigQueryToGCSJob(
+        name: "export-job",
+        projectID: "my-project",
+        region: "us-central1",
+        inputTable: "my-project:dataset.source_table",
+        outputDirectory: "gs://bucket/exports",
+        tempLocation: "gs://bucket/temp"
+    )
+
+    #expect(job.type == .batch)
+    #expect(job.parameters?["inputTableId"] == "my-project:dataset.source_table")
+    #expect(job.parameters?["outputDirectory"] == "gs://bucket/exports")
+}
+
+@Test func testDAISDataflowTemplateStreamingETLJob() {
+    let job = DAISDataflowTemplate.streamingETLJob(
+        projectID: "my-project",
+        region: "us-central1",
+        deploymentName: "dais-prod",
+        inputTopic: "projects/my-project/topics/events",
+        outputTable: "my-project:analytics.events",
+        tempBucket: "dais-prod-dataflow"
+    )
+
+    #expect(job.name == "dais-prod-streaming-etl")
+    #expect(job.type == .streaming)
+    #expect(job.environment?.enableStreamingEngine == true)
+    #expect(job.labels?["deployment"] == "dais-prod")
+    #expect(job.labels?["managed-by"] == "dais")
+}
+
+@Test func testDAISDataflowTemplateBatchExportJob() {
+    let job = DAISDataflowTemplate.batchExportJob(
+        projectID: "my-project",
+        region: "us-central1",
+        deploymentName: "dais-prod",
+        sourceTable: "my-project:analytics.events",
+        destinationBucket: "dais-prod-exports",
+        tempBucket: "dais-prod-dataflow"
+    )
+
+    #expect(job.name == "dais-prod-batch-export")
+    #expect(job.type == .batch)
+    #expect(job.environment?.machineType == "n1-standard-4")
+}
+
+@Test func testDAISDataflowTemplateLogProcessingJob() {
+    let job = DAISDataflowTemplate.logProcessingJob(
+        projectID: "my-project",
+        region: "us-central1",
+        deploymentName: "dais-prod",
+        logsTopic: "projects/my-project/topics/logs",
+        outputDataset: "dais_prod_logs",
+        tempBucket: "dais-prod-dataflow"
+    )
+
+    #expect(job.name == "dais-prod-log-processor")
+    #expect(job.type == .streaming)
+    #expect(job.environment?.additionalExperiments?.contains("enable_streaming_engine") == true)
+}
+
+@Test func testDAISDataflowTemplateDataArchiveJob() {
+    let job = DAISDataflowTemplate.dataArchiveJob(
+        projectID: "my-project",
+        region: "us-central1",
+        deploymentName: "dais-prod",
+        sourceTable: "my-project:analytics.old_events",
+        archiveBucket: "dais-prod-archive",
+        tempBucket: "dais-prod-dataflow"
+    )
+
+    #expect(job.name == "dais-prod-data-archive")
+    #expect(job.environment?.diskSizeGb == 100)
+    #expect(job.environment?.maxWorkers == 50)
+}
+
+@Test func testDAISDataflowTemplateSetupScript() {
+    let script = DAISDataflowTemplate.setupScript(
+        projectID: "my-project",
+        region: "us-central1",
+        deploymentName: "dais-prod",
+        tempBucket: "dais-prod-dataflow",
+        serviceAccountEmail: "dataflow@my-project.iam.gserviceaccount.com"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("dataflow.googleapis.com"))
+    #expect(script.contains("gsutil mb"))
+    #expect(script.contains("roles/dataflow.admin"))
+    #expect(script.contains("roles/dataflow.worker"))
+    #expect(script.contains("roles/storage.objectAdmin"))
+    #expect(script.contains("roles/bigquery.dataEditor"))
+    #expect(script.contains("roles/pubsub.subscriber"))
+}
+
+@Test func testDAISDataflowTemplateTeardownScript() {
+    let script = DAISDataflowTemplate.teardownScript(
+        projectID: "my-project",
+        region: "us-central1",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("dataflow jobs cancel"))
+    #expect(script.contains("dataflow jobs drain"))
+    #expect(script.contains("dais-prod"))
+}
+
+@Test func testDataflowJobCodable() throws {
+    let job = GoogleCloudDataflowJob(
+        jobID: "job-123",
+        name: "my-job",
+        projectID: "my-project",
+        region: "us-central1",
+        type: .streaming,
+        state: .running,
+        parameters: ["key": "value"]
+    )
+
+    let data = try JSONEncoder().encode(job)
+    let decoded = try JSONDecoder().decode(GoogleCloudDataflowJob.self, from: data)
+
+    #expect(decoded.jobID == "job-123")
+    #expect(decoded.type == .streaming)
+    #expect(decoded.state == .running)
+    #expect(decoded.parameters?["key"] == "value")
+}
+
+@Test func testDataflowFlexTemplateCodable() throws {
+    let template = GoogleCloudDataflowFlexTemplate(
+        name: "my-template",
+        projectID: "my-project",
+        templatePath: "gs://bucket/template.json",
+        containerImage: "gcr.io/project/image:latest",
+        sdkInfo: GoogleCloudDataflowFlexTemplate.SDKInfo(language: .java, version: "2.45.0")
+    )
+
+    let data = try JSONEncoder().encode(template)
+    let decoded = try JSONDecoder().decode(GoogleCloudDataflowFlexTemplate.self, from: data)
+
+    #expect(decoded.name == "my-template")
+    #expect(decoded.sdkInfo?.language == .java)
+    #expect(decoded.sdkInfo?.version == "2.45.0")
+}
+
+@Test func testDataflowSQLCodable() throws {
+    let sql = GoogleCloudDataflowSQL(
+        name: "sql-job",
+        projectID: "my-project",
+        region: "us-central1",
+        query: "SELECT 1",
+        bigqueryDataset: "dataset"
+    )
+
+    let data = try JSONEncoder().encode(sql)
+    let decoded = try JSONDecoder().decode(GoogleCloudDataflowSQL.self, from: data)
+
+    #expect(decoded.name == "sql-job")
+    #expect(decoded.bigqueryDataset == "dataset")
+}
+
+@Test func testDataflowSnapshotCodable() throws {
+    let snapshot = GoogleCloudDataflowSnapshot(
+        snapshotID: "snap-123",
+        projectID: "my-project",
+        region: "us-central1",
+        sourceJobID: "job-456",
+        description: "Test snapshot",
+        ttl: "7d"
+    )
+
+    let data = try JSONEncoder().encode(snapshot)
+    let decoded = try JSONDecoder().decode(GoogleCloudDataflowSnapshot.self, from: data)
+
+    #expect(decoded.snapshotID == "snap-123")
+    #expect(decoded.ttl == "7d")
+}
+
+@Test func testDataflowEnvironmentConfigCodable() throws {
+    let config = GoogleCloudDataflowJob.EnvironmentConfig(
+        tempLocation: "gs://bucket/temp",
+        machineType: "n1-standard-4",
+        numWorkers: 2,
+        maxWorkers: 10,
+        enableStreamingEngine: true,
+        diskSizeGb: 50
+    )
+
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(GoogleCloudDataflowJob.EnvironmentConfig.self, from: data)
+
+    #expect(decoded.machineType == "n1-standard-4")
+    #expect(decoded.enableStreamingEngine == true)
+    #expect(decoded.diskSizeGb == 50)
+}
+
+@Test func testDataflowDiskTypes() {
+    #expect(GoogleCloudDataflowJob.EnvironmentConfig.DiskType.pdSsd.rawValue == "pd-ssd")
+    #expect(GoogleCloudDataflowJob.EnvironmentConfig.DiskType.pdStandard.rawValue == "pd-standard")
+    #expect(GoogleCloudDataflowJob.EnvironmentConfig.DiskType.pdBalanced.rawValue == "pd-balanced")
+}

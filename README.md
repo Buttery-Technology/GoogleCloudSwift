@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 31 Google Cloud services:
+GoogleCloudSwift provides models for 32 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -116,6 +116,7 @@ GoogleCloudSwift provides models for 31 Google Cloud services:
 | **Cloud Filestore** | Managed NFS file shares | `GoogleCloudFilestoreInstance`, `GoogleCloudFilestoreBackup`, `GoogleCloudFilestoreSnapshot` |
 | **Cloud VPN** | Secure network connectivity | `GoogleCloudVPNGateway`, `GoogleCloudVPNTunnel`, `GoogleCloudExternalVPNGateway` |
 | **BigQuery** | Data warehouse and analytics | `GoogleCloudBigQueryDataset`, `GoogleCloudBigQueryTable`, `GoogleCloudBigQueryJob`, `GoogleCloudBigQueryView` |
+| **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -3979,6 +3980,183 @@ let script = DAISBigQueryTemplate.setupScript(
 | `MONTH` | Monthly partitions |
 | `YEAR` | Yearly partitions |
 
+### GoogleCloudDataflowJob (Dataflow API)
+
+Dataflow is a fully managed service for batch and streaming data processing:
+
+```swift
+// Create a batch job using a Google-provided template
+let wordCountJob = GoogleCloudDataflowJob(
+    name: "word-count-job",
+    projectID: "my-project",
+    region: "us-central1",
+    type: .batch,
+    templatePath: GoogleDataflowTemplates.wordCount,
+    parameters: [
+        "inputFile": "gs://my-bucket/input.txt",
+        "output": "gs://my-bucket/output"
+    ],
+    environment: GoogleCloudDataflowJob.EnvironmentConfig(
+        tempLocation: "gs://my-bucket/temp",
+        machineType: "n1-standard-2",
+        numWorkers: 2,
+        maxWorkers: 10
+    )
+)
+
+print(wordCountJob.runClassicTemplateCommand)
+```
+
+**Streaming Jobs:**
+
+```swift
+// Create a streaming ETL job from Pub/Sub to BigQuery
+let streamingJob = GoogleDataflowTemplates.pubSubToBigQueryJob(
+    name: "events-to-bq",
+    projectID: "my-project",
+    region: "us-central1",
+    inputTopic: "projects/my-project/topics/events",
+    outputTable: "my-project:analytics.events",
+    tempLocation: "gs://my-bucket/temp",
+    enableStreamingEngine: true
+)
+
+print(streamingJob.runClassicTemplateCommand)
+
+// Drain a streaming job gracefully
+let runningJob = GoogleCloudDataflowJob(
+    jobID: "2024-01-15_12_34_56-1234567890",
+    name: "events-to-bq",
+    projectID: "my-project",
+    region: "us-central1",
+    type: .streaming
+)
+print(runningJob.drainCommand)
+```
+
+**Flex Templates:**
+
+```swift
+// Create a custom Flex Template
+let flexTemplate = GoogleCloudDataflowFlexTemplate(
+    name: "my-pipeline",
+    projectID: "my-project",
+    templatePath: "gs://my-bucket/templates/my-pipeline.json",
+    containerImage: "gcr.io/my-project/my-pipeline:latest",
+    sdkInfo: GoogleCloudDataflowFlexTemplate.SDKInfo(
+        language: .java,
+        version: "2.45.0"
+    )
+)
+
+// Build the template
+print(flexTemplate.buildTemplateCommand(
+    jarPath: "target/my-pipeline.jar",
+    tempLocation: "gs://my-bucket/temp"
+))
+
+// Run a Flex Template job
+let flexJob = GoogleCloudDataflowJob(
+    name: "flex-pipeline-job",
+    projectID: "my-project",
+    region: "us-central1",
+    type: .batch,
+    containerSpecGcsPath: "gs://my-bucket/templates/my-pipeline.json",
+    parameters: ["inputPath": "gs://bucket/input"]
+)
+print(flexJob.runFlexTemplateCommand)
+```
+
+**Dataflow SQL:**
+
+```swift
+// Run a streaming SQL query
+let sqlJob = GoogleCloudDataflowSQL(
+    name: "streaming-analytics",
+    projectID: "my-project",
+    region: "us-central1",
+    query: "SELECT user_id, COUNT(*) as events FROM pubsub.topic.`my-project`.`events` GROUP BY user_id",
+    bigqueryDataset: "analytics",
+    bigqueryTable: "user_events"
+)
+
+print(sqlJob.runCommand)
+```
+
+**Job Snapshots:**
+
+```swift
+// Create a snapshot of a streaming job
+let snapshot = GoogleCloudDataflowSnapshot(
+    projectID: "my-project",
+    region: "us-central1",
+    sourceJobID: "streaming-job-123",
+    description: "Before schema migration",
+    ttl: "7d"
+)
+
+print(snapshot.createCommand)
+print(GoogleCloudDataflowSnapshot.listCommand(projectID: "my-project", region: "us-central1"))
+```
+
+**DAIS Dataflow Templates:**
+
+```swift
+// Create streaming ETL pipeline
+let etlJob = DAISDataflowTemplate.streamingETLJob(
+    projectID: "my-project",
+    region: "us-central1",
+    deploymentName: "dais-prod",
+    inputTopic: "projects/my-project/topics/events",
+    outputTable: "my-project:analytics.events",
+    tempBucket: "dais-prod-dataflow"
+)
+
+// Create batch export job
+let exportJob = DAISDataflowTemplate.batchExportJob(
+    projectID: "my-project",
+    region: "us-central1",
+    deploymentName: "dais-prod",
+    sourceTable: "my-project:analytics.events",
+    destinationBucket: "dais-prod-exports",
+    tempBucket: "dais-prod-dataflow"
+)
+
+// Generate setup script with IAM permissions
+let script = DAISDataflowTemplate.setupScript(
+    projectID: "my-project",
+    region: "us-central1",
+    deploymentName: "dais-prod",
+    tempBucket: "dais-prod-dataflow",
+    serviceAccountEmail: "dataflow@my-project.iam.gserviceaccount.com"
+)
+```
+
+**Google-Provided Templates:**
+
+| Template | Purpose |
+|----------|---------|
+| `wordCount` | Count words in text files |
+| `pubSubToBigQuery` | Stream from Pub/Sub to BigQuery |
+| `bigQueryToGCS` | Export BigQuery tables to GCS |
+| `textToBigQuery` | Load text files to BigQuery |
+| `pubSubToGCSText` | Archive Pub/Sub messages to GCS |
+| `gcsToPubSub` | Publish GCS file contents to Pub/Sub |
+| `bigQueryToParquet` | Export BigQuery to Parquet format |
+| `jdbcToBigQuery` | Load from JDBC databases to BigQuery |
+| `kafkaToBigQuery` | Stream from Kafka to BigQuery |
+
+**Job States:**
+
+| State | Description |
+|-------|-------------|
+| `running` | Job is currently executing |
+| `done` | Batch job completed successfully |
+| `failed` | Job encountered an error |
+| `cancelled` | Job was cancelled by user |
+| `draining` | Streaming job is draining |
+| `drained` | Streaming job has drained |
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -4639,6 +4817,15 @@ MIT License
 - [Loading Data](https://cloud.google.com/bigquery/docs/loading-data)
 - [Exporting Data](https://cloud.google.com/bigquery/docs/exporting-data)
 - [bq Command-Line Tool](https://cloud.google.com/bigquery/docs/bq-command-line-tool)
+
+### Dataflow
+- [Dataflow Documentation](https://cloud.google.com/dataflow/docs)
+- [Apache Beam Programming Guide](https://beam.apache.org/documentation/programming-guide/)
+- [Google-Provided Templates](https://cloud.google.com/dataflow/docs/guides/templates/provided-templates)
+- [Flex Templates](https://cloud.google.com/dataflow/docs/guides/templates/using-flex-templates)
+- [Streaming Engine](https://cloud.google.com/dataflow/docs/streaming-engine)
+- [Dataflow SQL](https://cloud.google.com/dataflow/docs/guides/sql/dataflow-sql-intro)
+- [Job Snapshots](https://cloud.google.com/dataflow/docs/guides/snapshots)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
