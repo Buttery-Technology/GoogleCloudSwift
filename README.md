@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 11 Google Cloud services:
+GoogleCloudSwift provides models for 12 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -96,6 +96,7 @@ GoogleCloudSwift provides models for 11 Google Cloud services:
 | **Secret Manager** | Secure credentials | `GoogleCloudSecret`, `SecretManagerIAMBinding` |
 | **Cloud Storage** | Object storage | `GoogleCloudStorageBucket`, `LifecycleRule` |
 | **Cloud SQL** | Managed databases (PostgreSQL, MySQL, SQL Server) | `GoogleCloudSQLInstance`, `GoogleCloudSQLDatabase` |
+| **Cloud Pub/Sub** | Messaging and event streaming | `GoogleCloudPubSubTopic`, `GoogleCloudPubSubSubscription` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -264,6 +265,159 @@ let script = DAISSQLTemplate.setupScript(instance: instance, database: database,
 | `db-f1-micro` | Development | ~$8/month |
 | `db-g1-small` | Light workloads | ~$26/month |
 | `dbCustom(cpus:memoryMB:)` | Production | Varies |
+
+### GoogleCloudPubSubTopic (Cloud Pub/Sub API)
+
+Cloud Pub/Sub provides reliable, real-time messaging for event-driven systems and streaming analytics:
+
+```swift
+// Create a topic
+let topic = GoogleCloudPubSubTopic(
+    name: "dais-events",
+    projectID: "my-project",
+    messageRetentionDuration: "604800s",  // 7 days
+    labels: ["app": "dais", "environment": "production"]
+)
+
+print(topic.createCommand)
+print(topic.resourceName)  // projects/my-project/topics/dais-events
+
+// Publish a message
+print(topic.publishCommand(message: "Hello, DAIS!"))
+```
+
+**Subscriptions (Pull and Push):**
+
+```swift
+// Pull subscription (default)
+let pullSubscription = GoogleCloudPubSubSubscription(
+    name: "dais-events-worker",
+    topicName: "dais-events",
+    projectID: "my-project",
+    ackDeadlineSeconds: 60,
+    enableExactlyOnceDelivery: true,
+    enableMessageOrdering: true
+)
+
+print(pullSubscription.createCommand)
+print(pullSubscription.pullCommand(maxMessages: 10))
+
+// Push subscription
+let pushSubscription = GoogleCloudPubSubSubscription(
+    name: "dais-events-webhook",
+    topicName: "dais-events",
+    projectID: "my-project",
+    type: .push(endpoint: "https://my-app.example.com/webhook"),
+    ackDeadlineSeconds: 30
+)
+```
+
+**Dead Letter Queues and Retry Policies:**
+
+```swift
+// Subscription with dead letter queue and retry policy
+let subscription = GoogleCloudPubSubSubscription(
+    name: "dais-events-reliable",
+    topicName: "dais-events",
+    projectID: "my-project",
+    deadLetterPolicy: GoogleCloudPubSubSubscription.DeadLetterPolicy(
+        deadLetterTopic: "projects/my-project/topics/dais-events-dead-letter",
+        maxDeliveryAttempts: 5
+    ),
+    retryPolicy: GoogleCloudPubSubSubscription.RetryPolicy(
+        minimumBackoff: "10s",
+        maximumBackoff: "600s"
+    )
+)
+```
+
+**Snapshots and Seek:**
+
+```swift
+// Create a snapshot for replay
+let snapshot = GoogleCloudPubSubSnapshot(
+    name: "events-snapshot-20260104",
+    subscriptionName: "dais-events-worker",
+    projectID: "my-project"
+)
+print(snapshot.createCommand)
+
+// Seek to a point in time
+print(subscription.seekToTimeCommand(timestamp: "2026-01-04T00:00:00Z"))
+print(subscription.seekToSnapshotCommand(snapshotName: "events-snapshot-20260104"))
+```
+
+**Schemas for Message Validation:**
+
+```swift
+// Create an Avro schema
+let schema = GoogleCloudPubSubSchema(
+    name: "dais-event-schema",
+    projectID: "my-project",
+    type: .avro,
+    definition: """
+    {
+      "type": "record",
+      "name": "DAISEvent",
+      "fields": [
+        {"name": "eventId", "type": "string"},
+        {"name": "timestamp", "type": "long"},
+        {"name": "payload", "type": "string"}
+      ]
+    }
+    """
+)
+print(schema.createCommand)
+
+// Create topic with schema
+let validatedTopic = GoogleCloudPubSubTopic(
+    name: "validated-events",
+    projectID: "my-project",
+    schemaSettings: GoogleCloudPubSubTopic.SchemaSettings(
+        schemaName: "projects/my-project/schemas/dais-event-schema",
+        encoding: .json
+    )
+)
+```
+
+**DAIS Pub/Sub Templates:**
+
+```swift
+// Create topics for DAIS inter-node communication
+let eventsTopic = DAISPubSubTemplate.eventsTopic(
+    projectID: "my-project",
+    deploymentName: "production"
+)
+
+let commandsTopic = DAISPubSubTemplate.commandsTopic(
+    projectID: "my-project",
+    deploymentName: "production"
+)
+
+// Create node subscription with dead letter handling
+let nodeSubscription = DAISPubSubTemplate.nodeSubscription(
+    projectID: "my-project",
+    deploymentName: "production",
+    nodeName: "node-1"
+)
+
+// Generate complete setup script
+let pubsubScript = DAISPubSubTemplate.setupScript(
+    projectID: "my-project",
+    deploymentName: "production",
+    nodeCount: 3
+)
+```
+
+**Available Pub/Sub Roles:**
+
+| Role | Description |
+|------|-------------|
+| `pubsubAdmin` | Full control of topics and subscriptions |
+| `pubsubEditor` | Create, update, delete topics and subscriptions |
+| `pubsubViewer` | View topics and subscriptions |
+| `pubsubPublisher` | Publish messages to topics |
+| `pubsubSubscriber` | Consume messages from subscriptions |
 
 ### GoogleCloudService (Service Usage API)
 
@@ -838,6 +992,8 @@ MIT License
 - [Cloud Storage Documentation](https://cloud.google.com/storage/docs)
 - [Cloud SQL Documentation](https://cloud.google.com/sql/docs)
 - [Cloud SQL for PostgreSQL](https://cloud.google.com/sql/docs/postgres)
+- [Cloud Pub/Sub Documentation](https://cloud.google.com/pubsub/docs)
+- [Pub/Sub Ordering and Delivery](https://cloud.google.com/pubsub/docs/ordering)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)

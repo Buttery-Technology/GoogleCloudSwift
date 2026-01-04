@@ -1824,3 +1824,480 @@ import Testing
     #expect(decoded.name == user.name)
     #expect(decoded.instanceName == user.instanceName)
 }
+
+// MARK: - Pub/Sub Tests
+
+@Test func testGoogleCloudPubSubTopic() {
+    let topic = GoogleCloudPubSubTopic(
+        name: "my-events",
+        projectID: "test-project"
+    )
+
+    #expect(topic.name == "my-events")
+    #expect(topic.resourceName == "projects/test-project/topics/my-events")
+}
+
+@Test func testPubSubTopicCreateCommand() {
+    let topic = GoogleCloudPubSubTopic(
+        name: "test-topic",
+        projectID: "my-project",
+        messageRetentionDuration: "7d",
+        labels: ["env": "prod"]
+    )
+
+    let cmd = topic.createCommand
+    #expect(cmd.contains("gcloud pubsub topics create test-topic"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--message-retention-duration=7d"))
+    #expect(cmd.contains("--labels="))
+}
+
+@Test func testPubSubTopicWithSchema() {
+    let topic = GoogleCloudPubSubTopic(
+        name: "schema-topic",
+        projectID: "test-project",
+        schemaSettings: GoogleCloudPubSubTopic.SchemaSettings(
+            schemaName: "my-schema",
+            encoding: .json
+        )
+    )
+
+    let cmd = topic.createCommand
+    #expect(cmd.contains("--schema=my-schema"))
+    #expect(cmd.contains("--message-encoding=JSON"))
+}
+
+@Test func testPubSubTopicWithKMS() {
+    let topic = GoogleCloudPubSubTopic(
+        name: "encrypted-topic",
+        projectID: "test-project",
+        kmsKeyName: "projects/test/locations/us/keyRings/ring/cryptoKeys/key"
+    )
+
+    #expect(topic.createCommand.contains("--topic-encryption-key="))
+}
+
+@Test func testPubSubTopicWithStoragePolicy() {
+    let topic = GoogleCloudPubSubTopic(
+        name: "regional-topic",
+        projectID: "test-project",
+        messageStoragePolicy: GoogleCloudPubSubTopic.MessageStoragePolicy(
+            allowedPersistenceRegions: ["us-central1", "us-east1"]
+        )
+    )
+
+    #expect(topic.createCommand.contains("--message-storage-policy-allowed-regions=us-central1,us-east1"))
+}
+
+@Test func testPubSubTopicCommands() {
+    let topic = GoogleCloudPubSubTopic(
+        name: "test-topic",
+        projectID: "test-project"
+    )
+
+    #expect(topic.deleteCommand.contains("gcloud pubsub topics delete test-topic"))
+    #expect(topic.describeCommand.contains("gcloud pubsub topics describe test-topic"))
+    #expect(topic.listSubscriptionsCommand.contains("gcloud pubsub topics list-subscriptions test-topic"))
+}
+
+@Test func testPubSubTopicPublishCommand() {
+    let topic = GoogleCloudPubSubTopic(
+        name: "test-topic",
+        projectID: "test-project"
+    )
+
+    let cmd = topic.publishCommand(message: "Hello World", attributes: ["key": "value"])
+    #expect(cmd.contains("gcloud pubsub topics publish test-topic"))
+    #expect(cmd.contains("--message=\"Hello World\""))
+    #expect(cmd.contains("--attribute=key=value"))
+}
+
+@Test func testPubSubTopicUpdateCommand() {
+    let topic = GoogleCloudPubSubTopic(
+        name: "test-topic",
+        projectID: "test-project"
+    )
+
+    let cmd = topic.updateCommand(messageRetentionDuration: "14d", labels: ["updated": "true"])
+    #expect(cmd.contains("gcloud pubsub topics update test-topic"))
+    #expect(cmd.contains("--message-retention-duration=14d"))
+    #expect(cmd.contains("--update-labels="))
+}
+
+@Test func testGoogleCloudPubSubSubscription() {
+    let subscription = GoogleCloudPubSubSubscription(
+        name: "my-sub",
+        topicName: "my-topic",
+        projectID: "test-project"
+    )
+
+    #expect(subscription.name == "my-sub")
+    #expect(subscription.resourceName == "projects/test-project/subscriptions/my-sub")
+    #expect(subscription.topicResourceName == "projects/test-project/topics/my-topic")
+}
+
+@Test func testPubSubSubscriptionCreateCommand() {
+    let subscription = GoogleCloudPubSubSubscription(
+        name: "test-sub",
+        topicName: "test-topic",
+        projectID: "my-project",
+        ackDeadlineSeconds: 30,
+        messageRetentionDuration: "3d"
+    )
+
+    let cmd = subscription.createCommand
+    #expect(cmd.contains("gcloud pubsub subscriptions create test-sub"))
+    #expect(cmd.contains("--topic=test-topic"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--ack-deadline=30"))
+    #expect(cmd.contains("--message-retention-duration=3d"))
+}
+
+@Test func testPubSubSubscriptionWithFilter() {
+    let subscription = GoogleCloudPubSubSubscription(
+        name: "filtered-sub",
+        topicName: "test-topic",
+        projectID: "test-project",
+        filter: "attributes.type = \"important\""
+    )
+
+    #expect(subscription.createCommand.contains("--message-filter="))
+}
+
+@Test func testPubSubSubscriptionWithDeadLetter() {
+    let subscription = GoogleCloudPubSubSubscription(
+        name: "dl-sub",
+        topicName: "test-topic",
+        projectID: "test-project",
+        deadLetterPolicy: GoogleCloudPubSubSubscription.DeadLetterPolicy(
+            deadLetterTopic: "dead-letter-topic",
+            maxDeliveryAttempts: 10
+        )
+    )
+
+    let cmd = subscription.createCommand
+    #expect(cmd.contains("--dead-letter-topic=dead-letter-topic"))
+    #expect(cmd.contains("--max-delivery-attempts=10"))
+}
+
+@Test func testPubSubSubscriptionWithRetryPolicy() {
+    let subscription = GoogleCloudPubSubSubscription(
+        name: "retry-sub",
+        topicName: "test-topic",
+        projectID: "test-project",
+        retryPolicy: GoogleCloudPubSubSubscription.RetryPolicy(
+            minimumBackoff: "15s",
+            maximumBackoff: "300s"
+        )
+    )
+
+    let cmd = subscription.createCommand
+    #expect(cmd.contains("--min-retry-delay=15s"))
+    #expect(cmd.contains("--max-retry-delay=300s"))
+}
+
+@Test func testPubSubSubscriptionExactlyOnce() {
+    let subscription = GoogleCloudPubSubSubscription(
+        name: "exactly-once-sub",
+        topicName: "test-topic",
+        projectID: "test-project",
+        enableExactlyOnceDelivery: true,
+        enableMessageOrdering: true
+    )
+
+    let cmd = subscription.createCommand
+    #expect(cmd.contains("--enable-exactly-once-delivery"))
+    #expect(cmd.contains("--enable-message-ordering"))
+}
+
+@Test func testPubSubPushSubscription() {
+    let subscription = GoogleCloudPubSubSubscription(
+        name: "push-sub",
+        topicName: "test-topic",
+        projectID: "test-project",
+        type: .push(endpoint: "https://example.com/webhook", attributes: [:])
+    )
+
+    #expect(subscription.type.isPush)
+    #expect(subscription.createCommand.contains("--push-endpoint=https://example.com/webhook"))
+}
+
+@Test func testPubSubSubscriptionCommands() {
+    let subscription = GoogleCloudPubSubSubscription(
+        name: "test-sub",
+        topicName: "test-topic",
+        projectID: "test-project"
+    )
+
+    #expect(subscription.deleteCommand.contains("gcloud pubsub subscriptions delete test-sub"))
+    #expect(subscription.describeCommand.contains("gcloud pubsub subscriptions describe test-sub"))
+}
+
+@Test func testPubSubSubscriptionPullCommand() {
+    let subscription = GoogleCloudPubSubSubscription(
+        name: "test-sub",
+        topicName: "test-topic",
+        projectID: "test-project"
+    )
+
+    let pullCmd = subscription.pullCommand(maxMessages: 100, autoAck: true)
+    #expect(pullCmd.contains("gcloud pubsub subscriptions pull test-sub"))
+    #expect(pullCmd.contains("--limit=100"))
+    #expect(pullCmd.contains("--auto-ack"))
+}
+
+@Test func testPubSubSubscriptionAckCommand() {
+    let subscription = GoogleCloudPubSubSubscription(
+        name: "test-sub",
+        topicName: "test-topic",
+        projectID: "test-project"
+    )
+
+    let ackCmd = subscription.ackCommand(ackIDs: ["id1", "id2"])
+    #expect(ackCmd.contains("gcloud pubsub subscriptions ack test-sub"))
+    #expect(ackCmd.contains("--ack-ids=id1,id2"))
+}
+
+@Test func testPubSubSubscriptionSeekCommands() {
+    let subscription = GoogleCloudPubSubSubscription(
+        name: "test-sub",
+        topicName: "test-topic",
+        projectID: "test-project"
+    )
+
+    let timeSeek = subscription.seekToTimeCommand(timestamp: "2024-01-01T00:00:00Z")
+    #expect(timeSeek.contains("gcloud pubsub subscriptions seek test-sub"))
+    #expect(timeSeek.contains("--time=2024-01-01T00:00:00Z"))
+
+    let snapshotSeek = subscription.seekToSnapshotCommand(snapshotName: "my-snapshot")
+    #expect(snapshotSeek.contains("--snapshot=my-snapshot"))
+}
+
+@Test func testGoogleCloudPubSubSnapshot() {
+    let snapshot = GoogleCloudPubSubSnapshot(
+        name: "my-snapshot",
+        subscriptionName: "my-sub",
+        projectID: "test-project"
+    )
+
+    #expect(snapshot.resourceName == "projects/test-project/snapshots/my-snapshot")
+    #expect(snapshot.createCommand.contains("gcloud pubsub snapshots create my-snapshot"))
+    #expect(snapshot.createCommand.contains("--subscription=my-sub"))
+}
+
+@Test func testPubSubSnapshotCommands() {
+    let snapshot = GoogleCloudPubSubSnapshot(
+        name: "test-snapshot",
+        subscriptionName: "test-sub",
+        projectID: "test-project"
+    )
+
+    #expect(snapshot.deleteCommand.contains("gcloud pubsub snapshots delete test-snapshot"))
+    #expect(snapshot.describeCommand.contains("gcloud pubsub snapshots describe test-snapshot"))
+}
+
+@Test func testGoogleCloudPubSubSchema() {
+    let schema = GoogleCloudPubSubSchema(
+        name: "my-schema",
+        projectID: "test-project",
+        type: .avro,
+        definition: "{}"
+    )
+
+    #expect(schema.resourceName == "projects/test-project/schemas/my-schema")
+    #expect(schema.createCommand.contains("gcloud pubsub schemas create my-schema"))
+    #expect(schema.createCommand.contains("--type=AVRO"))
+}
+
+@Test func testPubSubSchemaFromFile() {
+    let schema = GoogleCloudPubSubSchema(
+        name: "file-schema",
+        projectID: "test-project",
+        type: .protocolBuffer,
+        definition: ""
+    )
+
+    let cmd = schema.createFromFileCommand(filePath: "/path/to/schema.proto")
+    #expect(cmd.contains("--definition-file=/path/to/schema.proto"))
+    #expect(cmd.contains("--type=PROTOCOL_BUFFER"))
+}
+
+@Test func testPubSubSchemaCommands() {
+    let schema = GoogleCloudPubSubSchema(
+        name: "test-schema",
+        projectID: "test-project",
+        type: .avro,
+        definition: "{}"
+    )
+
+    #expect(schema.deleteCommand.contains("gcloud pubsub schemas delete test-schema"))
+    #expect(schema.describeCommand.contains("gcloud pubsub schemas describe test-schema"))
+}
+
+@Test func testPubSubMessage() {
+    let message = GoogleCloudPubSubMessage(
+        data: "Hello World",
+        attributes: ["key": "value"],
+        orderingKey: "order-1"
+    )
+
+    #expect(message.data == "Hello World")
+    #expect(message.attributes["key"] == "value")
+    #expect(message.orderingKey == "order-1")
+}
+
+@Test func testPubSubTopicIAMCommands() {
+    let topic = GoogleCloudPubSubTopic(
+        name: "test-topic",
+        projectID: "test-project"
+    )
+
+    #expect(topic.getIAMPolicyCommand.contains("gcloud pubsub topics get-iam-policy test-topic"))
+
+    let addCmd = topic.addIAMBindingCommand(member: "user:test@example.com", role: "roles/pubsub.publisher")
+    #expect(addCmd.contains("gcloud pubsub topics add-iam-policy-binding test-topic"))
+    #expect(addCmd.contains("--member=user:test@example.com"))
+    #expect(addCmd.contains("--role=roles/pubsub.publisher"))
+}
+
+@Test func testPubSubRole() {
+    #expect(PubSubRole.admin.rawValue == "roles/pubsub.admin")
+    #expect(PubSubRole.publisher.rawValue == "roles/pubsub.publisher")
+    #expect(PubSubRole.subscriber.rawValue == "roles/pubsub.subscriber")
+    #expect(PubSubRole.publisher.displayName == "Pub/Sub Publisher")
+}
+
+@Test func testDAISPubSubTemplateEventsTopic() {
+    let topic = DAISPubSubTemplate.eventsTopic(
+        name: "dais-events",
+        projectID: "test-project"
+    )
+
+    #expect(topic.name == "dais-events")
+    #expect(topic.messageRetentionDuration == "7d")
+    #expect(topic.labels["app"] == "butteryai")
+    #expect(topic.labels["type"] == "events")
+}
+
+@Test func testDAISPubSubTemplateCommandsTopic() {
+    let topic = DAISPubSubTemplate.commandsTopic(
+        name: "dais-commands",
+        projectID: "test-project"
+    )
+
+    #expect(topic.messageRetentionDuration == "1d")
+    #expect(topic.labels["type"] == "commands")
+}
+
+@Test func testDAISPubSubTemplateNodeSubscription() {
+    let subscription = DAISPubSubTemplate.nodeSubscription(
+        nodeName: "node-1",
+        topicName: "events",
+        projectID: "test-project"
+    )
+
+    #expect(subscription.name == "node-1-sub")
+    #expect(subscription.enableExactlyOnceDelivery == true)
+    #expect(subscription.enableMessageOrdering == true)
+    #expect(subscription.labels["node"] == "node-1")
+}
+
+@Test func testDAISPubSubTemplateDeadLetterTopic() {
+    let topic = DAISPubSubTemplate.deadLetterTopic(
+        baseName: "dais",
+        projectID: "test-project"
+    )
+
+    #expect(topic.name == "dais-dead-letter")
+    #expect(topic.messageRetentionDuration == "14d")
+    #expect(topic.labels["type"] == "dead-letter")
+}
+
+@Test func testDAISPubSubTemplateSubscriptionWithDeadLetter() {
+    let subscription = DAISPubSubTemplate.subscriptionWithDeadLetter(
+        name: "main-sub",
+        topicName: "main-topic",
+        deadLetterTopicName: "dead-letter",
+        projectID: "test-project",
+        maxDeliveryAttempts: 15
+    )
+
+    #expect(subscription.deadLetterPolicy != nil)
+    #expect(subscription.deadLetterPolicy?.maxDeliveryAttempts == 15)
+    #expect(subscription.retryPolicy != nil)
+}
+
+@Test func testDAISPubSubTemplateSetupScript() {
+    let script = DAISPubSubTemplate.setupScript(
+        deploymentName: "prod",
+        projectID: "test-project",
+        nodeCount: 2
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("gcloud services enable pubsub.googleapis.com"))
+    #expect(script.contains("prod-events"))
+    #expect(script.contains("prod-commands"))
+    #expect(script.contains("prod-dead-letter"))
+    #expect(script.contains("prod-node-1-sub"))
+    #expect(script.contains("prod-node-2-sub"))
+}
+
+// MARK: - Pub/Sub Codable Tests
+
+@Test func testPubSubTopicCodable() throws {
+    let topic = GoogleCloudPubSubTopic(
+        name: "test-topic",
+        projectID: "test-project",
+        messageRetentionDuration: "7d",
+        labels: ["env": "test"]
+    )
+    let data = try JSONEncoder().encode(topic)
+    let decoded = try JSONDecoder().decode(GoogleCloudPubSubTopic.self, from: data)
+
+    #expect(decoded.name == topic.name)
+    #expect(decoded.messageRetentionDuration == topic.messageRetentionDuration)
+    #expect(decoded.labels == topic.labels)
+}
+
+@Test func testPubSubSubscriptionCodable() throws {
+    let subscription = GoogleCloudPubSubSubscription(
+        name: "test-sub",
+        topicName: "test-topic",
+        projectID: "test-project",
+        ackDeadlineSeconds: 30
+    )
+    let data = try JSONEncoder().encode(subscription)
+    let decoded = try JSONDecoder().decode(GoogleCloudPubSubSubscription.self, from: data)
+
+    #expect(decoded.name == subscription.name)
+    #expect(decoded.topicName == subscription.topicName)
+    #expect(decoded.ackDeadlineSeconds == subscription.ackDeadlineSeconds)
+}
+
+@Test func testPubSubSnapshotCodable() throws {
+    let snapshot = GoogleCloudPubSubSnapshot(
+        name: "test-snapshot",
+        subscriptionName: "test-sub",
+        projectID: "test-project"
+    )
+    let data = try JSONEncoder().encode(snapshot)
+    let decoded = try JSONDecoder().decode(GoogleCloudPubSubSnapshot.self, from: data)
+
+    #expect(decoded.name == snapshot.name)
+    #expect(decoded.subscriptionName == snapshot.subscriptionName)
+}
+
+@Test func testPubSubSchemaCodable() throws {
+    let schema = GoogleCloudPubSubSchema(
+        name: "test-schema",
+        projectID: "test-project",
+        type: .avro,
+        definition: "{}"
+    )
+    let data = try JSONEncoder().encode(schema)
+    let decoded = try JSONDecoder().decode(GoogleCloudPubSubSchema.self, from: data)
+
+    #expect(decoded.name == schema.name)
+    #expect(decoded.type == schema.type)
+}
