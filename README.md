@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 38 Google Cloud services:
+GoogleCloudSwift provides models for 39 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -118,6 +118,7 @@ GoogleCloudSwift provides models for 38 Google Cloud services:
 | **Cloud VPN** | Secure network connectivity | `GoogleCloudVPNGateway`, `GoogleCloudVPNTunnel`, `GoogleCloudExternalVPNGateway` |
 | **BigQuery** | Data warehouse and analytics | `GoogleCloudBigQueryDataset`, `GoogleCloudBigQueryTable`, `GoogleCloudBigQueryJob`, `GoogleCloudBigQueryView` |
 | **Cloud Spanner** | Globally distributed relational database | `GoogleCloudSpannerInstance`, `GoogleCloudSpannerDatabase`, `GoogleCloudSpannerBackup`, `DAISSpannerTemplate` |
+| **Firestore** | NoSQL document database | `GoogleCloudFirestoreDatabase`, `GoogleCloudFirestoreIndex`, `GoogleCloudFirestoreExport`, `DAISFirestoreTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -4357,6 +4358,147 @@ print(template.setupScript)
 | `nam6` | Multi-region (6 US regions) |
 | `eur3` | Multi-region (Belgium, London, Finland) |
 
+### GoogleCloudFirestoreDatabase (Firestore API)
+
+Firestore is a flexible, scalable NoSQL cloud database:
+
+```swift
+// Create a Firestore database (default)
+let database = GoogleCloudFirestoreDatabase(
+    projectID: "my-project",
+    locationID: "nam5",  // Multi-region United States
+    type: .firestoreNative,
+    pointInTimeRecoveryEnablement: .pointInTimeRecoveryEnabled,
+    deleteProtectionState: .deleteProtectionEnabled
+)
+
+print(database.createCommand)
+print(database.resourceName)  // projects/my-project/databases/(default)
+```
+
+**Named Databases:**
+
+```swift
+// Create a named database (for multi-database projects)
+let namedDatabase = GoogleCloudFirestoreDatabase(
+    name: "analytics-db",
+    projectID: "my-project",
+    locationID: "us-east1"
+)
+
+print(namedDatabase.createCommand)  // Includes --database=analytics-db
+```
+
+**Datastore Mode:**
+
+```swift
+// Create a database in Datastore mode for legacy compatibility
+let datastoreDb = GoogleCloudFirestoreDatabase(
+    name: "legacy-db",
+    projectID: "my-project",
+    locationID: "nam5",
+    type: .datastoreMode
+)
+```
+
+**Composite Indexes:**
+
+```swift
+// Create a composite index
+let index = GoogleCloudFirestoreIndex(
+    collectionGroup: "users",
+    projectID: "my-project",
+    queryScope: .collection,
+    fields: [
+        GoogleCloudFirestoreIndex.IndexField(fieldPath: "status", order: .ascending),
+        GoogleCloudFirestoreIndex.IndexField(fieldPath: "createdAt", order: .descending)
+    ]
+)
+
+print(index.createCommand)
+
+// Collection group index for subcollections
+let collectionGroupIndex = GoogleCloudFirestoreIndex(
+    collectionGroup: "events",
+    projectID: "my-project",
+    queryScope: .collectionGroup,
+    fields: [
+        GoogleCloudFirestoreIndex.IndexField(fieldPath: "timestamp", order: .descending)
+    ]
+)
+```
+
+**Export and Import:**
+
+```swift
+// Export data to Cloud Storage
+let export = GoogleCloudFirestoreExport(
+    projectID: "my-project",
+    outputUriPrefix: "gs://my-bucket/firestore-exports/2024-01-01",
+    collectionIds: ["users", "orders"]  // Optional: specific collections
+)
+
+print(export.exportCommand)
+
+// Import data from Cloud Storage
+let importOp = GoogleCloudFirestoreImport(
+    projectID: "my-project",
+    inputUriPrefix: "gs://my-bucket/firestore-exports/2024-01-01",
+    collectionIds: ["users"]
+)
+
+print(importOp.importCommand)
+```
+
+**Firestore Operations:**
+
+```swift
+// Enable API
+print(FirestoreOperations.enableAPICommand)
+
+// List operations
+print(FirestoreOperations.listOperationsCommand(projectID: "my-project"))
+
+// Start local emulator
+print(FirestoreOperations.startEmulatorCommand(port: 8080, projectID: "demo-project"))
+```
+
+**DAIS Firestore Templates:**
+
+```swift
+let template = DAISFirestoreTemplate(
+    projectID: "my-project",
+    location: FirestoreLocation.nam5
+)
+
+// Main database with PITR and delete protection
+let mainDb = template.mainDatabase
+
+// Analytics database (no PITR for cost savings)
+let analyticsDb = template.analyticsDatabase
+
+// Indexes for common DAIS queries
+let agentIndex = template.agentsByStatusIndex
+let taskIndex = template.tasksByAgentIndex
+let eventIndex = template.eventsCollectionGroupIndex
+
+// Daily export configuration
+let backup = template.dailyExport(bucketName: "my-backup-bucket")
+
+// Setup script
+print(template.setupScript)
+```
+
+**Firestore Locations:**
+
+| Location | Description |
+|----------|-------------|
+| `nam5` | Multi-region United States |
+| `eur3` | Multi-region Europe |
+| `us-east1` | South Carolina |
+| `europe-west1` | Belgium |
+| `asia-northeast1` | Tokyo |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -5783,6 +5925,15 @@ MIT License
 - [PostgreSQL Interface](https://cloud.google.com/spanner/docs/postgresql-interface)
 - [Backup and Restore](https://cloud.google.com/spanner/docs/backup)
 - [Multi-Region Configurations](https://cloud.google.com/spanner/docs/instance-configurations)
+
+### Firestore
+- [Firestore Documentation](https://cloud.google.com/firestore/docs)
+- [Firestore Data Model](https://cloud.google.com/firestore/docs/data-model)
+- [Composite Indexes](https://cloud.google.com/firestore/docs/query-data/indexing)
+- [Export and Import](https://cloud.google.com/firestore/docs/manage-data/export-import)
+- [Firestore Locations](https://cloud.google.com/firestore/docs/locations)
+- [Point-in-Time Recovery](https://cloud.google.com/firestore/docs/backups)
+- [Firestore Emulator](https://cloud.google.com/firestore/docs/emulator)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)
