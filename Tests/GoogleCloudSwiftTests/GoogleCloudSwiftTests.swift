@@ -5319,3 +5319,1294 @@ import Testing
     #expect(decoded.displayName == slo.displayName)
     #expect(decoded.goal == slo.goal)
 }
+
+// MARK: - VPC Network Tests
+
+@Test func testVPCNetworkBasicInit() {
+    let network = GoogleCloudVPCNetwork(
+        name: "my-vpc",
+        projectID: "test-project"
+    )
+
+    #expect(network.name == "my-vpc")
+    #expect(network.projectID == "test-project")
+    #expect(network.autoCreateSubnetworks == false)
+    #expect(network.routingMode == .regional)
+}
+
+@Test func testVPCNetworkWithOptions() {
+    let network = GoogleCloudVPCNetwork(
+        name: "global-vpc",
+        projectID: "test-project",
+        autoCreateSubnetworks: true,
+        routingMode: .global,
+        description: "Global VPC network",
+        mtu: 1500
+    )
+
+    #expect(network.name == "global-vpc")
+    #expect(network.autoCreateSubnetworks == true)
+    #expect(network.routingMode == .global)
+    #expect(network.description == "Global VPC network")
+    #expect(network.mtu == 1500)
+}
+
+@Test func testVPCNetworkResourceName() {
+    let network = GoogleCloudVPCNetwork(
+        name: "my-vpc",
+        projectID: "test-project"
+    )
+
+    #expect(network.resourceName == "projects/test-project/global/networks/my-vpc")
+    #expect(network.selfLink == "https://www.googleapis.com/compute/v1/projects/test-project/global/networks/my-vpc")
+}
+
+@Test func testVPCNetworkCreateCommand() {
+    let network = GoogleCloudVPCNetwork(
+        name: "my-vpc",
+        projectID: "test-project",
+        autoCreateSubnetworks: false,
+        routingMode: .global
+    )
+
+    #expect(network.createCommand.contains("gcloud compute networks create my-vpc"))
+    #expect(network.createCommand.contains("--project=test-project"))
+    #expect(network.createCommand.contains("--subnet-mode=custom"))
+    #expect(network.createCommand.contains("--bgp-routing-mode=global"))
+}
+
+@Test func testVPCNetworkAutoModeCreateCommand() {
+    let network = GoogleCloudVPCNetwork(
+        name: "auto-vpc",
+        projectID: "test-project",
+        autoCreateSubnetworks: true
+    )
+
+    #expect(network.createCommand.contains("--subnet-mode=auto"))
+}
+
+@Test func testVPCNetworkDeleteCommand() {
+    let network = GoogleCloudVPCNetwork(
+        name: "my-vpc",
+        projectID: "test-project"
+    )
+
+    #expect(network.deleteCommand == "gcloud compute networks delete my-vpc --project=test-project --quiet")
+}
+
+@Test func testVPCNetworkDescribeCommand() {
+    let network = GoogleCloudVPCNetwork(
+        name: "my-vpc",
+        projectID: "test-project"
+    )
+
+    #expect(network.describeCommand == "gcloud compute networks describe my-vpc --project=test-project")
+}
+
+@Test func testVPCNetworkListCommand() {
+    let cmd = GoogleCloudVPCNetwork.listCommand(projectID: "test-project")
+    #expect(cmd == "gcloud compute networks list --project=test-project")
+}
+
+@Test func testVPCNetworkUpdateCommand() {
+    let network = GoogleCloudVPCNetwork(
+        name: "my-vpc",
+        projectID: "test-project",
+        routingMode: .global
+    )
+
+    #expect(network.updateCommand.contains("gcloud compute networks update my-vpc"))
+    #expect(network.updateCommand.contains("--bgp-routing-mode=global"))
+}
+
+@Test func testVPCNetworkListSubnetsCommand() {
+    let network = GoogleCloudVPCNetwork(
+        name: "my-vpc",
+        projectID: "test-project"
+    )
+
+    #expect(network.listSubnetsCommand == "gcloud compute networks subnets list --network=my-vpc --project=test-project")
+}
+
+@Test func testVPCNetworkCodable() throws {
+    let network = GoogleCloudVPCNetwork(
+        name: "my-vpc",
+        projectID: "test-project",
+        autoCreateSubnetworks: false,
+        routingMode: .global,
+        description: "Test network",
+        mtu: 1460
+    )
+
+    let data = try JSONEncoder().encode(network)
+    let decoded = try JSONDecoder().decode(GoogleCloudVPCNetwork.self, from: data)
+
+    #expect(decoded.name == network.name)
+    #expect(decoded.routingMode == network.routingMode)
+    #expect(decoded.mtu == network.mtu)
+}
+
+@Test func testRoutingModeValues() {
+    #expect(GoogleCloudVPCNetwork.RoutingMode.regional.rawValue == "regional")
+    #expect(GoogleCloudVPCNetwork.RoutingMode.global.rawValue == "global")
+}
+
+// MARK: - Subnet Tests
+
+@Test func testSubnetBasicInit() {
+    let subnet = GoogleCloudSubnet(
+        name: "my-subnet",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        region: "us-central1",
+        ipCidrRange: "10.0.0.0/24"
+    )
+
+    #expect(subnet.name == "my-subnet")
+    #expect(subnet.networkName == "my-vpc")
+    #expect(subnet.projectID == "test-project")
+    #expect(subnet.region == "us-central1")
+    #expect(subnet.ipCidrRange == "10.0.0.0/24")
+    #expect(subnet.privateIpGoogleAccess == true)
+    #expect(subnet.enableFlowLogs == false)
+}
+
+@Test func testSubnetWithAllOptions() {
+    let subnet = GoogleCloudSubnet(
+        name: "my-subnet",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        region: "us-central1",
+        ipCidrRange: "10.0.0.0/24",
+        description: "Primary subnet",
+        privateIpGoogleAccess: true,
+        enableFlowLogs: true,
+        flowLogAggregationInterval: .interval5Min,
+        secondaryIpRanges: [
+            .init(rangeName: "pods", ipCidrRange: "10.4.0.0/14"),
+            .init(rangeName: "services", ipCidrRange: "10.0.32.0/20")
+        ],
+        purpose: .privateDefault,
+        stackType: .ipv4Ipv6
+    )
+
+    #expect(subnet.enableFlowLogs == true)
+    #expect(subnet.flowLogAggregationInterval == .interval5Min)
+    #expect(subnet.secondaryIpRanges.count == 2)
+    #expect(subnet.stackType == .ipv4Ipv6)
+}
+
+@Test func testSubnetResourceName() {
+    let subnet = GoogleCloudSubnet(
+        name: "my-subnet",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        region: "us-central1",
+        ipCidrRange: "10.0.0.0/24"
+    )
+
+    #expect(subnet.resourceName == "projects/test-project/regions/us-central1/subnetworks/my-subnet")
+}
+
+@Test func testSubnetCreateCommand() {
+    let subnet = GoogleCloudSubnet(
+        name: "my-subnet",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        region: "us-central1",
+        ipCidrRange: "10.0.0.0/24",
+        privateIpGoogleAccess: true,
+        enableFlowLogs: true,
+        flowLogAggregationInterval: .interval5Min
+    )
+
+    #expect(subnet.createCommand.contains("gcloud compute networks subnets create my-subnet"))
+    #expect(subnet.createCommand.contains("--network=my-vpc"))
+    #expect(subnet.createCommand.contains("--region=us-central1"))
+    #expect(subnet.createCommand.contains("--range=10.0.0.0/24"))
+    #expect(subnet.createCommand.contains("--enable-private-ip-google-access"))
+    #expect(subnet.createCommand.contains("--enable-flow-logs"))
+    #expect(subnet.createCommand.contains("--logging-aggregation-interval=INTERVAL_5_MIN"))
+}
+
+@Test func testSubnetWithSecondaryRanges() {
+    let subnet = GoogleCloudSubnet(
+        name: "gke-subnet",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        region: "us-central1",
+        ipCidrRange: "10.0.0.0/24",
+        secondaryIpRanges: [
+            .init(rangeName: "pods", ipCidrRange: "10.4.0.0/14")
+        ]
+    )
+
+    #expect(subnet.createCommand.contains("--secondary-range=pods=10.4.0.0/14"))
+}
+
+@Test func testSubnetDeleteCommand() {
+    let subnet = GoogleCloudSubnet(
+        name: "my-subnet",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        region: "us-central1",
+        ipCidrRange: "10.0.0.0/24"
+    )
+
+    #expect(subnet.deleteCommand == "gcloud compute networks subnets delete my-subnet --project=test-project --region=us-central1 --quiet")
+}
+
+@Test func testSubnetListCommand() {
+    let cmd = GoogleCloudSubnet.listCommand(projectID: "test-project")
+    #expect(cmd == "gcloud compute networks subnets list --project=test-project")
+}
+
+@Test func testSubnetListCommandWithRegion() {
+    let cmd = GoogleCloudSubnet.listCommand(projectID: "test-project", region: "us-central1")
+    #expect(cmd.contains("--regions=us-central1"))
+}
+
+@Test func testSubnetExpandIpRangeCommand() {
+    let subnet = GoogleCloudSubnet(
+        name: "my-subnet",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        region: "us-central1",
+        ipCidrRange: "10.0.0.0/24"
+    )
+
+    let cmd = subnet.expandIpRangeCommand(newRange: "20")
+    #expect(cmd.contains("expand-ip-range my-subnet"))
+    #expect(cmd.contains("--prefix-length=20"))
+}
+
+@Test func testSecondaryIPRange() {
+    let range = GoogleCloudSubnet.SecondaryIPRange(
+        rangeName: "pods",
+        ipCidrRange: "10.4.0.0/14"
+    )
+
+    #expect(range.rangeName == "pods")
+    #expect(range.ipCidrRange == "10.4.0.0/14")
+}
+
+@Test func testFlowLogIntervalValues() {
+    #expect(GoogleCloudSubnet.FlowLogInterval.interval5Sec.rawValue == "INTERVAL_5_SEC")
+    #expect(GoogleCloudSubnet.FlowLogInterval.interval30Sec.rawValue == "INTERVAL_30_SEC")
+    #expect(GoogleCloudSubnet.FlowLogInterval.interval1Min.rawValue == "INTERVAL_1_MIN")
+    #expect(GoogleCloudSubnet.FlowLogInterval.interval5Min.rawValue == "INTERVAL_5_MIN")
+}
+
+@Test func testSubnetPurposeValues() {
+    #expect(GoogleCloudSubnet.SubnetPurpose.privateDefault.rawValue == "PRIVATE")
+    #expect(GoogleCloudSubnet.SubnetPurpose.regionalManagedProxy.rawValue == "REGIONAL_MANAGED_PROXY")
+    #expect(GoogleCloudSubnet.SubnetPurpose.privateServiceConnect.rawValue == "PRIVATE_SERVICE_CONNECT")
+}
+
+@Test func testStackTypeValues() {
+    #expect(GoogleCloudSubnet.StackType.ipv4Only.rawValue == "IPV4_ONLY")
+    #expect(GoogleCloudSubnet.StackType.ipv4Ipv6.rawValue == "IPV4_IPV6")
+}
+
+@Test func testSubnetCodable() throws {
+    let subnet = GoogleCloudSubnet(
+        name: "my-subnet",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        region: "us-central1",
+        ipCidrRange: "10.0.0.0/24",
+        enableFlowLogs: true,
+        secondaryIpRanges: [.init(rangeName: "pods", ipCidrRange: "10.4.0.0/14")]
+    )
+
+    let data = try JSONEncoder().encode(subnet)
+    let decoded = try JSONDecoder().decode(GoogleCloudSubnet.self, from: data)
+
+    #expect(decoded.name == subnet.name)
+    #expect(decoded.secondaryIpRanges.count == 1)
+}
+
+// MARK: - Firewall Rule Tests
+
+@Test func testFirewallRuleBasicInit() {
+    let rule = GoogleCloudFirewallRule(
+        name: "allow-http",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        direction: .ingress,
+        allowed: [.init(protocol: .tcp, ports: ["80", "443"])],
+        sourceRanges: ["0.0.0.0/0"],
+        targetTags: ["web-server"]
+    )
+
+    #expect(rule.name == "allow-http")
+    #expect(rule.networkName == "my-vpc")
+    #expect(rule.direction == .ingress)
+    #expect(rule.allowed.count == 1)
+    #expect(rule.targetTags.contains("web-server"))
+}
+
+@Test func testFirewallRuleDefaults() {
+    let rule = GoogleCloudFirewallRule(
+        name: "test-rule",
+        networkName: "my-vpc",
+        projectID: "test-project"
+    )
+
+    #expect(rule.direction == .ingress)
+    #expect(rule.priority == 1000)
+    #expect(rule.disabled == false)
+    #expect(rule.enableLogging == false)
+}
+
+@Test func testFirewallRuleResourceName() {
+    let rule = GoogleCloudFirewallRule(
+        name: "allow-http",
+        networkName: "my-vpc",
+        projectID: "test-project"
+    )
+
+    #expect(rule.resourceName == "projects/test-project/global/firewalls/allow-http")
+}
+
+@Test func testVPCFirewallRuleCreateCommand() {
+    let rule = GoogleCloudFirewallRule(
+        name: "allow-http",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        direction: .ingress,
+        allowed: [.init(protocol: .tcp, ports: ["80", "443"])],
+        priority: 900,
+        sourceRanges: ["0.0.0.0/0"],
+        targetTags: ["web-server"]
+    )
+
+    #expect(rule.createCommand.contains("gcloud compute firewall-rules create allow-http"))
+    #expect(rule.createCommand.contains("--network=my-vpc"))
+    #expect(rule.createCommand.contains("--direction=INGRESS"))
+    #expect(rule.createCommand.contains("--priority=900"))
+    #expect(rule.createCommand.contains("--allow=tcp:80,443"))
+    #expect(rule.createCommand.contains("--source-ranges=0.0.0.0/0"))
+    #expect(rule.createCommand.contains("--target-tags=web-server"))
+}
+
+@Test func testFirewallRuleEgressDirection() {
+    let rule = GoogleCloudFirewallRule(
+        name: "deny-outbound",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        direction: .egress,
+        denied: [.init(protocol: .all)],
+        destinationRanges: ["0.0.0.0/0"]
+    )
+
+    #expect(rule.createCommand.contains("--direction=EGRESS"))
+    #expect(rule.createCommand.contains("--destination-ranges=0.0.0.0/0"))
+}
+
+@Test func testFirewallRuleWithLogging() {
+    let rule = GoogleCloudFirewallRule(
+        name: "logged-rule",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        enableLogging: true
+    )
+
+    #expect(rule.createCommand.contains("--enable-logging"))
+}
+
+@Test func testFirewallRuleDeleteCommand() {
+    let rule = GoogleCloudFirewallRule(
+        name: "allow-http",
+        networkName: "my-vpc",
+        projectID: "test-project"
+    )
+
+    #expect(rule.deleteCommand == "gcloud compute firewall-rules delete allow-http --project=test-project --quiet")
+}
+
+@Test func testFirewallRuleListCommand() {
+    let cmd = GoogleCloudFirewallRule.listCommand(projectID: "test-project")
+    #expect(cmd == "gcloud compute firewall-rules list --project=test-project")
+}
+
+@Test func testFirewallRuleUpdateCommand() {
+    let rule = GoogleCloudFirewallRule(
+        name: "allow-http",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        disabled: true
+    )
+
+    #expect(rule.updateCommand.contains("gcloud compute firewall-rules update allow-http"))
+    #expect(rule.updateCommand.contains("--disabled"))
+}
+
+@Test func testTrafficSpec() {
+    let spec = GoogleCloudFirewallRule.TrafficSpec(protocol: .tcp, ports: ["22", "80", "443"])
+    #expect(spec.ipProtocol == .tcp)
+    #expect(spec.ports?.count == 3)
+}
+
+@Test func testTrafficSpecAllProtocol() {
+    let spec = GoogleCloudFirewallRule.TrafficSpec(protocol: .all)
+    #expect(spec.ipProtocol == .all)
+    #expect(spec.ports == nil)
+}
+
+@Test func testIPProtocolValues() {
+    #expect(GoogleCloudFirewallRule.TrafficSpec.IPProtocol.tcp.rawValue == "tcp")
+    #expect(GoogleCloudFirewallRule.TrafficSpec.IPProtocol.udp.rawValue == "udp")
+    #expect(GoogleCloudFirewallRule.TrafficSpec.IPProtocol.icmp.rawValue == "icmp")
+    #expect(GoogleCloudFirewallRule.TrafficSpec.IPProtocol.all.rawValue == "all")
+}
+
+@Test func testFirewallRuleCodable() throws {
+    let rule = GoogleCloudFirewallRule(
+        name: "allow-http",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        direction: .ingress,
+        allowed: [.init(protocol: .tcp, ports: ["80"])],
+        sourceRanges: ["0.0.0.0/0"]
+    )
+
+    let data = try JSONEncoder().encode(rule)
+    let decoded = try JSONDecoder().decode(GoogleCloudFirewallRule.self, from: data)
+
+    #expect(decoded.name == rule.name)
+    #expect(decoded.allowed.count == 1)
+}
+
+// MARK: - Route Tests
+
+@Test func testRouteBasicInit() {
+    let route = GoogleCloudRoute(
+        name: "my-route",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        destRange: "10.1.0.0/16",
+        nextHop: .gateway("default-internet-gateway")
+    )
+
+    #expect(route.name == "my-route")
+    #expect(route.networkName == "my-vpc")
+    #expect(route.destRange == "10.1.0.0/16")
+    #expect(route.priority == 1000)
+}
+
+@Test func testRouteResourceName() {
+    let route = GoogleCloudRoute(
+        name: "my-route",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        destRange: "0.0.0.0/0",
+        nextHop: .gateway("default-internet-gateway")
+    )
+
+    #expect(route.resourceName == "projects/test-project/global/routes/my-route")
+}
+
+@Test func testRouteCreateCommandGateway() {
+    let route = GoogleCloudRoute(
+        name: "default-route",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        destRange: "0.0.0.0/0",
+        nextHop: .gateway("default-internet-gateway")
+    )
+
+    #expect(route.createCommand.contains("gcloud compute routes create default-route"))
+    #expect(route.createCommand.contains("--destination-range=0.0.0.0/0"))
+    #expect(route.createCommand.contains("--next-hop-gateway=default-internet-gateway"))
+}
+
+@Test func testRouteCreateCommandInstance() {
+    let route = GoogleCloudRoute(
+        name: "nat-route",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        destRange: "0.0.0.0/0",
+        nextHop: .instance(name: "nat-instance", zone: "us-central1-a")
+    )
+
+    #expect(route.createCommand.contains("--next-hop-instance=nat-instance"))
+    #expect(route.createCommand.contains("--next-hop-instance-zone=us-central1-a"))
+}
+
+@Test func testRouteCreateCommandIP() {
+    let route = GoogleCloudRoute(
+        name: "ip-route",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        destRange: "10.0.0.0/8",
+        nextHop: .ip(address: "10.0.0.1")
+    )
+
+    #expect(route.createCommand.contains("--next-hop-address=10.0.0.1"))
+}
+
+@Test func testRouteCreateCommandVpnTunnel() {
+    let route = GoogleCloudRoute(
+        name: "vpn-route",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        destRange: "192.168.0.0/16",
+        nextHop: .vpnTunnel(name: "my-tunnel", region: "us-central1")
+    )
+
+    #expect(route.createCommand.contains("--next-hop-vpn-tunnel=my-tunnel"))
+    #expect(route.createCommand.contains("--next-hop-vpn-tunnel-region=us-central1"))
+}
+
+@Test func testRouteCreateCommandILB() {
+    let route = GoogleCloudRoute(
+        name: "ilb-route",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        destRange: "10.0.0.0/8",
+        nextHop: .ilb(forwardingRule: "my-ilb", region: "us-central1")
+    )
+
+    #expect(route.createCommand.contains("--next-hop-ilb=my-ilb"))
+    #expect(route.createCommand.contains("--next-hop-ilb-region=us-central1"))
+}
+
+@Test func testRouteWithTags() {
+    let route = GoogleCloudRoute(
+        name: "tagged-route",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        destRange: "10.0.0.0/8",
+        nextHop: .gateway("default-internet-gateway"),
+        tags: ["web-server", "app-server"]
+    )
+
+    #expect(route.createCommand.contains("--tags=web-server,app-server"))
+}
+
+@Test func testRouteDeleteCommand() {
+    let route = GoogleCloudRoute(
+        name: "my-route",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        destRange: "0.0.0.0/0",
+        nextHop: .gateway("default-internet-gateway")
+    )
+
+    #expect(route.deleteCommand == "gcloud compute routes delete my-route --project=test-project --quiet")
+}
+
+@Test func testRouteListCommand() {
+    let cmd = GoogleCloudRoute.listCommand(projectID: "test-project")
+    #expect(cmd == "gcloud compute routes list --project=test-project")
+}
+
+@Test func testRouteCodable() throws {
+    let route = GoogleCloudRoute(
+        name: "my-route",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        destRange: "10.0.0.0/8",
+        nextHop: .ip(address: "10.0.0.1")
+    )
+
+    let data = try JSONEncoder().encode(route)
+    let decoded = try JSONDecoder().decode(GoogleCloudRoute.self, from: data)
+
+    #expect(decoded.name == route.name)
+    #expect(decoded.destRange == route.destRange)
+}
+
+// MARK: - VPC Peering Tests
+
+@Test func testVPCPeeringBasicInit() {
+    let peering = GoogleCloudVPCPeering(
+        name: "peer-to-shared",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        peerNetwork: "projects/shared-project/global/networks/shared-vpc"
+    )
+
+    #expect(peering.name == "peer-to-shared")
+    #expect(peering.networkName == "my-vpc")
+    #expect(peering.peerNetwork == "projects/shared-project/global/networks/shared-vpc")
+    #expect(peering.exportCustomRoutes == false)
+    #expect(peering.importCustomRoutes == false)
+}
+
+@Test func testVPCPeeringWithRouteExchange() {
+    let peering = GoogleCloudVPCPeering(
+        name: "peer-with-routes",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        peerNetwork: "projects/other/global/networks/other-vpc",
+        exportCustomRoutes: true,
+        importCustomRoutes: true
+    )
+
+    #expect(peering.exportCustomRoutes == true)
+    #expect(peering.importCustomRoutes == true)
+}
+
+@Test func testVPCPeeringCreateCommand() {
+    let peering = GoogleCloudVPCPeering(
+        name: "peer-to-shared",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        peerNetwork: "projects/shared-project/global/networks/shared-vpc",
+        exportCustomRoutes: true,
+        importCustomRoutes: true
+    )
+
+    #expect(peering.createCommand.contains("gcloud compute networks peerings create peer-to-shared"))
+    #expect(peering.createCommand.contains("--network=my-vpc"))
+    #expect(peering.createCommand.contains("--peer-network=projects/shared-project/global/networks/shared-vpc"))
+    #expect(peering.createCommand.contains("--export-custom-routes"))
+    #expect(peering.createCommand.contains("--import-custom-routes"))
+}
+
+@Test func testVPCPeeringDeleteCommand() {
+    let peering = GoogleCloudVPCPeering(
+        name: "peer-to-shared",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        peerNetwork: "projects/shared/global/networks/shared-vpc"
+    )
+
+    #expect(peering.deleteCommand == "gcloud compute networks peerings delete peer-to-shared --network=my-vpc --project=test-project --quiet")
+}
+
+@Test func testVPCPeeringListCommand() {
+    let cmd = GoogleCloudVPCPeering.listCommand(networkName: "my-vpc", projectID: "test-project")
+    #expect(cmd == "gcloud compute networks peerings list --network=my-vpc --project=test-project")
+}
+
+@Test func testVPCPeeringUpdateCommand() {
+    let peering = GoogleCloudVPCPeering(
+        name: "peer-to-shared",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        peerNetwork: "projects/shared/global/networks/shared-vpc",
+        exportCustomRoutes: true,
+        importCustomRoutes: false
+    )
+
+    #expect(peering.updateCommand.contains("--export-custom-routes"))
+    #expect(peering.updateCommand.contains("--no-import-custom-routes"))
+}
+
+@Test func testVPCPeeringCodable() throws {
+    let peering = GoogleCloudVPCPeering(
+        name: "peer-to-shared",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        peerNetwork: "projects/shared/global/networks/shared-vpc"
+    )
+
+    let data = try JSONEncoder().encode(peering)
+    let decoded = try JSONDecoder().decode(GoogleCloudVPCPeering.self, from: data)
+
+    #expect(decoded.name == peering.name)
+    #expect(decoded.peerNetwork == peering.peerNetwork)
+}
+
+// MARK: - Cloud Router Tests
+
+@Test func testCloudRouterBasicInit() {
+    let router = GoogleCloudRouter(
+        name: "my-router",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        region: "us-central1"
+    )
+
+    #expect(router.name == "my-router")
+    #expect(router.networkName == "my-vpc")
+    #expect(router.region == "us-central1")
+    #expect(router.bgpAsn == 64512)
+    #expect(router.advertiseMode == .default)
+}
+
+@Test func testCloudRouterWithCustomASN() {
+    let router = GoogleCloudRouter(
+        name: "my-router",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        region: "us-central1",
+        bgpAsn: 65000,
+        description: "Custom router",
+        advertisedIpRanges: ["10.0.0.0/8", "172.16.0.0/12"],
+        advertiseMode: .custom
+    )
+
+    #expect(router.bgpAsn == 65000)
+    #expect(router.advertiseMode == .custom)
+    #expect(router.advertisedIpRanges.count == 2)
+}
+
+@Test func testCloudRouterResourceName() {
+    let router = GoogleCloudRouter(
+        name: "my-router",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        region: "us-central1"
+    )
+
+    #expect(router.resourceName == "projects/test-project/regions/us-central1/routers/my-router")
+}
+
+@Test func testCloudRouterCreateCommand() {
+    let router = GoogleCloudRouter(
+        name: "my-router",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        region: "us-central1",
+        bgpAsn: 64512
+    )
+
+    #expect(router.createCommand.contains("gcloud compute routers create my-router"))
+    #expect(router.createCommand.contains("--network=my-vpc"))
+    #expect(router.createCommand.contains("--region=us-central1"))
+    #expect(router.createCommand.contains("--asn=64512"))
+}
+
+@Test func testCloudRouterWithCustomAdvertisement() {
+    let router = GoogleCloudRouter(
+        name: "my-router",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        region: "us-central1",
+        advertisedIpRanges: ["10.0.0.0/8"],
+        advertiseMode: .custom
+    )
+
+    #expect(router.createCommand.contains("--advertisement-mode=CUSTOM"))
+    #expect(router.createCommand.contains("--set-advertisement-ranges=10.0.0.0/8"))
+}
+
+@Test func testCloudRouterDeleteCommand() {
+    let router = GoogleCloudRouter(
+        name: "my-router",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        region: "us-central1"
+    )
+
+    #expect(router.deleteCommand == "gcloud compute routers delete my-router --project=test-project --region=us-central1 --quiet")
+}
+
+@Test func testCloudRouterListCommand() {
+    let cmd = GoogleCloudRouter.listCommand(projectID: "test-project")
+    #expect(cmd == "gcloud compute routers list --project=test-project")
+}
+
+@Test func testCloudRouterListCommandWithRegion() {
+    let cmd = GoogleCloudRouter.listCommand(projectID: "test-project", region: "us-central1")
+    #expect(cmd.contains("--regions=us-central1"))
+}
+
+@Test func testCloudRouterCodable() throws {
+    let router = GoogleCloudRouter(
+        name: "my-router",
+        networkName: "my-vpc",
+        projectID: "test-project",
+        region: "us-central1",
+        bgpAsn: 65000
+    )
+
+    let data = try JSONEncoder().encode(router)
+    let decoded = try JSONDecoder().decode(GoogleCloudRouter.self, from: data)
+
+    #expect(decoded.name == router.name)
+    #expect(decoded.bgpAsn == router.bgpAsn)
+}
+
+@Test func testAdvertiseModeValues() {
+    #expect(GoogleCloudRouter.AdvertiseMode.default.rawValue == "DEFAULT")
+    #expect(GoogleCloudRouter.AdvertiseMode.custom.rawValue == "CUSTOM")
+}
+
+// MARK: - Cloud NAT Tests
+
+@Test func testNATGatewayBasicInit() {
+    let nat = GoogleCloudNATGateway(
+        name: "my-nat",
+        routerName: "my-router",
+        projectID: "test-project",
+        region: "us-central1"
+    )
+
+    #expect(nat.name == "my-nat")
+    #expect(nat.routerName == "my-router")
+    #expect(nat.region == "us-central1")
+    #expect(nat.natIpAllocateOption == .autoOnly)
+    #expect(nat.enableEndpointIndependentMapping == true)
+}
+
+@Test func testNATGatewayWithOptions() {
+    let nat = GoogleCloudNATGateway(
+        name: "my-nat",
+        routerName: "my-router",
+        projectID: "test-project",
+        region: "us-central1",
+        minPortsPerVm: 128,
+        enableDynamicPortAllocation: true,
+        logFilter: .errorsOnly
+    )
+
+    #expect(nat.minPortsPerVm == 128)
+    #expect(nat.enableDynamicPortAllocation == true)
+    #expect(nat.logFilter == .errorsOnly)
+}
+
+@Test func testNATGatewayCreateCommand() {
+    let nat = GoogleCloudNATGateway(
+        name: "my-nat",
+        routerName: "my-router",
+        projectID: "test-project",
+        region: "us-central1",
+        minPortsPerVm: 64,
+        enableDynamicPortAllocation: true,
+        logFilter: .all
+    )
+
+    #expect(nat.createCommand.contains("gcloud compute routers nats create my-nat"))
+    #expect(nat.createCommand.contains("--router=my-router"))
+    #expect(nat.createCommand.contains("--region=us-central1"))
+    #expect(nat.createCommand.contains("--min-ports-per-vm=64"))
+    #expect(nat.createCommand.contains("--enable-dynamic-port-allocation"))
+    #expect(nat.createCommand.contains("--enable-logging"))
+    #expect(nat.createCommand.contains("--log-filter=ALL"))
+}
+
+@Test func testNATGatewayDeleteCommand() {
+    let nat = GoogleCloudNATGateway(
+        name: "my-nat",
+        routerName: "my-router",
+        projectID: "test-project",
+        region: "us-central1"
+    )
+
+    #expect(nat.deleteCommand == "gcloud compute routers nats delete my-nat --router=my-router --project=test-project --region=us-central1 --quiet")
+}
+
+@Test func testNATGatewayDescribeCommand() {
+    let nat = GoogleCloudNATGateway(
+        name: "my-nat",
+        routerName: "my-router",
+        projectID: "test-project",
+        region: "us-central1"
+    )
+
+    #expect(nat.describeCommand == "gcloud compute routers nats describe my-nat --router=my-router --project=test-project --region=us-central1")
+}
+
+@Test func testNATGatewayListCommand() {
+    let cmd = GoogleCloudNATGateway.listCommand(routerName: "my-router", projectID: "test-project", region: "us-central1")
+    #expect(cmd == "gcloud compute routers nats list --router=my-router --project=test-project --region=us-central1")
+}
+
+@Test func testNATIPAllocateOptionValues() {
+    #expect(GoogleCloudNATGateway.NATIPAllocateOption.autoOnly.rawValue == "AUTO_ONLY")
+    #expect(GoogleCloudNATGateway.NATIPAllocateOption.manualOnly.rawValue == "MANUAL_ONLY")
+}
+
+@Test func testSourceSubnetworkOptionValues() {
+    #expect(GoogleCloudNATGateway.SourceSubnetworkOption.allSubnetworksAllIpRanges.rawValue == "ALL_SUBNETWORKS_ALL_IP_RANGES")
+    #expect(GoogleCloudNATGateway.SourceSubnetworkOption.allSubnetworksAllPrimaryIpRanges.rawValue == "ALL_SUBNETWORKS_ALL_PRIMARY_IP_RANGES")
+    #expect(GoogleCloudNATGateway.SourceSubnetworkOption.listOfSubnetworks.rawValue == "LIST_OF_SUBNETWORKS")
+}
+
+@Test func testSubnetNATConfig() {
+    let config = GoogleCloudNATGateway.SubnetNATConfig(
+        subnetName: "my-subnet",
+        sourceIpRangesToNat: ["PRIMARY_IP_RANGE", "pods"]
+    )
+
+    #expect(config.subnetName == "my-subnet")
+    #expect(config.sourceIpRangesToNat.count == 2)
+}
+
+@Test func testNATLogFilterValues() {
+    #expect(GoogleCloudNATGateway.LogFilter.all.rawValue == "ALL")
+    #expect(GoogleCloudNATGateway.LogFilter.errorsOnly.rawValue == "ERRORS_ONLY")
+    #expect(GoogleCloudNATGateway.LogFilter.translationsOnly.rawValue == "TRANSLATIONS_ONLY")
+}
+
+@Test func testNATGatewayCodable() throws {
+    let nat = GoogleCloudNATGateway(
+        name: "my-nat",
+        routerName: "my-router",
+        projectID: "test-project",
+        region: "us-central1",
+        enableDynamicPortAllocation: true
+    )
+
+    let data = try JSONEncoder().encode(nat)
+    let decoded = try JSONDecoder().decode(GoogleCloudNATGateway.self, from: data)
+
+    #expect(decoded.name == nat.name)
+    #expect(decoded.enableDynamicPortAllocation == true)
+}
+
+// MARK: - Reserved IP Address Tests
+
+@Test func testReservedAddressBasicInit() {
+    let address = GoogleCloudReservedAddress(
+        name: "my-ip",
+        projectID: "test-project",
+        region: "us-central1"
+    )
+
+    #expect(address.name == "my-ip")
+    #expect(address.projectID == "test-project")
+    #expect(address.region == "us-central1")
+    #expect(address.addressType == .external)
+    #expect(address.ipVersion == .ipv4)
+    #expect(address.networkTier == .premium)
+}
+
+@Test func testReservedAddressGlobal() {
+    let address = GoogleCloudReservedAddress(
+        name: "global-ip",
+        projectID: "test-project",
+        region: nil
+    )
+
+    #expect(address.region == nil)
+}
+
+@Test func testReservedAddressInternal() {
+    let address = GoogleCloudReservedAddress(
+        name: "internal-ip",
+        projectID: "test-project",
+        region: "us-central1",
+        addressType: .internal,
+        subnetwork: "my-subnet"
+    )
+
+    #expect(address.addressType == .internal)
+    #expect(address.subnetwork == "my-subnet")
+}
+
+@Test func testReservedAddressCreateCommandRegional() {
+    let address = GoogleCloudReservedAddress(
+        name: "my-ip",
+        projectID: "test-project",
+        region: "us-central1",
+        networkTier: .premium
+    )
+
+    #expect(address.createCommand.contains("gcloud compute addresses create my-ip"))
+    #expect(address.createCommand.contains("--project=test-project"))
+    #expect(address.createCommand.contains("--region=us-central1"))
+    #expect(address.createCommand.contains("--ip-version=IPV4"))
+    #expect(address.createCommand.contains("--network-tier=PREMIUM"))
+}
+
+@Test func testReservedAddressCreateCommandGlobal() {
+    let address = GoogleCloudReservedAddress(
+        name: "global-ip",
+        projectID: "test-project",
+        region: nil
+    )
+
+    #expect(address.createCommand.contains("--global"))
+    #expect(!address.createCommand.contains("--region"))
+}
+
+@Test func testReservedAddressCreateCommandInternal() {
+    let address = GoogleCloudReservedAddress(
+        name: "internal-ip",
+        projectID: "test-project",
+        region: "us-central1",
+        addressType: .internal,
+        subnetwork: "my-subnet"
+    )
+
+    #expect(address.createCommand.contains("--address-type=INTERNAL"))
+    #expect(address.createCommand.contains("--subnet=my-subnet"))
+}
+
+@Test func testReservedAddressDeleteCommandRegional() {
+    let address = GoogleCloudReservedAddress(
+        name: "my-ip",
+        projectID: "test-project",
+        region: "us-central1"
+    )
+
+    #expect(address.deleteCommand == "gcloud compute addresses delete my-ip --project=test-project --region=us-central1 --quiet")
+}
+
+@Test func testReservedAddressDeleteCommandGlobal() {
+    let address = GoogleCloudReservedAddress(
+        name: "global-ip",
+        projectID: "test-project",
+        region: nil
+    )
+
+    #expect(address.deleteCommand == "gcloud compute addresses delete global-ip --project=test-project --global --quiet")
+}
+
+@Test func testReservedAddressDescribeCommandRegional() {
+    let address = GoogleCloudReservedAddress(
+        name: "my-ip",
+        projectID: "test-project",
+        region: "us-central1"
+    )
+
+    #expect(address.describeCommand == "gcloud compute addresses describe my-ip --project=test-project --region=us-central1")
+}
+
+@Test func testReservedAddressDescribeCommandGlobal() {
+    let address = GoogleCloudReservedAddress(
+        name: "global-ip",
+        projectID: "test-project",
+        region: nil
+    )
+
+    #expect(address.describeCommand == "gcloud compute addresses describe global-ip --project=test-project --global")
+}
+
+@Test func testReservedAddressListCommand() {
+    let cmd = GoogleCloudReservedAddress.listCommand(projectID: "test-project")
+    #expect(cmd == "gcloud compute addresses list --project=test-project")
+}
+
+@Test func testReservedAddressListCommandWithRegion() {
+    let cmd = GoogleCloudReservedAddress.listCommand(projectID: "test-project", region: "us-central1")
+    #expect(cmd.contains("--regions=us-central1"))
+}
+
+@Test func testAddressTypeValues() {
+    #expect(GoogleCloudReservedAddress.AddressType.external.rawValue == "EXTERNAL")
+    #expect(GoogleCloudReservedAddress.AddressType.internal.rawValue == "INTERNAL")
+}
+
+@Test func testIPVersionValues() {
+    #expect(GoogleCloudReservedAddress.IPVersion.ipv4.rawValue == "IPV4")
+    #expect(GoogleCloudReservedAddress.IPVersion.ipv6.rawValue == "IPV6")
+}
+
+@Test func testNetworkTierValues() {
+    #expect(GoogleCloudReservedAddress.NetworkTier.premium.rawValue == "PREMIUM")
+    #expect(GoogleCloudReservedAddress.NetworkTier.standard.rawValue == "STANDARD")
+}
+
+@Test func testAddressPurposeValues() {
+    #expect(GoogleCloudReservedAddress.AddressPurpose.gceEndpoint.rawValue == "GCE_ENDPOINT")
+    #expect(GoogleCloudReservedAddress.AddressPurpose.sharedLoadbalancerVip.rawValue == "SHARED_LOADBALANCER_VIP")
+    #expect(GoogleCloudReservedAddress.AddressPurpose.vpcPeering.rawValue == "VPC_PEERING")
+    #expect(GoogleCloudReservedAddress.AddressPurpose.privateServiceConnect.rawValue == "PRIVATE_SERVICE_CONNECT")
+}
+
+@Test func testReservedAddressCodable() throws {
+    let address = GoogleCloudReservedAddress(
+        name: "my-ip",
+        projectID: "test-project",
+        region: "us-central1",
+        addressType: .external,
+        ipVersion: .ipv4
+    )
+
+    let data = try JSONEncoder().encode(address)
+    let decoded = try JSONDecoder().decode(GoogleCloudReservedAddress.self, from: data)
+
+    #expect(decoded.name == address.name)
+    #expect(decoded.addressType == address.addressType)
+}
+
+// MARK: - Predefined CIDR Range Tests
+
+@Test func testPredefinedCIDRRangesPrivate() {
+    #expect(PredefinedCIDRRange.private10 == "10.0.0.0/8")
+    #expect(PredefinedCIDRRange.private172 == "172.16.0.0/12")
+    #expect(PredefinedCIDRRange.private192 == "192.168.0.0/16")
+}
+
+@Test func testPredefinedCIDRRangesSubnetSizes() {
+    #expect(PredefinedCIDRRange.subnet24 == "/24")
+    #expect(PredefinedCIDRRange.subnet23 == "/23")
+    #expect(PredefinedCIDRRange.subnet22 == "/22")
+    #expect(PredefinedCIDRRange.subnet20 == "/20")
+    #expect(PredefinedCIDRRange.subnet16 == "/16")
+}
+
+@Test func testPredefinedCIDRRangesGKE() {
+    #expect(PredefinedCIDRRange.gkePods == "10.4.0.0/14")
+    #expect(PredefinedCIDRRange.gkeServices == "10.0.32.0/20")
+    #expect(PredefinedCIDRRange.gkeMaster == "172.16.0.0/28")
+}
+
+@Test func testPredefinedCIDRRangesGoogleAccess() {
+    #expect(PredefinedCIDRRange.privateGoogleAccess == "199.36.153.8/30")
+    #expect(PredefinedCIDRRange.restrictedGoogleAccess == "199.36.153.4/30")
+}
+
+// MARK: - DAIS VPC Template Tests
+
+@Test func testDAISVPCTemplateNetwork() {
+    let network = DAISVPCTemplate.network(projectID: "test-project", deploymentName: "dais-prod")
+
+    #expect(network.name == "dais-prod-vpc")
+    #expect(network.projectID == "test-project")
+    #expect(network.autoCreateSubnetworks == false)
+    #expect(network.routingMode == .global)
+    #expect(network.description?.contains("dais-prod") == true)
+}
+
+@Test func testDAISVPCTemplateNodeSubnet() {
+    let subnet = DAISVPCTemplate.nodeSubnet(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        region: "us-central1"
+    )
+
+    #expect(subnet.name == "dais-prod-nodes")
+    #expect(subnet.networkName == "dais-prod-vpc")
+    #expect(subnet.region == "us-central1")
+    #expect(subnet.ipCidrRange == "10.0.0.0/24")
+    #expect(subnet.privateIpGoogleAccess == true)
+    #expect(subnet.enableFlowLogs == true)
+}
+
+@Test func testDAISVPCTemplateNodeSubnetCustomCIDR() {
+    let subnet = DAISVPCTemplate.nodeSubnet(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        region: "us-central1",
+        cidrRange: "10.1.0.0/20"
+    )
+
+    #expect(subnet.ipCidrRange == "10.1.0.0/20")
+}
+
+@Test func testDAISVPCTemplateGRPCFirewallRule() {
+    let rule = DAISVPCTemplate.grpcFirewallRule(
+        projectID: "test-project",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(rule.name == "dais-prod-allow-grpc")
+    #expect(rule.networkName == "dais-prod-vpc")
+    #expect(rule.direction == .ingress)
+    #expect(rule.allowed.count == 1)
+    #expect(rule.allowed[0].ipProtocol == .tcp)
+    #expect(rule.allowed[0].ports?.contains("9090") == true)
+    #expect(rule.targetTags.contains("dais-prod-node"))
+}
+
+@Test func testDAISVPCTemplateGRPCFirewallRuleCustomPort() {
+    let rule = DAISVPCTemplate.grpcFirewallRule(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        port: 50051
+    )
+
+    #expect(rule.allowed[0].ports?.contains("50051") == true)
+}
+
+@Test func testDAISVPCTemplateHealthCheckFirewallRule() {
+    let rule = DAISVPCTemplate.healthCheckFirewallRule(
+        projectID: "test-project",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(rule.name == "dais-prod-allow-health-check")
+    #expect(rule.sourceRanges.contains("35.191.0.0/16"))
+    #expect(rule.sourceRanges.contains("130.211.0.0/22"))
+}
+
+@Test func testDAISVPCTemplateSSHFirewallRule() {
+    let rule = DAISVPCTemplate.sshFirewallRule(
+        projectID: "test-project",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(rule.name == "dais-prod-allow-ssh")
+    #expect(rule.allowed[0].ports?.contains("22") == true)
+    #expect(rule.sourceRanges.contains("35.235.240.0/20"))
+}
+
+@Test func testDAISVPCTemplateInternalFirewallRule() {
+    let rule = DAISVPCTemplate.internalFirewallRule(
+        projectID: "test-project",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(rule.name == "dais-prod-allow-internal")
+    #expect(rule.allowed.count == 3)
+    #expect(rule.sourceTags.contains("dais-prod-node"))
+    #expect(rule.targetTags.contains("dais-prod-node"))
+}
+
+@Test func testDAISVPCTemplateRouter() {
+    let router = DAISVPCTemplate.router(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        region: "us-central1"
+    )
+
+    #expect(router.name == "dais-prod-router")
+    #expect(router.networkName == "dais-prod-vpc")
+    #expect(router.region == "us-central1")
+}
+
+@Test func testDAISVPCTemplateNATGateway() {
+    let nat = DAISVPCTemplate.natGateway(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        region: "us-central1"
+    )
+
+    #expect(nat.name == "dais-prod-nat")
+    #expect(nat.routerName == "dais-prod-router")
+    #expect(nat.enableDynamicPortAllocation == true)
+    #expect(nat.logFilter == .errorsOnly)
+}
+
+@Test func testDAISVPCTemplateSetupScript() {
+    let script = DAISVPCTemplate.setupScript(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        region: "us-central1"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("DAIS VPC Network Setup Script"))
+    #expect(script.contains("gcloud compute networks create dais-prod-vpc"))
+    #expect(script.contains("gcloud compute networks subnets create dais-prod-nodes"))
+    #expect(script.contains("gcloud compute firewall-rules create dais-prod-allow-grpc"))
+    #expect(script.contains("gcloud compute routers create dais-prod-router"))
+    #expect(script.contains("gcloud compute routers nats create dais-prod-nat"))
+}
+
+@Test func testDAISVPCTemplateSetupScriptCustomCIDR() {
+    let script = DAISVPCTemplate.setupScript(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        region: "us-central1",
+        nodeSubnetCidr: "10.1.0.0/20"
+    )
+
+    #expect(script.contains("--range=10.1.0.0/20"))
+    #expect(script.contains("Subnet: dais-prod-nodes (10.1.0.0/20)"))
+}
+
+@Test func testDAISVPCTemplateTeardownScript() {
+    let script = DAISVPCTemplate.teardownScript(
+        projectID: "test-project",
+        deploymentName: "dais-prod",
+        region: "us-central1"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("DAIS VPC Network Teardown Script"))
+    #expect(script.contains("Deleting Cloud NAT"))
+    #expect(script.contains("Deleting Cloud Router"))
+    #expect(script.contains("Deleting firewall rules"))
+    #expect(script.contains("Deleting subnet"))
+    #expect(script.contains("gcloud compute routers nats delete dais-prod-nat"))
+    #expect(script.contains("gcloud compute routers delete dais-prod-router"))
+}
