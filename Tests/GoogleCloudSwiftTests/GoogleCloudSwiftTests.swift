@@ -13358,3 +13358,396 @@ import Testing
     #expect(decoded.name == "my-memcached")
     #expect(decoded.nodeCount == 3)
 }
+
+// MARK: - VPC Service Controls Tests
+
+@Test func testAccessPolicyBasicInit() {
+    let policy = GoogleCloudAccessPolicy(
+        name: "12345678",
+        organizationID: "org-123",
+        title: "My Policy"
+    )
+
+    #expect(policy.name == "12345678")
+    #expect(policy.organizationID == "org-123")
+    #expect(policy.resourceName == "accessPolicies/12345678")
+}
+
+@Test func testAccessPolicyCreateCommand() {
+    let policy = GoogleCloudAccessPolicy(
+        name: "my-policy",
+        organizationID: "org-123",
+        title: "Production Policy"
+    )
+
+    let cmd = policy.createCommand
+    #expect(cmd.contains("access-context-manager policies create"))
+    #expect(cmd.contains("--organization=org-123"))
+    #expect(cmd.contains("--title=\"Production Policy\""))
+}
+
+@Test func testAccessPolicyListCommand() {
+    let cmd = GoogleCloudAccessPolicy.listCommand(organizationID: "org-456")
+    #expect(cmd.contains("policies list"))
+    #expect(cmd.contains("--organization=org-456"))
+}
+
+@Test func testServicePerimeterBasicInit() {
+    let perimeter = GoogleCloudServicePerimeter(
+        name: "my-perimeter",
+        policyID: "12345678",
+        title: "Data Protection",
+        resources: ["projects/123456"],
+        restrictedServices: ["storage.googleapis.com"]
+    )
+
+    #expect(perimeter.name == "my-perimeter")
+    #expect(perimeter.perimeterType == .regular)
+    #expect(perimeter.resourceName == "accessPolicies/12345678/servicePerimeters/my-perimeter")
+}
+
+@Test func testServicePerimeterCreateCommand() {
+    let perimeter = GoogleCloudServicePerimeter(
+        name: "data-perimeter",
+        policyID: "policy-123",
+        title: "Data Protection Perimeter",
+        description: "Protects data services",
+        resources: ["projects/123", "projects/456"],
+        restrictedServices: ["storage.googleapis.com", "bigquery.googleapis.com"],
+        accessLevels: ["corp-network"]
+    )
+
+    let cmd = perimeter.createCommand
+    #expect(cmd.contains("perimeters create data-perimeter"))
+    #expect(cmd.contains("--policy=policy-123"))
+    #expect(cmd.contains("--title=\"Data Protection Perimeter\""))
+    #expect(cmd.contains("--description=\"Protects data services\""))
+    #expect(cmd.contains("--resources=projects/123,projects/456"))
+    #expect(cmd.contains("--restricted-services=storage.googleapis.com,bigquery.googleapis.com"))
+    #expect(cmd.contains("--access-levels=corp-network"))
+}
+
+@Test func testServicePerimeterBridgeType() {
+    let perimeter = GoogleCloudServicePerimeter(
+        name: "bridge-perimeter",
+        policyID: "policy-123",
+        title: "Bridge",
+        perimeterType: .bridge,
+        resources: ["projects/123", "projects/456"]
+    )
+
+    let cmd = perimeter.createCommand
+    #expect(cmd.contains("--perimeter-type=bridge"))
+}
+
+@Test func testServicePerimeterUpdateResources() {
+    let perimeter = GoogleCloudServicePerimeter(
+        name: "test-perimeter",
+        policyID: "policy-123",
+        title: "Test"
+    )
+
+    let addCmd = perimeter.addResourcesCommand(resources: ["projects/789"])
+    #expect(addCmd.contains("perimeters update test-perimeter"))
+    #expect(addCmd.contains("--add-resources=projects/789"))
+
+    let removeCmd = perimeter.removeResourcesCommand(resources: ["projects/123"])
+    #expect(removeCmd.contains("--remove-resources=projects/123"))
+}
+
+@Test func testServicePerimeterVPCAccessibleServices() {
+    let perimeter = GoogleCloudServicePerimeter(
+        name: "vpc-perimeter",
+        policyID: "policy-123",
+        title: "VPC Services",
+        vpcAccessibleServices: GoogleCloudServicePerimeter.VPCAccessibleServices(
+            enableRestriction: true,
+            allowedServices: ["storage.googleapis.com"]
+        )
+    )
+
+    let cmd = perimeter.createCommand
+    #expect(cmd.contains("--enable-vpc-accessible-services"))
+    #expect(cmd.contains("--vpc-allowed-services=storage.googleapis.com"))
+}
+
+@Test func testAccessLevelBasicInit() {
+    let level = GoogleCloudAccessLevel(
+        name: "corp-network",
+        policyID: "policy-123",
+        title: "Corporate Network"
+    )
+
+    #expect(level.name == "corp-network")
+    #expect(level.resourceName == "accessPolicies/policy-123/accessLevels/corp-network")
+}
+
+@Test func testAccessLevelWithIPCondition() {
+    let level = GoogleCloudAccessLevel(
+        name: "office-access",
+        policyID: "policy-123",
+        title: "Office Access",
+        basic: GoogleCloudAccessLevel.BasicLevel(
+            conditions: [
+                GoogleCloudAccessLevel.BasicLevel.Condition(
+                    ipSubnetworks: ["10.0.0.0/8", "192.168.0.0/16"]
+                )
+            ]
+        )
+    )
+
+    let cmd = level.createCommand
+    #expect(cmd.contains("levels create office-access"))
+    #expect(cmd.contains("--policy=policy-123"))
+    #expect(cmd.contains("ipSubnetworks"))
+}
+
+@Test func testAccessLevelCustomExpression() {
+    let level = GoogleCloudAccessLevel(
+        name: "custom-level",
+        policyID: "policy-123",
+        title: "Custom Access",
+        custom: GoogleCloudAccessLevel.CustomLevel(
+            expression: "request.auth.claims.email.endsWith('@company.com')"
+        )
+    )
+
+    let cmd = level.createCommand
+    #expect(cmd.contains("--custom-level-spec"))
+}
+
+@Test func testRestrictedServicesCommon() {
+    #expect(RestrictedServices.storage == "storage.googleapis.com")
+    #expect(RestrictedServices.bigquery == "bigquery.googleapis.com")
+    #expect(RestrictedServices.kms == "cloudkms.googleapis.com")
+    #expect(RestrictedServices.allCommon.contains("storage.googleapis.com"))
+    #expect(RestrictedServices.dataStorage.contains("bigquery.googleapis.com"))
+    #expect(RestrictedServices.aiML.contains("aiplatform.googleapis.com"))
+}
+
+@Test func testVPCServiceControlsOperationsEnableAPI() {
+    let cmd = VPCServiceControlsOperations.enableAPICommand(projectID: "my-project")
+    #expect(cmd.contains("services enable accesscontextmanager.googleapis.com"))
+    #expect(cmd.contains("--project=my-project"))
+}
+
+@Test func testVPCServiceControlsOperationsDryRun() {
+    let commitCmd = VPCServiceControlsOperations.commitDryRunCommand(
+        perimeterName: "test-perimeter",
+        policyID: "policy-123"
+    )
+    #expect(commitCmd.contains("dry-run enforce test-perimeter"))
+
+    let clearCmd = VPCServiceControlsOperations.clearDryRunCommand(
+        perimeterName: "test-perimeter",
+        policyID: "policy-123"
+    )
+    #expect(clearCmd.contains("dry-run drop test-perimeter"))
+}
+
+@Test func testDAISVPCServiceControlsTemplateAccessPolicy() {
+    let policy = DAISVPCServiceControlsTemplate.accessPolicy(
+        organizationID: "org-123",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(policy.name == "dais-prod-policy")
+    #expect(policy.title.contains("dais-prod"))
+}
+
+@Test func testDAISVPCServiceControlsTemplateCorporateNetworkLevel() {
+    let level = DAISVPCServiceControlsTemplate.corporateNetworkLevel(
+        policyID: "policy-123",
+        deploymentName: "dais-prod",
+        corporateCIDRs: ["10.0.0.0/8", "172.16.0.0/12"]
+    )
+
+    #expect(level.name == "dais-prod-corporate-network")
+    #expect(level.basic?.conditions.first?.ipSubnetworks?.contains("10.0.0.0/8") == true)
+}
+
+@Test func testDAISVPCServiceControlsTemplateDataProtectionPerimeter() {
+    let perimeter = DAISVPCServiceControlsTemplate.dataProtectionPerimeter(
+        policyID: "policy-123",
+        deploymentName: "dais-prod",
+        projectNumbers: ["123456789", "987654321"]
+    )
+
+    #expect(perimeter.name == "dais-prod-data-protection")
+    #expect(perimeter.resources.contains("projects/123456789"))
+    #expect(perimeter.restrictedServices.contains("storage.googleapis.com"))
+}
+
+@Test func testDAISVPCServiceControlsTemplateBridgePerimeter() {
+    let perimeter = DAISVPCServiceControlsTemplate.bridgePerimeter(
+        policyID: "policy-123",
+        deploymentName: "dais-prod",
+        projectNumbers: ["123", "456"]
+    )
+
+    #expect(perimeter.perimeterType == .bridge)
+    #expect(perimeter.name == "dais-prod-bridge")
+}
+
+@Test func testDAISVPCServiceControlsTemplateComprehensivePerimeter() {
+    let perimeter = DAISVPCServiceControlsTemplate.comprehensivePerimeter(
+        policyID: "policy-123",
+        deploymentName: "dais-prod",
+        projectNumbers: ["123456"],
+        allowBigQueryExport: true
+    )
+
+    #expect(perimeter.name == "dais-prod-comprehensive")
+    #expect(perimeter.restrictedServices.count > 10)
+    #expect(perimeter.egressPolicies != nil)
+}
+
+@Test func testDAISVPCServiceControlsTemplatePerimeterYAML() {
+    let yaml = DAISVPCServiceControlsTemplate.perimeterYAML(
+        name: "test-perimeter",
+        title: "Test Perimeter",
+        resources: ["projects/123"],
+        restrictedServices: ["storage.googleapis.com"]
+    )
+
+    #expect(yaml.contains("name: test-perimeter"))
+    #expect(yaml.contains("title: Test Perimeter"))
+    #expect(yaml.contains("projects/123"))
+    #expect(yaml.contains("storage.googleapis.com"))
+}
+
+@Test func testDAISVPCServiceControlsTemplateSetupScript() {
+    let script = DAISVPCServiceControlsTemplate.setupScript(
+        organizationID: "org-123",
+        projectID: "my-project",
+        projectNumber: "123456789",
+        deploymentName: "dais-prod",
+        corporateCIDRs: ["10.0.0.0/8"]
+    )
+
+    #expect(script.contains("accesscontextmanager.googleapis.com"))
+    #expect(script.contains("policies create"))
+    #expect(script.contains("levels create"))
+    #expect(script.contains("perimeters create"))
+    #expect(script.contains("dais-prod"))
+}
+
+@Test func testAccessPolicyCodable() throws {
+    let policy = GoogleCloudAccessPolicy(
+        name: "12345678",
+        organizationID: "org-123",
+        title: "Test Policy",
+        scopes: ["projects/123"]
+    )
+
+    let data = try JSONEncoder().encode(policy)
+    let decoded = try JSONDecoder().decode(GoogleCloudAccessPolicy.self, from: data)
+
+    #expect(decoded.name == "12345678")
+    #expect(decoded.scopes?.contains("projects/123") == true)
+}
+
+@Test func testServicePerimeterCodable() throws {
+    let perimeter = GoogleCloudServicePerimeter(
+        name: "test-perimeter",
+        policyID: "policy-123",
+        title: "Test",
+        perimeterType: .regular,
+        resources: ["projects/123"],
+        restrictedServices: ["storage.googleapis.com"]
+    )
+
+    let data = try JSONEncoder().encode(perimeter)
+    let decoded = try JSONDecoder().decode(GoogleCloudServicePerimeter.self, from: data)
+
+    #expect(decoded.name == "test-perimeter")
+    #expect(decoded.perimeterType == .regular)
+}
+
+@Test func testAccessLevelCodable() throws {
+    let level = GoogleCloudAccessLevel(
+        name: "test-level",
+        policyID: "policy-123",
+        title: "Test Level",
+        basic: GoogleCloudAccessLevel.BasicLevel(
+            conditions: [
+                GoogleCloudAccessLevel.BasicLevel.Condition(
+                    ipSubnetworks: ["10.0.0.0/8"]
+                )
+            ]
+        )
+    )
+
+    let data = try JSONEncoder().encode(level)
+    let decoded = try JSONDecoder().decode(GoogleCloudAccessLevel.self, from: data)
+
+    #expect(decoded.name == "test-level")
+    #expect(decoded.basic?.conditions.first?.ipSubnetworks?.contains("10.0.0.0/8") == true)
+}
+
+@Test func testIngressPolicyStructure() {
+    let ingress = GoogleCloudServicePerimeter.IngressPolicy(
+        ingressFrom: GoogleCloudServicePerimeter.IngressPolicy.IngressFrom(
+            identityType: .anyServiceAccount,
+            sources: [
+                GoogleCloudServicePerimeter.IngressPolicy.IngressFrom.IngressSource(
+                    accessLevel: "accessPolicies/123/accessLevels/corp"
+                )
+            ]
+        ),
+        ingressTo: GoogleCloudServicePerimeter.IngressPolicy.IngressTo(
+            operations: [
+                GoogleCloudServicePerimeter.ServiceOperation(
+                    serviceName: "storage.googleapis.com"
+                )
+            ],
+            resources: ["*"]
+        )
+    )
+
+    #expect(ingress.ingressFrom.identityType == .anyServiceAccount)
+    #expect(ingress.ingressTo.operations.first?.serviceName == "storage.googleapis.com")
+}
+
+@Test func testEgressPolicyStructure() {
+    let egress = GoogleCloudServicePerimeter.EgressPolicy(
+        egressFrom: GoogleCloudServicePerimeter.EgressPolicy.EgressFrom(
+            identities: ["serviceAccount:sa@project.iam.gserviceaccount.com"]
+        ),
+        egressTo: GoogleCloudServicePerimeter.EgressPolicy.EgressTo(
+            operations: [
+                GoogleCloudServicePerimeter.ServiceOperation(
+                    serviceName: "bigquery.googleapis.com",
+                    methodSelectors: [
+                        GoogleCloudServicePerimeter.ServiceOperation.MethodSelector(
+                            method: "google.cloud.bigquery.v2.TableService.InsertAll"
+                        )
+                    ]
+                )
+            ],
+            externalResources: ["projects/external-project"]
+        )
+    )
+
+    #expect(egress.egressFrom.identities?.first?.contains("serviceAccount") == true)
+    #expect(egress.egressTo.externalResources?.contains("projects/external-project") == true)
+}
+
+@Test func testDevicePolicyConstraints() {
+    let devicePolicy = GoogleCloudAccessLevel.BasicLevel.Condition.DevicePolicy(
+        requireScreenlock: true,
+        allowedEncryptionStatuses: [.encrypted],
+        osConstraints: [
+            GoogleCloudAccessLevel.BasicLevel.Condition.DevicePolicy.OSConstraint(
+                osType: .desktopMac,
+                minimumVersion: "12.0"
+            )
+        ],
+        allowedDeviceManagementLevels: [.complete],
+        requireCorpOwned: true
+    )
+
+    #expect(devicePolicy.requireScreenlock == true)
+    #expect(devicePolicy.osConstraints?.first?.osType == .desktopMac)
+    #expect(devicePolicy.allowedDeviceManagementLevels?.contains(.complete) == true)
+}
