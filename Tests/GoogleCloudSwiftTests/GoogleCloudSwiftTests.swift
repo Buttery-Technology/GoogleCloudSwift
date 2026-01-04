@@ -13150,3 +13150,211 @@ import Testing
 
     #expect(decoded.name == "my-channel")
 }
+
+// MARK: - Cloud Memorystore Tests
+
+@Test func testRedisInstanceBasicInit() {
+    let instance = GoogleCloudRedisInstance(
+        name: "my-redis",
+        projectID: "my-project",
+        region: "us-central1",
+        tier: .basic,
+        memorySizeGB: 2
+    )
+
+    #expect(instance.name == "my-redis")
+    #expect(instance.tier == .basic)
+    #expect(instance.memorySizeGB == 2)
+}
+
+@Test func testRedisInstanceResourceName() {
+    let instance = GoogleCloudRedisInstance(
+        name: "my-redis",
+        projectID: "my-project",
+        region: "us-central1"
+    )
+
+    #expect(instance.resourceName == "projects/my-project/locations/us-central1/instances/my-redis")
+}
+
+@Test func testRedisInstanceCreateCommand() {
+    let instance = GoogleCloudRedisInstance(
+        name: "my-redis",
+        projectID: "my-project",
+        region: "us-central1",
+        tier: .standardHa,
+        memorySizeGB: 5,
+        redisVersion: .redis7_0,
+        authEnabled: true
+    )
+
+    let cmd = instance.createCommand
+    #expect(cmd.contains("redis instances create my-redis"))
+    #expect(cmd.contains("--tier=standard"))
+    #expect(cmd.contains("--size=5"))
+    #expect(cmd.contains("--enable-auth"))
+}
+
+@Test func testRedisInstanceDeleteCommand() {
+    let instance = GoogleCloudRedisInstance(
+        name: "my-redis",
+        projectID: "my-project",
+        region: "us-central1"
+    )
+
+    #expect(instance.deleteCommand.contains("redis instances delete my-redis"))
+    #expect(instance.deleteCommand.contains("--quiet"))
+}
+
+@Test func testRedisInstanceFailoverCommand() {
+    let instance = GoogleCloudRedisInstance(
+        name: "my-redis",
+        projectID: "my-project",
+        region: "us-central1",
+        tier: .standardHa
+    )
+
+    #expect(instance.failoverCommand.contains("redis instances failover my-redis"))
+}
+
+@Test func testRedisTierValues() {
+    #expect(GoogleCloudRedisInstance.Tier.basic.rawValue == "basic")
+    #expect(GoogleCloudRedisInstance.Tier.standardHa.rawValue == "standard")
+}
+
+@Test func testRedisVersionValues() {
+    #expect(GoogleCloudRedisInstance.RedisVersion.redis7_0.rawValue == "REDIS_7_0")
+    #expect(GoogleCloudRedisInstance.RedisVersion.redis6_x.rawValue == "REDIS_6_X")
+    #expect(GoogleCloudRedisInstance.RedisVersion.redis7_0.versionString == "7.0")
+}
+
+@Test func testMemcachedInstanceBasicInit() {
+    let instance = GoogleCloudMemcachedInstance(
+        name: "my-memcached",
+        projectID: "my-project",
+        region: "us-central1",
+        nodeCount: 3
+    )
+
+    #expect(instance.name == "my-memcached")
+    #expect(instance.nodeCount == 3)
+}
+
+@Test func testMemcachedInstanceCreateCommand() {
+    let instance = GoogleCloudMemcachedInstance(
+        name: "my-memcached",
+        projectID: "my-project",
+        region: "us-central1",
+        nodeCount: 3,
+        nodeCPUs: 2,
+        nodeMemoryMB: 2048
+    )
+
+    let cmd = instance.createCommand
+    #expect(cmd.contains("memcache instances create my-memcached"))
+    #expect(cmd.contains("--node-count=3"))
+    #expect(cmd.contains("--node-cpu=2"))
+    #expect(cmd.contains("--node-memory=2048MB"))
+}
+
+@Test func testMemorystoreOperationsGetConnection() {
+    let cmd = MemorystoreOperations.getRedisConnectionCommand(
+        instanceName: "my-redis",
+        region: "us-central1",
+        projectID: "my-project"
+    )
+
+    #expect(cmd.contains("redis instances describe my-redis"))
+    #expect(cmd.contains("value(host,port)"))
+}
+
+@Test func testMemorystoreOperationsScaleRedis() {
+    let cmd = MemorystoreOperations.scaleRedisCommand(
+        instanceName: "my-redis",
+        region: "us-central1",
+        projectID: "my-project",
+        newSizeGB: 10
+    )
+
+    #expect(cmd.contains("redis instances update"))
+    #expect(cmd.contains("--size=10"))
+}
+
+@Test func testDAISMemorystoreTemplateCacheInstance() {
+    let instance = DAISMemorystoreTemplate.cacheInstance(
+        projectID: "my-project",
+        region: "us-central1",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(instance.name == "dais-prod-cache")
+    #expect(instance.tier == .basic)
+    #expect(instance.redisConfigs?["maxmemory-policy"] == "allkeys-lru")
+}
+
+@Test func testDAISMemorystoreTemplateSessionStore() {
+    let instance = DAISMemorystoreTemplate.sessionStoreInstance(
+        projectID: "my-project",
+        region: "us-central1",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(instance.name == "dais-prod-sessions")
+    #expect(instance.tier == .standardHa)
+    #expect(instance.authEnabled == true)
+}
+
+@Test func testDAISMemorystoreTemplateHACluster() {
+    let instance = DAISMemorystoreTemplate.haClusterInstance(
+        projectID: "my-project",
+        region: "us-central1",
+        deploymentName: "dais-prod",
+        replicaCount: 2
+    )
+
+    #expect(instance.name == "dais-prod-ha-redis")
+    #expect(instance.replicaCount == 2)
+    #expect(instance.readReplicasMode == .readReplicasEnabled)
+}
+
+@Test func testDAISMemorystoreTemplateConnectionStrings() {
+    let basic = DAISMemorystoreTemplate.redisConnectionString(host: "10.0.0.1")
+    #expect(basic == "redis://10.0.0.1:6379")
+
+    let withAuth = DAISMemorystoreTemplate.redisConnectionStringWithAuth(
+        host: "10.0.0.1",
+        authString: "secret123"
+    )
+    #expect(withAuth.contains("secret123"))
+}
+
+@Test func testRedisInstanceCodable() throws {
+    let instance = GoogleCloudRedisInstance(
+        name: "my-redis",
+        projectID: "my-project",
+        region: "us-central1",
+        tier: .standardHa,
+        memorySizeGB: 5
+    )
+
+    let data = try JSONEncoder().encode(instance)
+    let decoded = try JSONDecoder().decode(GoogleCloudRedisInstance.self, from: data)
+
+    #expect(decoded.name == "my-redis")
+    #expect(decoded.tier == .standardHa)
+}
+
+@Test func testMemcachedInstanceCodable() throws {
+    let instance = GoogleCloudMemcachedInstance(
+        name: "my-memcached",
+        projectID: "my-project",
+        region: "us-central1",
+        nodeCount: 3
+    )
+
+    let data = try JSONEncoder().encode(instance)
+    let decoded = try JSONDecoder().decode(GoogleCloudMemcachedInstance.self, from: data)
+
+    #expect(decoded.name == "my-memcached")
+    #expect(decoded.nodeCount == 3)
+}

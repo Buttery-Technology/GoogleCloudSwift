@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 26 Google Cloud services:
+GoogleCloudSwift provides models for 27 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -111,6 +111,7 @@ GoogleCloudSwift provides models for 26 Google Cloud services:
 | **Cloud Tasks** | Distributed task queues | `GoogleCloudTaskQueue`, `GoogleCloudHTTPTask`, `GoogleCloudAppEngineTask` |
 | **Cloud KMS** | Key management service | `GoogleCloudKeyRing`, `GoogleCloudCryptoKey`, `GoogleCloudCryptoKeyVersion` |
 | **Eventarc** | Event-driven architecture | `GoogleCloudEventarcTrigger`, `GoogleCloudEventarcChannel`, `GoogleCloudEventType` |
+| **Memorystore** | Managed Redis & Memcached | `GoogleCloudRedisInstance`, `GoogleCloudMemcachedInstance` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -3425,6 +3426,96 @@ let pubsubTrigger = DAISEventarcTemplate.pubsubMessageTrigger(
 )
 ```
 
+### GoogleCloudRedisInstance (Memorystore)
+
+Deploy and manage Redis instances with Memorystore:
+
+```swift
+// Create a basic Redis instance
+let redis = GoogleCloudRedisInstance(
+    name: "my-cache",
+    projectID: "my-project",
+    region: "us-central1",
+    tier: .basic,
+    memorySizeGB: 1,
+    redisVersion: .redis7_0
+)
+print(redis.createCommand)
+// Output: gcloud redis instances create my-cache --project=my-project --region=us-central1 --tier=BASIC --size=1 --redis-version=redis_7_0
+
+// Create a high-availability Redis instance
+let haRedis = GoogleCloudRedisInstance(
+    name: "prod-cache",
+    projectID: "my-project",
+    region: "us-central1",
+    tier: .standard,
+    memorySizeGB: 5,
+    redisVersion: .redis7_0,
+    network: "default",
+    connectMode: .privateServiceAccess,
+    authEnabled: true,
+    transitEncryptionMode: .serverAuthentication
+)
+
+// Enable Redis AUTH
+print(haRedis.updateCommand(authEnabled: true))
+
+// Get instance details
+print(redis.describeCommand)
+
+// Export/Import for backup
+print(redis.exportCommand(gcsURI: "gs://my-bucket/redis-backup.rdb"))
+print(redis.importCommand(gcsURI: "gs://my-bucket/redis-backup.rdb"))
+```
+
+**Memcached Instances:**
+
+```swift
+// Create a Memcached instance
+let memcached = GoogleCloudMemcachedInstance(
+    name: "session-cache",
+    projectID: "my-project",
+    region: "us-central1",
+    nodeCount: 3,
+    nodeCPUs: 1,
+    nodeMemoryMB: 1024,
+    memcachedVersion: .memcache1_5
+)
+print(memcached.createCommand)
+
+// Update node count
+print(memcached.updateCommand(nodeCount: 5))
+
+// Apply parameters
+print(memcached.applyParametersCommand(applyAll: true))
+```
+
+**DAIS Memorystore Templates:**
+
+```swift
+// Create Redis for session caching
+let sessionCache = DAISMemorystoreTemplate.sessionCache(
+    projectID: "my-project",
+    region: "us-central1",
+    deploymentName: "dais-prod"
+)
+
+// Create Redis for API caching
+let apiCache = DAISMemorystoreTemplate.apiCache(
+    projectID: "my-project",
+    region: "us-central1",
+    deploymentName: "dais-prod",
+    memorySizeGB: 2
+)
+
+// Setup script for all caching infrastructure
+let script = DAISMemorystoreTemplate.setupScript(
+    projectID: "my-project",
+    region: "us-central1",
+    deploymentName: "dais-prod"
+)
+```
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -4053,6 +4144,11 @@ MIT License
 - [Eventarc Documentation](https://cloud.google.com/eventarc/docs)
 - [Eventarc Triggers](https://cloud.google.com/eventarc/docs/creating-triggers)
 - [Eventarc Event Types](https://cloud.google.com/eventarc/docs/reference/supported-events)
+
+### Caching Services
+- [Memorystore for Redis Documentation](https://cloud.google.com/memorystore/docs/redis)
+- [Memorystore for Memcached Documentation](https://cloud.google.com/memorystore/docs/memcached)
+- [Redis Best Practices](https://cloud.google.com/memorystore/docs/redis/memory-management-best-practices)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
