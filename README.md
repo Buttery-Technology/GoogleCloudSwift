@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 29 Google Cloud services:
+GoogleCloudSwift provides models for 30 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -114,6 +114,7 @@ GoogleCloudSwift provides models for 29 Google Cloud services:
 | **Memorystore** | Managed Redis & Memcached | `GoogleCloudRedisInstance`, `GoogleCloudMemcachedInstance` |
 | **VPC Service Controls** | Data exfiltration prevention | `GoogleCloudAccessPolicy`, `GoogleCloudServicePerimeter`, `GoogleCloudAccessLevel` |
 | **Cloud Filestore** | Managed NFS file shares | `GoogleCloudFilestoreInstance`, `GoogleCloudFilestoreBackup`, `GoogleCloudFilestoreSnapshot` |
+| **Cloud VPN** | Secure network connectivity | `GoogleCloudVPNGateway`, `GoogleCloudVPNTunnel`, `GoogleCloudExternalVPNGateway` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -3712,6 +3713,87 @@ let script = DAISFilestoreTemplate.setupScript(
 )
 ```
 
+### GoogleCloudVPNGateway (Cloud VPN)
+
+Create secure site-to-site VPN connections:
+
+```swift
+// Create an HA VPN Gateway
+let vpnGateway = GoogleCloudVPNGateway(
+    name: "my-vpn-gateway",
+    projectID: "my-project",
+    region: "us-central1",
+    network: "my-vpc",
+    stackType: .ipv4Only,
+    description: "HA VPN for on-premises connection"
+)
+print(vpnGateway.createCommand)
+
+// Create an External VPN Gateway (peer)
+let externalGateway = GoogleCloudExternalVPNGateway(
+    name: "on-prem-gateway",
+    projectID: "my-project",
+    interfaces: [
+        GoogleCloudExternalVPNGateway.Interface(id: 0, ipAddress: "203.0.113.1"),
+        GoogleCloudExternalVPNGateway.Interface(id: 1, ipAddress: "203.0.113.2")
+    ],
+    redundancyType: .twoIPs
+)
+print(externalGateway.createCommand)
+
+// Create VPN Tunnel
+let tunnel = GoogleCloudVPNTunnel(
+    name: "tunnel-0",
+    projectID: "my-project",
+    region: "us-central1",
+    vpnGateway: "my-vpn-gateway",
+    vpnGatewayInterface: 0,
+    peerExternalGateway: "on-prem-gateway",
+    peerExternalGatewayInterface: 0,
+    sharedSecret: "your-shared-secret",
+    router: "my-router",
+    ikeVersion: .v2
+)
+print(tunnel.createCommand)
+```
+
+**VPN Redundancy Types:**
+
+| Type | Interfaces | Use Case |
+|------|------------|----------|
+| `singleIPInternally` | 1 | Single active-passive device |
+| `twoIPs` | 2 | Two active-active devices |
+| `fourIPs` | 4 | Full HA deployment |
+
+**DAIS VPN Templates:**
+
+```swift
+// Create HA VPN infrastructure
+let haGateway = DAISVPNTemplate.haVPNGateway(
+    projectID: "my-project",
+    region: "us-central1",
+    deploymentName: "dais-prod",
+    network: "prod-vpc"
+)
+
+// Create external peer gateway
+let peerGateway = DAISVPNTemplate.externalGateway(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    peerIPs: ["203.0.113.1", "203.0.113.2"]
+)
+
+// Generate complete HA VPN setup script with BGP
+let script = DAISVPNTemplate.setupScript(
+    projectID: "my-project",
+    region: "us-central1",
+    deploymentName: "dais-prod",
+    network: "prod-vpc",
+    peerASN: 65001,
+    peerIPs: ["203.0.113.1"]
+)
+```
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -4357,6 +4439,12 @@ MIT License
 - [Filestore Tiers](https://cloud.google.com/filestore/docs/service-tiers)
 - [Filestore Backups](https://cloud.google.com/filestore/docs/backups)
 - [NFS Client Configuration](https://cloud.google.com/filestore/docs/mounting-fileshares)
+
+### Cloud VPN
+- [Cloud VPN Documentation](https://cloud.google.com/network-connectivity/docs/vpn)
+- [HA VPN Overview](https://cloud.google.com/network-connectivity/docs/vpn/concepts/overview)
+- [VPN Topologies](https://cloud.google.com/network-connectivity/docs/vpn/concepts/topologies)
+- [Cloud Router BGP](https://cloud.google.com/network-connectivity/docs/router/concepts/overview)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
