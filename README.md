@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 35 Google Cloud services:
+GoogleCloudSwift provides models for 36 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -120,6 +120,7 @@ GoogleCloudSwift provides models for 35 Google Cloud services:
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
 | **API Gateway** | Serverless API management | `GoogleCloudAPIGatewayAPI`, `GoogleCloudAPIGatewayConfig`, `GoogleCloudAPIGatewayGateway`, `OpenAPISpecBuilder` |
+| **Cloud DLP** | Sensitive data discovery & protection | `GoogleCloudDLPInfoType`, `GoogleCloudDLPInspectConfig`, `GoogleCloudDLPDeidentifyConfig`, `GoogleCloudDLPJobTrigger` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -4571,6 +4572,168 @@ print(APIGatewayOperations.enableAPIsCommand)
 | `failed` | Gateway creation or update failed |
 | `deleting` | Gateway is being deleted |
 
+### GoogleCloudDLPInfoType (Cloud DLP)
+
+Discover and protect sensitive data with Cloud DLP:
+
+```swift
+// Use built-in info types
+let creditCard = GoogleCloudDLPInfoType.creditCardNumber
+let email = GoogleCloudDLPInfoType.emailAddress
+let ssn = GoogleCloudDLPInfoType.usSSN
+
+// Get all common PII types
+let allPII = GoogleCloudDLPInfoType.allPII
+
+// Get financial-specific types
+let financialTypes = GoogleCloudDLPInfoType.financial
+
+// Create custom info type
+let customType = GoogleCloudDLPInfoType(
+    name: "EMPLOYEE_ID",
+    sensitivityScore: .sensitivityHigh
+)
+```
+
+**Inspection Configuration:**
+
+```swift
+// Configure content inspection
+let inspectConfig = GoogleCloudDLPInspectConfig(
+    infoTypes: [.emailAddress, .phoneNumber, .creditCardNumber],
+    minLikelihood: .likely,
+    limits: GoogleCloudDLPInspectConfig.FindingLimits(
+        maxFindingsPerItem: 100,
+        maxFindingsPerRequest: 1000
+    ),
+    includeQuote: true
+)
+```
+
+**De-identification:**
+
+```swift
+// Redact all sensitive data
+let redactTransform = PrimitiveTransformation.redact
+
+// Replace with placeholder
+let replaceTransform = PrimitiveTransformation.replace(with: "[REDACTED]")
+
+// Mask characters (e.g., ****-****-****-1234)
+let maskTransform = PrimitiveTransformation.mask(character: "*", numberToMask: 12)
+
+// Replace with info type name (e.g., [EMAIL_ADDRESS])
+let infoTypeTransform = PrimitiveTransformation.replaceWithInfoType
+
+// Create de-identification config
+let deidentifyConfig = GoogleCloudDLPDeidentifyConfig(
+    infoTypeTransformations: GoogleCloudDLPDeidentifyConfig.InfoTypeTransformations(
+        transformations: [
+            GoogleCloudDLPDeidentifyConfig.InfoTypeTransformations.InfoTypeTransformation(
+                infoTypes: [.creditCardNumber],
+                primitiveTransformation: .mask(character: "*", numberToMask: 12)
+            ),
+            GoogleCloudDLPDeidentifyConfig.InfoTypeTransformations.InfoTypeTransformation(
+                infoTypes: [.emailAddress],
+                primitiveTransformation: .replaceWithInfoType
+            )
+        ]
+    )
+)
+```
+
+**Inspect Templates:**
+
+```swift
+// Create reusable inspection template
+let template = GoogleCloudDLPInspectTemplate(
+    name: "pii-inspect-template",
+    projectID: "my-project",
+    location: "global",
+    displayName: "PII Inspection Template",
+    description: "Detects common PII in content",
+    inspectConfig: inspectConfig
+)
+
+print(template.createCommand)
+print(template.resourceName)
+```
+
+**Job Triggers:**
+
+```swift
+// Create scheduled inspection job
+let trigger = GoogleCloudDLPJobTrigger(
+    name: "daily-scan",
+    projectID: "my-project",
+    displayName: "Daily PII Scan",
+    triggers: [
+        GoogleCloudDLPJobTrigger.Trigger(
+            schedule: .days(1)  // Run daily
+        )
+    ]
+)
+
+print(trigger.activateCommand)
+print(trigger.pauseCommand)
+```
+
+**DAIS DLP Templates:**
+
+```swift
+// Create DAIS DLP templates
+let template = DAISDLPTemplate(projectID: "my-project")
+
+// Get pre-configured inspection configs
+let piiConfig = template.piiInspectConfig
+let financialConfig = template.financialInspectConfig
+let healthcareConfig = template.healthcareInspectConfig
+
+// Get de-identification configs
+let redactionConfig = template.redactionDeidentifyConfig
+let maskingConfig = template.maskingDeidentifyConfig
+
+// Get ready-to-use templates
+let piiInspectTemplate = template.piiInspectTemplate
+let redactionTemplate = template.redactionDeidentifyTemplate
+
+// Deploy
+print(template.setupScript)
+```
+
+**DLP Operations:**
+
+```swift
+// Inspect content
+print(DLPOperations.inspectContentCommand(
+    projectID: "my-project",
+    content: "Contact: john@example.com",
+    infoTypes: [.emailAddress, .phoneNumber]
+))
+
+// Inspect file
+print(DLPOperations.inspectFileCommand(
+    projectID: "my-project",
+    file: "data.csv",
+    infoTypes: GoogleCloudDLPInfoType.allPII
+))
+
+// List templates
+print(DLPOperations.listInspectTemplatesCommand(projectID: "my-project"))
+
+// Enable API
+print(DLPOperations.enableAPICommand)
+```
+
+**Info Type Categories:**
+
+| Category | Info Types |
+|----------|------------|
+| PII | EMAIL_ADDRESS, PHONE_NUMBER, PERSON_NAME, STREET_ADDRESS, DATE_OF_BIRTH |
+| Financial | CREDIT_CARD_NUMBER, IBAN_CODE, SWIFT_CODE, CRYPTO_WALLET |
+| Identity | US_SOCIAL_SECURITY_NUMBER, US_DRIVERS_LICENSE_NUMBER, US_PASSPORT |
+| Healthcare | MEDICAL_RECORD_NUMBER |
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -5268,6 +5431,16 @@ MIT License
 - [JWT Validation](https://cloud.google.com/api-gateway/docs/authenticating-users-jwt)
 - [Backend Configuration](https://cloud.google.com/api-gateway/docs/backends)
 - [Monitoring and Logging](https://cloud.google.com/api-gateway/docs/monitoring)
+
+### Cloud DLP
+- [Cloud DLP Documentation](https://cloud.google.com/dlp/docs)
+- [Info Types Reference](https://cloud.google.com/dlp/docs/infotypes-reference)
+- [Inspecting Content](https://cloud.google.com/dlp/docs/inspecting-text)
+- [De-identification](https://cloud.google.com/dlp/docs/deidentify-sensitive-data)
+- [Masking and Tokenization](https://cloud.google.com/dlp/docs/transformations-reference)
+- [Job Triggers](https://cloud.google.com/dlp/docs/creating-job-triggers)
+- [Templates](https://cloud.google.com/dlp/docs/creating-templates)
+- [Custom Info Types](https://cloud.google.com/dlp/docs/creating-custom-infotypes)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
