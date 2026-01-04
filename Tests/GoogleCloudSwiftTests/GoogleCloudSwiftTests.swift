@@ -14419,3 +14419,560 @@ import Testing
     #expect(GoogleCloudExternalVPNGateway.RedundancyType.twoIPs.rawValue == "TWO_IPS_REDUNDANCY")
     #expect(GoogleCloudExternalVPNGateway.RedundancyType.fourIPs.rawValue == "FOUR_IPS_REDUNDANCY")
 }
+
+// MARK: - BigQuery Tests
+
+@Test func testBigQueryDatasetBasicInit() {
+    let dataset = GoogleCloudBigQueryDataset(
+        datasetID: "analytics",
+        projectID: "my-project",
+        location: "US",
+        description: "Analytics dataset"
+    )
+
+    #expect(dataset.datasetID == "analytics")
+    #expect(dataset.projectID == "my-project")
+    #expect(dataset.location == "US")
+    #expect(dataset.resourceName == "projects/my-project/datasets/analytics")
+}
+
+@Test func testBigQueryDatasetCreateCommand() {
+    let dataset = GoogleCloudBigQueryDataset(
+        datasetID: "logs",
+        projectID: "my-project",
+        location: "EU",
+        description: "Logs dataset",
+        defaultTableExpirationMs: 7776000000, // 90 days
+        labels: ["env": "prod", "team": "data"]
+    )
+
+    let cmd = dataset.createCommand
+    #expect(cmd.contains("bq mk --dataset"))
+    #expect(cmd.contains("--location=EU"))
+    #expect(cmd.contains("--description=\"Logs dataset\""))
+    #expect(cmd.contains("--default_table_expiration=7776000"))
+    #expect(cmd.contains("--label="))
+    #expect(cmd.contains("my-project:logs"))
+}
+
+@Test func testBigQueryDatasetDescribeCommand() {
+    let dataset = GoogleCloudBigQueryDataset(
+        datasetID: "analytics",
+        projectID: "my-project"
+    )
+
+    #expect(dataset.describeCommand == "bq show --format=prettyjson my-project:analytics")
+}
+
+@Test func testBigQueryDatasetDeleteCommand() {
+    let dataset = GoogleCloudBigQueryDataset(
+        datasetID: "temp_data",
+        projectID: "my-project"
+    )
+
+    #expect(dataset.deleteCommand == "bq rm -r -f -d my-project:temp_data")
+}
+
+@Test func testBigQueryDatasetUpdateCommand() {
+    let dataset = GoogleCloudBigQueryDataset(
+        datasetID: "analytics",
+        projectID: "my-project"
+    )
+
+    let cmd = dataset.updateCommand(description: "Updated description", expirationMs: 86400000)
+    #expect(cmd.contains("bq update"))
+    #expect(cmd.contains("--description=\"Updated description\""))
+    #expect(cmd.contains("--default_table_expiration=86400"))
+}
+
+@Test func testBigQueryDatasetListCommand() {
+    let cmd = GoogleCloudBigQueryDataset.listCommand(projectID: "my-project")
+    #expect(cmd == "bq ls --format=prettyjson --project_id=my-project")
+}
+
+@Test func testBigQueryTableBasicInit() {
+    let table = GoogleCloudBigQueryTable(
+        tableID: "events",
+        datasetID: "analytics",
+        projectID: "my-project",
+        description: "Events table"
+    )
+
+    #expect(table.tableID == "events")
+    #expect(table.datasetID == "analytics")
+    #expect(table.tableReference == "my-project:analytics.events")
+    #expect(table.resourceName == "projects/my-project/datasets/analytics/tables/events")
+}
+
+@Test func testBigQueryTableWithPartitioningAndClustering() {
+    let table = GoogleCloudBigQueryTable(
+        tableID: "events",
+        datasetID: "analytics",
+        projectID: "my-project",
+        partitioning: GoogleCloudBigQueryTable.Partitioning(
+            type: .day,
+            field: "event_timestamp",
+            expirationMs: 31536000000 // 365 days
+        ),
+        clustering: GoogleCloudBigQueryTable.Clustering(
+            fields: ["event_type", "user_id"]
+        )
+    )
+
+    let cmd = table.createCommand(schemaFile: "schema.json")
+    #expect(cmd.contains("bq mk --table"))
+    #expect(cmd.contains("--time_partitioning_field=event_timestamp"))
+    #expect(cmd.contains("--time_partitioning_type=DAY"))
+    #expect(cmd.contains("--time_partitioning_expiration=31536000"))
+    #expect(cmd.contains("--clustering_fields=event_type,user_id"))
+    #expect(cmd.contains("my-project:analytics.events"))
+    #expect(cmd.contains("schema.json"))
+}
+
+@Test func testBigQueryTableDescribeCommand() {
+    let table = GoogleCloudBigQueryTable(
+        tableID: "users",
+        datasetID: "app",
+        projectID: "my-project"
+    )
+
+    #expect(table.describeCommand == "bq show --format=prettyjson my-project:app.users")
+}
+
+@Test func testBigQueryTableDeleteCommand() {
+    let table = GoogleCloudBigQueryTable(
+        tableID: "temp",
+        datasetID: "staging",
+        projectID: "my-project"
+    )
+
+    #expect(table.deleteCommand == "bq rm -f -t my-project:staging.temp")
+}
+
+@Test func testBigQueryTableGetSchemaCommand() {
+    let table = GoogleCloudBigQueryTable(
+        tableID: "events",
+        datasetID: "analytics",
+        projectID: "my-project"
+    )
+
+    #expect(table.getSchemaCommand == "bq show --schema --format=prettyjson my-project:analytics.events")
+}
+
+@Test func testBigQueryTableListCommand() {
+    let cmd = GoogleCloudBigQueryTable.listCommand(projectID: "my-project", datasetID: "analytics")
+    #expect(cmd == "bq ls --format=prettyjson my-project:analytics")
+}
+
+@Test func testBigQuerySchemaFieldTypes() {
+    #expect(GoogleCloudBigQueryTable.Schema.Field.FieldType.string.rawValue == "STRING")
+    #expect(GoogleCloudBigQueryTable.Schema.Field.FieldType.integer.rawValue == "INTEGER")
+    #expect(GoogleCloudBigQueryTable.Schema.Field.FieldType.timestamp.rawValue == "TIMESTAMP")
+    #expect(GoogleCloudBigQueryTable.Schema.Field.FieldType.json.rawValue == "JSON")
+    #expect(GoogleCloudBigQueryTable.Schema.Field.FieldType.record.rawValue == "RECORD")
+}
+
+@Test func testBigQuerySchemaFieldModes() {
+    #expect(GoogleCloudBigQueryTable.Schema.Field.Mode.nullable.rawValue == "NULLABLE")
+    #expect(GoogleCloudBigQueryTable.Schema.Field.Mode.required.rawValue == "REQUIRED")
+    #expect(GoogleCloudBigQueryTable.Schema.Field.Mode.repeated.rawValue == "REPEATED")
+}
+
+@Test func testBigQueryPartitionTypes() {
+    #expect(GoogleCloudBigQueryTable.Partitioning.PartitionType.day.rawValue == "DAY")
+    #expect(GoogleCloudBigQueryTable.Partitioning.PartitionType.hour.rawValue == "HOUR")
+    #expect(GoogleCloudBigQueryTable.Partitioning.PartitionType.month.rawValue == "MONTH")
+    #expect(GoogleCloudBigQueryTable.Partitioning.PartitionType.year.rawValue == "YEAR")
+}
+
+@Test func testBigQueryJobBasicInit() {
+    let job = GoogleCloudBigQueryJob(
+        projectID: "my-project",
+        query: "SELECT * FROM `my-project.analytics.events` LIMIT 100"
+    )
+
+    #expect(job.projectID == "my-project")
+    #expect(job.query.contains("SELECT"))
+}
+
+@Test func testBigQueryJobQueryCommand() {
+    let job = GoogleCloudBigQueryJob(
+        projectID: "my-project",
+        location: "US",
+        query: "SELECT COUNT(*) FROM `my-project.analytics.events`",
+        maximumBytesBilled: 10737418240 // 10GB
+    )
+
+    let cmd = job.queryCommand
+    #expect(cmd.contains("bq query"))
+    #expect(cmd.contains("--location=US"))
+    #expect(cmd.contains("--use_legacy_sql=false"))
+    #expect(cmd.contains("--maximum_bytes_billed=10737418240"))
+    #expect(cmd.contains("--format=prettyjson"))
+}
+
+@Test func testBigQueryJobWithDestinationTable() {
+    let job = GoogleCloudBigQueryJob(
+        projectID: "my-project",
+        query: "SELECT * FROM source",
+        destinationTable: "my-project:analytics.results",
+        writeDisposition: .writeTruncate
+    )
+
+    let cmd = job.queryCommand
+    #expect(cmd.contains("--destination_table=my-project:analytics.results"))
+    #expect(cmd.contains("--replace"))
+}
+
+@Test func testBigQueryJobInfoCommand() {
+    let job = GoogleCloudBigQueryJob(
+        jobID: "job_abc123",
+        projectID: "my-project",
+        location: "US",
+        query: "SELECT 1"
+    )
+
+    let cmd = job.infoCommand
+    #expect(cmd.contains("bq show"))
+    #expect(cmd.contains("--job=true"))
+    #expect(cmd.contains("--location=US"))
+    #expect(cmd.contains("my-project:job_abc123"))
+}
+
+@Test func testBigQueryJobCancelCommand() {
+    let job = GoogleCloudBigQueryJob(
+        jobID: "job_xyz789",
+        projectID: "my-project",
+        location: "EU",
+        query: "SELECT 1"
+    )
+
+    let cmd = job.cancelCommand
+    #expect(cmd.contains("bq cancel"))
+    #expect(cmd.contains("--location=EU"))
+    #expect(cmd.contains("my-project:job_xyz789"))
+}
+
+@Test func testBigQueryJobListCommand() {
+    let cmd = GoogleCloudBigQueryJob.listCommand(projectID: "my-project", allUsers: true)
+    #expect(cmd.contains("bq ls --jobs=true"))
+    #expect(cmd.contains("--project_id=my-project"))
+    #expect(cmd.contains("--all"))
+}
+
+@Test func testBigQueryWriteDispositions() {
+    #expect(GoogleCloudBigQueryJob.WriteDisposition.writeEmpty.rawValue == "WRITE_EMPTY")
+    #expect(GoogleCloudBigQueryJob.WriteDisposition.writeAppend.rawValue == "WRITE_APPEND")
+    #expect(GoogleCloudBigQueryJob.WriteDisposition.writeTruncate.rawValue == "WRITE_TRUNCATE")
+}
+
+@Test func testBigQueryCreateDispositions() {
+    #expect(GoogleCloudBigQueryJob.CreateDisposition.createIfNeeded.rawValue == "CREATE_IF_NEEDED")
+    #expect(GoogleCloudBigQueryJob.CreateDisposition.createNever.rawValue == "CREATE_NEVER")
+}
+
+@Test func testBigQueryViewBasicInit() {
+    let view = GoogleCloudBigQueryView(
+        viewID: "daily_summary",
+        datasetID: "analytics",
+        projectID: "my-project",
+        query: "SELECT date, COUNT(*) as count FROM events GROUP BY date",
+        description: "Daily event summary"
+    )
+
+    #expect(view.viewID == "daily_summary")
+    #expect(view.viewReference == "my-project:analytics.daily_summary")
+}
+
+@Test func testBigQueryViewCreateCommand() {
+    let view = GoogleCloudBigQueryView(
+        viewID: "active_users",
+        datasetID: "analytics",
+        projectID: "my-project",
+        query: "SELECT DISTINCT user_id FROM events WHERE timestamp > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)",
+        description: "Active users in last 30 days"
+    )
+
+    let cmd = view.createCommand
+    #expect(cmd.contains("bq mk --view"))
+    #expect(cmd.contains("--description=\"Active users in last 30 days\""))
+    #expect(cmd.contains("--use_legacy_sql=false"))
+    #expect(cmd.contains("my-project:analytics.active_users"))
+}
+
+@Test func testBigQueryViewUpdateCommand() {
+    let view = GoogleCloudBigQueryView(
+        viewID: "summary",
+        datasetID: "data",
+        projectID: "my-project",
+        query: "SELECT * FROM source"
+    )
+
+    let cmd = view.updateCommand
+    #expect(cmd.contains("bq update --view"))
+    #expect(cmd.contains("--use_legacy_sql=false"))
+}
+
+@Test func testBigQueryViewDeleteCommand() {
+    let view = GoogleCloudBigQueryView(
+        viewID: "old_view",
+        datasetID: "archive",
+        projectID: "my-project",
+        query: "SELECT 1"
+    )
+
+    #expect(view.deleteCommand == "bq rm -f -t my-project:archive.old_view")
+}
+
+@Test func testBigQueryOperationsEnableAPI() {
+    let cmd = BigQueryOperations.enableAPICommand(projectID: "my-project")
+    #expect(cmd == "gcloud services enable bigquery.googleapis.com --project=my-project")
+}
+
+@Test func testBigQueryOperationsLoadFromGCS() {
+    let cmd = BigQueryOperations.loadFromGCSCommand(
+        sourceURI: "gs://my-bucket/data/*.csv",
+        destinationTable: "my-project:dataset.table",
+        sourceFormat: .csv,
+        writeDisposition: .writeTruncate,
+        autodetect: true
+    )
+
+    #expect(cmd.contains("bq load"))
+    #expect(cmd.contains("--source_format=CSV"))
+    #expect(cmd.contains("--replace"))
+    #expect(cmd.contains("--autodetect"))
+    #expect(cmd.contains("gs://my-bucket/data/*.csv"))
+}
+
+@Test func testBigQueryOperationsLoadFromGCSJSON() {
+    let cmd = BigQueryOperations.loadFromGCSCommand(
+        sourceURI: "gs://bucket/data.json",
+        destinationTable: "project:dataset.table",
+        sourceFormat: .json,
+        writeDisposition: .writeAppend
+    )
+
+    #expect(cmd.contains("--source_format=NEWLINE_DELIMITED_JSON"))
+    #expect(cmd.contains("--append_table"))
+}
+
+@Test func testBigQueryOperationsExportToGCS() {
+    let cmd = BigQueryOperations.exportToGCSCommand(
+        sourceTable: "my-project:dataset.table",
+        destinationURI: "gs://my-bucket/export/*.csv",
+        format: .csv
+    )
+
+    #expect(cmd.contains("bq extract"))
+    #expect(cmd.contains("--destination_format=CSV"))
+    #expect(cmd.contains("my-project:dataset.table"))
+    #expect(cmd.contains("gs://my-bucket/export/*.csv"))
+}
+
+@Test func testBigQueryOperationsCopyTable() {
+    let cmd = BigQueryOperations.copyTableCommand(
+        source: "project:dataset.source",
+        destination: "project:dataset.dest",
+        writeDisposition: .writeAppend
+    )
+
+    #expect(cmd.contains("bq cp"))
+    #expect(cmd.contains("--append_table"))
+    #expect(cmd.contains("project:dataset.source"))
+    #expect(cmd.contains("project:dataset.dest"))
+}
+
+@Test func testBigQueryOperationsPreview() {
+    let cmd = BigQueryOperations.previewCommand(table: "project:dataset.table", maxRows: 25)
+    #expect(cmd == "bq head -n 25 project:dataset.table")
+}
+
+@Test func testBigQueryOperationsDryRun() {
+    let cmd = BigQueryOperations.dryRunCommand(query: "SELECT * FROM table")
+    #expect(cmd.contains("bq query --dry_run"))
+    #expect(cmd.contains("--use_legacy_sql=false"))
+}
+
+@Test func testDAISBigQueryTemplateAnalyticsDataset() {
+    let dataset = DAISBigQueryTemplate.analyticsDataset(
+        projectID: "my-project",
+        deploymentName: "dais-prod",
+        location: "US"
+    )
+
+    #expect(dataset.datasetID == "dais_prod_analytics")
+    #expect(dataset.location == "US")
+    #expect(dataset.labels?["deployment"] == "dais-prod")
+    #expect(dataset.labels?["purpose"] == "analytics")
+}
+
+@Test func testDAISBigQueryTemplateLogsDataset() {
+    let dataset = DAISBigQueryTemplate.logsDataset(
+        projectID: "my-project",
+        deploymentName: "dais-prod",
+        location: "EU",
+        expirationDays: 30
+    )
+
+    #expect(dataset.datasetID == "dais_prod_logs")
+    #expect(dataset.defaultTableExpirationMs == Int64(30) * 24 * 60 * 60 * 1000)
+    #expect(dataset.labels?["purpose"] == "logs")
+}
+
+@Test func testDAISBigQueryTemplateEventsTableSchema() {
+    let schema = DAISBigQueryTemplate.eventsTableSchema()
+
+    #expect(schema.fields.count == 7)
+    #expect(schema.fields[0].name == "event_id")
+    #expect(schema.fields[0].type == .string)
+    #expect(schema.fields[0].mode == .required)
+    #expect(schema.fields[2].name == "event_timestamp")
+    #expect(schema.fields[2].type == .timestamp)
+}
+
+@Test func testDAISBigQueryTemplateEventsTable() {
+    let table = DAISBigQueryTemplate.eventsTable(
+        projectID: "my-project",
+        datasetID: "dais_prod_analytics",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(table.tableID == "events")
+    #expect(table.partitioning?.type == .day)
+    #expect(table.partitioning?.field == "event_timestamp")
+    #expect(table.clustering?.fields == ["event_type", "user_id"])
+    #expect(table.labels?["table_type"] == "events")
+}
+
+@Test func testDAISBigQueryTemplateDailyAggregationView() {
+    let view = DAISBigQueryTemplate.dailyAggregationView(
+        projectID: "my-project",
+        datasetID: "dais_prod_analytics",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(view.viewID == "daily_event_counts")
+    #expect(view.query.contains("DATE(event_timestamp)"))
+    #expect(view.query.contains("COUNT(*)"))
+    #expect(view.query.contains("COUNT(DISTINCT user_id)"))
+}
+
+@Test func testDAISBigQueryTemplateSetupScript() {
+    let script = DAISBigQueryTemplate.setupScript(
+        projectID: "my-project",
+        deploymentName: "dais-prod",
+        location: "US"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("bigquery.googleapis.com"))
+    #expect(script.contains("bq mk --dataset"))
+    #expect(script.contains("dais_prod_analytics"))
+    #expect(script.contains("bq mk --table"))
+    #expect(script.contains("--time_partitioning_field=event_timestamp"))
+    #expect(script.contains("bq mk --view"))
+    #expect(script.contains("daily_event_counts"))
+}
+
+@Test func testDAISBigQueryTemplateTeardownScript() {
+    let script = DAISBigQueryTemplate.teardownScript(
+        projectID: "my-project",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("bq rm -r -f -d"))
+    #expect(script.contains("dais_prod_analytics"))
+    #expect(script.contains("dais_prod_logs"))
+}
+
+@Test func testBigQueryDatasetCodable() throws {
+    let dataset = GoogleCloudBigQueryDataset(
+        datasetID: "analytics",
+        projectID: "my-project",
+        location: "US",
+        labels: ["env": "prod"]
+    )
+
+    let data = try JSONEncoder().encode(dataset)
+    let decoded = try JSONDecoder().decode(GoogleCloudBigQueryDataset.self, from: data)
+
+    #expect(decoded.datasetID == "analytics")
+    #expect(decoded.location == "US")
+    #expect(decoded.labels?["env"] == "prod")
+}
+
+@Test func testBigQueryTableCodable() throws {
+    let table = GoogleCloudBigQueryTable(
+        tableID: "events",
+        datasetID: "analytics",
+        projectID: "my-project",
+        partitioning: GoogleCloudBigQueryTable.Partitioning(type: .day, field: "ts")
+    )
+
+    let data = try JSONEncoder().encode(table)
+    let decoded = try JSONDecoder().decode(GoogleCloudBigQueryTable.self, from: data)
+
+    #expect(decoded.tableID == "events")
+    #expect(decoded.partitioning?.type == .day)
+    #expect(decoded.partitioning?.field == "ts")
+}
+
+@Test func testBigQueryJobCodable() throws {
+    let job = GoogleCloudBigQueryJob(
+        jobID: "job123",
+        projectID: "my-project",
+        location: "US",
+        query: "SELECT 1",
+        writeDisposition: .writeTruncate
+    )
+
+    let data = try JSONEncoder().encode(job)
+    let decoded = try JSONDecoder().decode(GoogleCloudBigQueryJob.self, from: data)
+
+    #expect(decoded.jobID == "job123")
+    #expect(decoded.writeDisposition == .writeTruncate)
+}
+
+@Test func testBigQueryViewCodable() throws {
+    let view = GoogleCloudBigQueryView(
+        viewID: "summary",
+        datasetID: "data",
+        projectID: "my-project",
+        query: "SELECT * FROM source",
+        description: "Summary view"
+    )
+
+    let data = try JSONEncoder().encode(view)
+    let decoded = try JSONDecoder().decode(GoogleCloudBigQueryView.self, from: data)
+
+    #expect(decoded.viewID == "summary")
+    #expect(decoded.description == "Summary view")
+}
+
+@Test func testBigQueryAccessEntryRoles() {
+    #expect(GoogleCloudBigQueryDataset.AccessEntry.Role.reader.rawValue == "READER")
+    #expect(GoogleCloudBigQueryDataset.AccessEntry.Role.writer.rawValue == "WRITER")
+    #expect(GoogleCloudBigQueryDataset.AccessEntry.Role.owner.rawValue == "OWNER")
+}
+
+@Test func testBigQueryAccessEntrySpecialGroups() {
+    #expect(GoogleCloudBigQueryDataset.AccessEntry.SpecialGroup.projectOwners.rawValue == "projectOwners")
+    #expect(GoogleCloudBigQueryDataset.AccessEntry.SpecialGroup.projectReaders.rawValue == "projectReaders")
+    #expect(GoogleCloudBigQueryDataset.AccessEntry.SpecialGroup.allAuthenticatedUsers.rawValue == "allAuthenticatedUsers")
+}
+
+@Test func testBigQuerySourceFormats() {
+    #expect(BigQueryOperations.SourceFormat.csv.rawValue == "CSV")
+    #expect(BigQueryOperations.SourceFormat.json.rawValue == "NEWLINE_DELIMITED_JSON")
+    #expect(BigQueryOperations.SourceFormat.avro.rawValue == "AVRO")
+    #expect(BigQueryOperations.SourceFormat.parquet.rawValue == "PARQUET")
+    #expect(BigQueryOperations.SourceFormat.orc.rawValue == "ORC")
+}
+
+@Test func testBigQueryExportFormats() {
+    #expect(BigQueryOperations.ExportFormat.csv.rawValue == "CSV")
+    #expect(BigQueryOperations.ExportFormat.json.rawValue == "NEWLINE_DELIMITED_JSON")
+    #expect(BigQueryOperations.ExportFormat.avro.rawValue == "AVRO")
+}

@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 30 Google Cloud services:
+GoogleCloudSwift provides models for 31 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -115,6 +115,7 @@ GoogleCloudSwift provides models for 30 Google Cloud services:
 | **VPC Service Controls** | Data exfiltration prevention | `GoogleCloudAccessPolicy`, `GoogleCloudServicePerimeter`, `GoogleCloudAccessLevel` |
 | **Cloud Filestore** | Managed NFS file shares | `GoogleCloudFilestoreInstance`, `GoogleCloudFilestoreBackup`, `GoogleCloudFilestoreSnapshot` |
 | **Cloud VPN** | Secure network connectivity | `GoogleCloudVPNGateway`, `GoogleCloudVPNTunnel`, `GoogleCloudExternalVPNGateway` |
+| **BigQuery** | Data warehouse and analytics | `GoogleCloudBigQueryDataset`, `GoogleCloudBigQueryTable`, `GoogleCloudBigQueryJob`, `GoogleCloudBigQueryView` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -3794,6 +3795,190 @@ let script = DAISVPNTemplate.setupScript(
 )
 ```
 
+### GoogleCloudBigQueryDataset (BigQuery API)
+
+BigQuery is Google Cloud's serverless data warehouse for analytics:
+
+```swift
+// Create a dataset
+let dataset = GoogleCloudBigQueryDataset(
+    datasetID: "analytics",
+    projectID: "my-project",
+    location: "US",
+    description: "Analytics data warehouse",
+    defaultTableExpirationMs: 7776000000, // 90 days
+    labels: ["env": "prod", "team": "data"]
+)
+
+print(dataset.createCommand)
+// Output: bq mk --dataset --location=US --description="Analytics data warehouse" ...
+
+print(dataset.resourceName)
+// Output: projects/my-project/datasets/analytics
+```
+
+**Creating Tables with Partitioning and Clustering:**
+
+```swift
+// Create a partitioned and clustered table
+let eventsTable = GoogleCloudBigQueryTable(
+    tableID: "events",
+    datasetID: "analytics",
+    projectID: "my-project",
+    schema: GoogleCloudBigQueryTable.Schema(fields: [
+        .init(name: "event_id", type: .string, mode: .required),
+        .init(name: "event_type", type: .string, mode: .required),
+        .init(name: "event_timestamp", type: .timestamp, mode: .required),
+        .init(name: "user_id", type: .string),
+        .init(name: "properties", type: .json)
+    ]),
+    partitioning: GoogleCloudBigQueryTable.Partitioning(
+        type: .day,
+        field: "event_timestamp",
+        expirationMs: 31536000000 // 365 days
+    ),
+    clustering: GoogleCloudBigQueryTable.Clustering(
+        fields: ["event_type", "user_id"]
+    )
+)
+
+print(eventsTable.createCommand(schemaFile: "schema.json"))
+print(eventsTable.tableReference)  // my-project:analytics.events
+```
+
+**Running Queries:**
+
+```swift
+// Create a query job
+let queryJob = GoogleCloudBigQueryJob(
+    projectID: "my-project",
+    location: "US",
+    query: "SELECT event_type, COUNT(*) as count FROM `my-project.analytics.events` GROUP BY event_type",
+    maximumBytesBilled: 10737418240 // 10GB limit
+)
+
+print(queryJob.queryCommand)
+
+// Query with destination table
+let etlJob = GoogleCloudBigQueryJob(
+    projectID: "my-project",
+    query: "SELECT * FROM source_table WHERE date = CURRENT_DATE()",
+    destinationTable: "my-project:analytics.daily_snapshot",
+    writeDisposition: .writeTruncate
+)
+```
+
+**Creating Views:**
+
+```swift
+let dailySummary = GoogleCloudBigQueryView(
+    viewID: "daily_event_counts",
+    datasetID: "analytics",
+    projectID: "my-project",
+    query: """
+    SELECT
+        DATE(event_timestamp) as event_date,
+        event_type,
+        COUNT(*) as event_count,
+        COUNT(DISTINCT user_id) as unique_users
+    FROM `my-project.analytics.events`
+    GROUP BY event_date, event_type
+    """,
+    description: "Daily event aggregation"
+)
+
+print(dailySummary.createCommand)
+```
+
+**Data Operations:**
+
+```swift
+// Load data from Cloud Storage
+let loadCmd = BigQueryOperations.loadFromGCSCommand(
+    sourceURI: "gs://my-bucket/data/*.csv",
+    destinationTable: "my-project:analytics.raw_events",
+    sourceFormat: .csv,
+    writeDisposition: .writeAppend,
+    autodetect: true
+)
+
+// Export table to Cloud Storage
+let exportCmd = BigQueryOperations.exportToGCSCommand(
+    sourceTable: "my-project:analytics.events",
+    destinationURI: "gs://my-bucket/export/*.parquet",
+    format: .avro
+)
+
+// Dry run to estimate query cost
+let dryRunCmd = BigQueryOperations.dryRunCommand(
+    query: "SELECT * FROM big_table"
+)
+
+// Preview table data
+let previewCmd = BigQueryOperations.previewCommand(
+    table: "my-project:analytics.events",
+    maxRows: 25
+)
+```
+
+**DAIS BigQuery Templates:**
+
+```swift
+// Create analytics dataset with best practices
+let analyticsDataset = DAISBigQueryTemplate.analyticsDataset(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    location: "US"
+)
+
+// Create logs dataset with automatic expiration
+let logsDataset = DAISBigQueryTemplate.logsDataset(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    expirationDays: 90
+)
+
+// Create events table with partitioning and clustering
+let eventsTable = DAISBigQueryTemplate.eventsTable(
+    projectID: "my-project",
+    datasetID: "dais_prod_analytics",
+    deploymentName: "dais-prod"
+)
+
+// Create aggregation view
+let dailyView = DAISBigQueryTemplate.dailyAggregationView(
+    projectID: "my-project",
+    datasetID: "dais_prod_analytics",
+    deploymentName: "dais-prod"
+)
+
+// Generate complete setup script
+let script = DAISBigQueryTemplate.setupScript(
+    projectID: "my-project",
+    deploymentName: "dais-prod",
+    location: "US"
+)
+```
+
+**Supported Data Types:**
+
+| Category | Types |
+|----------|-------|
+| Numeric | `INTEGER`, `INT64`, `FLOAT`, `FLOAT64`, `NUMERIC`, `BIGNUMERIC` |
+| String | `STRING`, `BYTES` |
+| Boolean | `BOOLEAN`, `BOOL` |
+| Date/Time | `DATE`, `TIME`, `DATETIME`, `TIMESTAMP` |
+| Complex | `RECORD`, `STRUCT`, `JSON`, `GEOGRAPHY` |
+
+**Partitioning Options:**
+
+| Type | Description |
+|------|-------------|
+| `DAY` | Daily partitions (default) |
+| `HOUR` | Hourly partitions |
+| `MONTH` | Monthly partitions |
+| `YEAR` | Yearly partitions |
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -4445,6 +4630,15 @@ MIT License
 - [HA VPN Overview](https://cloud.google.com/network-connectivity/docs/vpn/concepts/overview)
 - [VPN Topologies](https://cloud.google.com/network-connectivity/docs/vpn/concepts/topologies)
 - [Cloud Router BGP](https://cloud.google.com/network-connectivity/docs/router/concepts/overview)
+
+### BigQuery
+- [BigQuery Documentation](https://cloud.google.com/bigquery/docs)
+- [BigQuery SQL Reference](https://cloud.google.com/bigquery/docs/reference/standard-sql/query-syntax)
+- [Partitioned Tables](https://cloud.google.com/bigquery/docs/partitioned-tables)
+- [Clustered Tables](https://cloud.google.com/bigquery/docs/clustered-tables)
+- [Loading Data](https://cloud.google.com/bigquery/docs/loading-data)
+- [Exporting Data](https://cloud.google.com/bigquery/docs/exporting-data)
+- [bq Command-Line Tool](https://cloud.google.com/bigquery/docs/bq-command-line-tool)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
