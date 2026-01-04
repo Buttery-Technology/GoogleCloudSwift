@@ -23354,3 +23354,431 @@ import Testing
 
     #expect(decoded.results?.first?.alternatives?.first?.transcript == "Test")
 }
+
+// MARK: - Text-to-Speech Tests
+
+@Test func testTextToSpeechVoiceBasicInit() {
+    let voice = GoogleCloudTextToSpeechVoice(
+        languageCode: "en-US",
+        name: "en-US-Wavenet-D",
+        ssmlGender: .male
+    )
+
+    #expect(voice.languageCode == "en-US")
+    #expect(voice.name == "en-US-Wavenet-D")
+    #expect(voice.ssmlGender == .male)
+}
+
+@Test func testTextToSpeechVoiceFactories() {
+    let wavenet = GoogleCloudTextToSpeechVoice.wavenet("D")
+    #expect(wavenet.name == "en-US-Wavenet-D")
+
+    let neural2 = GoogleCloudTextToSpeechVoice.neural2("A")
+    #expect(neural2.name == "en-US-Neural2-A")
+
+    let studio = GoogleCloudTextToSpeechVoice.studio("O")
+    #expect(studio.name == "en-US-Studio-O")
+
+    let byGender = GoogleCloudTextToSpeechVoice.byGender(.female)
+    #expect(byGender.ssmlGender == .female)
+}
+
+@Test func testTextToSpeechVoiceGenderValues() {
+    #expect(GoogleCloudTextToSpeechVoice.SSMLGender.male.rawValue == "MALE")
+    #expect(GoogleCloudTextToSpeechVoice.SSMLGender.female.rawValue == "FEMALE")
+    #expect(GoogleCloudTextToSpeechVoice.SSMLGender.neutral.rawValue == "NEUTRAL")
+}
+
+@Test func testTextToSpeechAudioEncodingValues() {
+    #expect(GoogleCloudTextToSpeechAudioConfig.AudioEncoding.linear16.rawValue == "LINEAR16")
+    #expect(GoogleCloudTextToSpeechAudioConfig.AudioEncoding.mp3.rawValue == "MP3")
+    #expect(GoogleCloudTextToSpeechAudioConfig.AudioEncoding.oggOpus.rawValue == "OGG_OPUS")
+    #expect(GoogleCloudTextToSpeechAudioConfig.AudioEncoding.mulaw.rawValue == "MULAW")
+    #expect(GoogleCloudTextToSpeechAudioConfig.AudioEncoding.alaw.rawValue == "ALAW")
+}
+
+@Test func testTextToSpeechAudioConfigDefaults() {
+    let mp3 = GoogleCloudTextToSpeechAudioConfig.mp3
+    #expect(mp3.audioEncoding == .mp3)
+
+    let wav = GoogleCloudTextToSpeechAudioConfig.wav
+    #expect(wav.audioEncoding == .linear16)
+
+    let telephony = GoogleCloudTextToSpeechAudioConfig.telephony
+    #expect(telephony.audioEncoding == .mulaw)
+    #expect(telephony.sampleRateHertz == 8000)
+}
+
+@Test func testTextToSpeechAudioConfigWithEffects() {
+    let config = GoogleCloudTextToSpeechAudioConfig.mp3
+        .withEffects([.headphoneClassDevice, .telephonyClassApplication])
+
+    #expect(config.effectsProfileId?.count == 2)
+    #expect(config.effectsProfileId?.contains("headphone-class-device") == true)
+}
+
+@Test func testTextToSpeechInputPlainText() {
+    let input = GoogleCloudTextToSpeechInput.plainText("Hello, world!")
+    #expect(input.text == "Hello, world!")
+    #expect(input.ssml == nil)
+}
+
+@Test func testTextToSpeechInputSSML() {
+    let ssml = "<speak>Hello <break time='300ms'/> world!</speak>"
+    let input = GoogleCloudTextToSpeechInput.ssml(ssml)
+    #expect(input.ssml == ssml)
+    #expect(input.text == nil)
+}
+
+@Test func testSSMLBuilderBasic() {
+    var builder = SSMLBuilder()
+    builder.text("Hello, ")
+    builder.pause(time: "300ms")
+    builder.text("world!")
+
+    let result = builder.build()
+    #expect(result.contains("<speak>"))
+    #expect(result.contains("Hello, "))
+    #expect(result.contains("<break time=\"300ms\"/>"))
+    #expect(result.contains("world!"))
+}
+
+@Test func testSSMLBuilderProsody() {
+    var builder = SSMLBuilder()
+    builder.prosody("Slow and deep", rate: "slow", pitch: "low")
+
+    let result = builder.build()
+    #expect(result.contains("<prosody"))
+    #expect(result.contains("rate=\"slow\""))
+    #expect(result.contains("pitch=\"low\""))
+}
+
+@Test func testSSMLBuilderSayAs() {
+    var builder = SSMLBuilder()
+    builder.sayAs("12/25/2024", interpretAs: .date, format: "mdy")
+
+    let result = builder.build()
+    #expect(result.contains("<say-as interpret-as=\"date\""))
+    #expect(result.contains("format=\"mdy\""))
+}
+
+@Test func testSSMLBuilderEmphasis() {
+    var builder = SSMLBuilder()
+    builder.emphasis("important", level: .strong)
+
+    let result = builder.build()
+    #expect(result.contains("<emphasis level=\"strong\">important</emphasis>"))
+}
+
+@Test func testSSMLBuilderPhoneme() {
+    var builder = SSMLBuilder()
+    builder.phoneme("tomato", alphabet: "ipa", ph: "təˈmeɪtoʊ")
+
+    let result = builder.build()
+    #expect(result.contains("<phoneme"))
+    #expect(result.contains("alphabet=\"ipa\""))
+}
+
+@Test func testTextToSpeechRequest() {
+    let request = GoogleCloudTextToSpeechRequest(
+        projectID: "my-project",
+        input: .plainText("Hello"),
+        voice: .wavenet("D"),
+        audioConfig: .mp3
+    )
+
+    #expect(request.projectID == "my-project")
+    #expect(request.input.text == "Hello")
+    #expect(request.voice.name == "en-US-Wavenet-D")
+    #expect(request.audioConfig.audioEncoding == .mp3)
+}
+
+@Test func testTextToSpeechRequestSynthesizeCommand() {
+    let request = GoogleCloudTextToSpeechRequest(
+        projectID: "my-project",
+        input: .plainText("Test speech"),
+        voice: .wavenet("A"),
+        audioConfig: .mp3
+    )
+
+    let command = request.synthesizeCommand
+    #expect(command.contains("gcloud ml speech synthesize-text"))
+    #expect(command.contains("Test speech"))
+    #expect(command.contains("en-US-Wavenet-A"))
+}
+
+@Test func testTextToSpeechResponse() {
+    let response = GoogleCloudTextToSpeechResponse(audioContent: "SGVsbG8gV29ybGQ=")
+    #expect(response.audioContent == "SGVsbG8gV29ybGQ=")
+    #expect(response.audioData != nil)
+}
+
+@Test func testTextToSpeechVoiceInfo() {
+    let voiceInfo = GoogleCloudTextToSpeechVoiceInfo(
+        languageCodes: ["en-US"],
+        name: "en-US-Wavenet-D",
+        ssmlGender: .male,
+        naturalSampleRateHertz: 24000
+    )
+
+    #expect(voiceInfo.name == "en-US-Wavenet-D")
+    #expect(voiceInfo.voiceType == .wavenet)
+    #expect(voiceInfo.naturalSampleRateHertz == 24000)
+}
+
+@Test func testTextToSpeechVoiceTypes() {
+    let wavenet = GoogleCloudTextToSpeechVoiceInfo(
+        languageCodes: ["en-US"],
+        name: "en-US-Wavenet-D",
+        ssmlGender: .male,
+        naturalSampleRateHertz: 24000
+    )
+    #expect(wavenet.voiceType == .wavenet)
+
+    let neural2 = GoogleCloudTextToSpeechVoiceInfo(
+        languageCodes: ["en-US"],
+        name: "en-US-Neural2-A",
+        ssmlGender: .female,
+        naturalSampleRateHertz: 24000
+    )
+    #expect(neural2.voiceType == .neural2)
+
+    let studio = GoogleCloudTextToSpeechVoiceInfo(
+        languageCodes: ["en-US"],
+        name: "en-US-Studio-O",
+        ssmlGender: .male,
+        naturalSampleRateHertz: 24000
+    )
+    #expect(studio.voiceType == .studio)
+}
+
+@Test func testTextToSpeechLongAudioRequest() {
+    let request = GoogleCloudTextToSpeechLongAudioRequest(
+        projectID: "my-project",
+        location: "us-central1",
+        input: .plainText("Long text content"),
+        voice: .neural2("A"),
+        audioConfig: .mp3,
+        outputGcsUri: "gs://my-bucket/output.mp3"
+    )
+
+    #expect(request.projectID == "my-project")
+    #expect(request.location == "us-central1")
+    #expect(request.resourceName == "projects/my-project/locations/us-central1")
+    #expect(request.outputGcsUri == "gs://my-bucket/output.mp3")
+}
+
+@Test func testTextToSpeechCustomVoiceModel() {
+    let model = GoogleCloudTextToSpeechCustomVoiceModel(
+        name: "my-voice",
+        projectID: "my-project",
+        displayName: "My Custom Voice",
+        state: .complete
+    )
+
+    #expect(model.name == "my-voice")
+    #expect(model.resourceName == "projects/my-project/customVoices/my-voice")
+    #expect(model.state == .complete)
+}
+
+@Test func testTextToSpeechBatchRequest() {
+    let request = GoogleCloudTextToSpeechBatchRequest(
+        projectID: "my-project",
+        voice: .wavenet("D"),
+        audioConfig: .mp3,
+        inputSpecs: [
+            GoogleCloudTextToSpeechBatchRequest.InputSpec(
+                input: .plainText("First text"),
+                outputKey: "first"
+            ),
+            GoogleCloudTextToSpeechBatchRequest.InputSpec(
+                input: .plainText("Second text"),
+                outputKey: "second"
+            )
+        ],
+        outputConfig: GoogleCloudTextToSpeechBatchRequest.OutputConfig(
+            gcsUri: "gs://my-bucket/output"
+        )
+    )
+
+    #expect(request.inputSpecs.count == 2)
+    #expect(request.inputSpecs[0].outputKey == "first")
+    #expect(request.outputConfig.gcsUri == "gs://my-bucket/output")
+}
+
+@Test func testTextToSpeechOperations() {
+    let ops = GoogleCloudTextToSpeechOperations(projectID: "my-project")
+
+    #expect(ops.listVoicesCommand.contains("gcloud ml speech list-voices"))
+
+    let langCommand = ops.listVoicesForLanguage("es-ES")
+    #expect(langCommand.contains("es-ES"))
+
+    let synthCommand = ops.synthesizeToFile(text: "Hello", voice: "en-US-Wavenet-D", output: "out.mp3")
+    #expect(synthCommand.contains("synthesize-text"))
+    #expect(synthCommand.contains("out.mp3"))
+
+    #expect(ops.enableAPICommand.contains("texttospeech.googleapis.com"))
+}
+
+@Test func testTextToSpeechOperationsRoles() {
+    let roles = GoogleCloudTextToSpeechOperations.roles
+    #expect(roles["roles/cloudtts.client"] == "Text-to-Speech client")
+    #expect(roles["roles/cloudtts.admin"] == "Text-to-Speech admin")
+}
+
+@Test func testDAISTextToSpeechTemplateBasic() {
+    let template = DAISTextToSpeechTemplate(
+        projectID: "my-project",
+        defaultVoice: .wavenet("D"),
+        defaultAudioConfig: .mp3,
+        serviceAccount: "tts-sa",
+        outputBucket: "tts-audio"
+    )
+
+    #expect(template.projectID == "my-project")
+    #expect(template.defaultVoice.name == "en-US-Wavenet-D")
+    #expect(template.outputBucket == "tts-audio")
+}
+
+@Test func testDAISTextToSpeechTemplateVoices() {
+    let template = DAISTextToSpeechTemplate(projectID: "my-project")
+
+    #expect(template.americanMaleVoice.name == "en-US-Wavenet-D")
+    #expect(template.americanFemaleVoice.name == "en-US-Wavenet-F")
+    #expect(template.britishMaleVoice.name == "en-GB-Wavenet-B")
+    #expect(template.britishFemaleVoice.name == "en-GB-Wavenet-A")
+    #expect(template.neural2Voice.name == "en-US-Neural2-A")
+    #expect(template.studioVoice.name == "en-US-Studio-O")
+}
+
+@Test func testDAISTextToSpeechTemplateAudioConfigs() {
+    let template = DAISTextToSpeechTemplate(projectID: "my-project")
+
+    let podcast = template.podcastAudioConfig
+    #expect(podcast.audioEncoding == .mp3)
+    #expect(podcast.sampleRateHertz == 24000)
+
+    let ivr = template.ivrAudioConfig
+    #expect(ivr.audioEncoding == .mulaw)
+    #expect(ivr.sampleRateHertz == 8000)
+
+    let speaker = template.smartSpeakerAudioConfig
+    #expect(speaker.effectsProfileId?.contains("medium-bluetooth-speaker-class-device") == true)
+}
+
+@Test func testDAISTextToSpeechTemplateSynthesize() {
+    let template = DAISTextToSpeechTemplate(projectID: "my-project")
+
+    let request = template.synthesize("Hello, world!")
+    #expect(request.projectID == "my-project")
+    #expect(request.input.text == "Hello, world!")
+
+    let customRequest = template.synthesize("Custom voice", voice: .neural2("B"))
+    #expect(customRequest.voice.name == "en-US-Neural2-B")
+}
+
+@Test func testDAISTextToSpeechTemplateLongAudio() {
+    let template = DAISTextToSpeechTemplate(
+        projectID: "my-project",
+        outputBucket: "audio-output"
+    )
+
+    let request = template.synthesizeLongAudio("Long text", outputPath: "chapter1.mp3")
+    #expect(request.outputGcsUri == "gs://audio-output/chapter1.mp3")
+}
+
+@Test func testDAISTextToSpeechTemplateSetupScript() {
+    let template = DAISTextToSpeechTemplate(
+        projectID: "my-project",
+        serviceAccount: "tts-sa",
+        outputBucket: "tts-output"
+    )
+
+    let script = template.setupScript
+    #expect(script.contains("gcloud services enable texttospeech.googleapis.com"))
+    #expect(script.contains("gcloud iam service-accounts create tts-sa"))
+    #expect(script.contains("roles/cloudtts.client"))
+    #expect(script.contains("gsutil mb"))
+}
+
+@Test func testDAISTextToSpeechTemplateTeardownScript() {
+    let template = DAISTextToSpeechTemplate(
+        projectID: "my-project",
+        serviceAccount: "tts-sa",
+        outputBucket: "tts-output"
+    )
+
+    let script = template.teardownScript
+    #expect(script.contains("gsutil rm -r gs://tts-output"))
+    #expect(script.contains("gcloud iam service-accounts delete"))
+}
+
+@Test func testDAISTextToSpeechTemplatePythonScript() {
+    let template = DAISTextToSpeechTemplate(
+        projectID: "my-project",
+        defaultVoice: .wavenet("D")
+    )
+
+    let script = template.pythonScript
+    #expect(script.contains("from google.cloud import texttospeech"))
+    #expect(script.contains("def synthesize_text"))
+    #expect(script.contains("def synthesize_ssml"))
+    #expect(script.contains("def list_voices"))
+    #expect(script.contains("en-US-Wavenet-D"))
+}
+
+@Test func testTextToSpeechEffectsProfiles() {
+    #expect(GoogleCloudTextToSpeechAudioConfig.EffectsProfile.headphoneClassDevice.rawValue == "headphone-class-device")
+    #expect(GoogleCloudTextToSpeechAudioConfig.EffectsProfile.telephonyClassApplication.rawValue == "telephony-class-application")
+    #expect(GoogleCloudTextToSpeechAudioConfig.EffectsProfile.largeAutomotiveClassDevice.rawValue == "large-automotive-class-device")
+}
+
+@Test func testTextToSpeechVoiceCodable() throws {
+    let voice = GoogleCloudTextToSpeechVoice(
+        languageCode: "de-DE",
+        name: "de-DE-Wavenet-A",
+        ssmlGender: .female
+    )
+
+    let data = try JSONEncoder().encode(voice)
+    let decoded = try JSONDecoder().decode(GoogleCloudTextToSpeechVoice.self, from: data)
+
+    #expect(decoded.languageCode == "de-DE")
+    #expect(decoded.name == "de-DE-Wavenet-A")
+    #expect(decoded.ssmlGender == .female)
+}
+
+@Test func testTextToSpeechAudioConfigCodable() throws {
+    let config = GoogleCloudTextToSpeechAudioConfig(
+        audioEncoding: .mp3,
+        speakingRate: 1.2,
+        pitch: -2.0,
+        volumeGainDb: 3.0,
+        sampleRateHertz: 24000,
+        effectsProfileId: ["headphone-class-device"]
+    )
+
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(GoogleCloudTextToSpeechAudioConfig.self, from: data)
+
+    #expect(decoded.audioEncoding == .mp3)
+    #expect(decoded.speakingRate == 1.2)
+    #expect(decoded.pitch == -2.0)
+    #expect(decoded.effectsProfileId?.first == "headphone-class-device")
+}
+
+@Test func testTextToSpeechCustomVoice() {
+    let customVoice = GoogleCloudTextToSpeechVoice.CustomVoice(
+        model: "projects/my-project/customVoices/my-voice",
+        reportedUsage: .realtime
+    )
+
+    let voice = GoogleCloudTextToSpeechVoice(
+        languageCode: "en-US",
+        customVoice: customVoice
+    )
+
+    #expect(voice.customVoice?.model == "projects/my-project/customVoices/my-voice")
+    #expect(voice.customVoice?.reportedUsage == .realtime)
+}
