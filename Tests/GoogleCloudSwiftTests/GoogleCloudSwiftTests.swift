@@ -2993,3 +2993,700 @@ import Testing
     #expect(decoded.secretName == secretVar.secretName)
     #expect(decoded.version == secretVar.version)
 }
+
+// MARK: - Cloud Run Service Tests
+
+@Test func testGoogleCloudRunService() {
+    let service = GoogleCloudRunService(
+        name: "my-api",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/my-api:latest"
+    )
+
+    #expect(service.name == "my-api")
+    #expect(service.projectID == "test-project")
+    #expect(service.region == "us-central1")
+    #expect(service.port == 8080)
+    #expect(service.memoryMB == 512)
+    #expect(service.cpu == "1")
+    #expect(service.minInstances == 0)
+    #expect(service.maxInstances == 100)
+    #expect(service.concurrency == 80)
+}
+
+@Test func testCloudRunServiceResourceName() {
+    let service = GoogleCloudRunService(
+        name: "my-service",
+        projectID: "test-project",
+        region: "us-west1",
+        image: "gcr.io/test-project/image:v1"
+    )
+
+    #expect(service.resourceName == "projects/test-project/locations/us-west1/services/my-service")
+}
+
+@Test func testCloudRunServiceDeployCommand() {
+    let service = GoogleCloudRunService(
+        name: "my-api",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/my-api:latest",
+        port: 8080,
+        memoryMB: 1024,
+        cpu: "2",
+        minInstances: 1,
+        maxInstances: 10,
+        allowUnauthenticated: true
+    )
+
+    let cmd = service.deployCommand
+    #expect(cmd.contains("gcloud run deploy my-api"))
+    #expect(cmd.contains("--image=gcr.io/test-project/my-api:latest"))
+    #expect(cmd.contains("--port=8080"))
+    #expect(cmd.contains("--memory=1024Mi"))
+    #expect(cmd.contains("--cpu=2"))
+    #expect(cmd.contains("--min-instances=1"))
+    #expect(cmd.contains("--max-instances=10"))
+    #expect(cmd.contains("--allow-unauthenticated"))
+}
+
+@Test func testCloudRunServiceWithEnvVars() {
+    let service = GoogleCloudRunService(
+        name: "my-api",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/my-api:latest",
+        environmentVariables: ["NODE_ENV": "production", "LOG_LEVEL": "info"]
+    )
+
+    let cmd = service.deployCommand
+    #expect(cmd.contains("--set-env-vars="))
+}
+
+@Test func testCloudRunServiceWithSecrets() {
+    let service = GoogleCloudRunService(
+        name: "my-api",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/my-api:latest",
+        secrets: [
+            .envVar(name: "API_KEY", secretName: "my-api-key"),
+            .envVar(name: "DB_PASSWORD", secretName: "db-pass", version: "2")
+        ]
+    )
+
+    let cmd = service.deployCommand
+    #expect(cmd.contains("--set-secrets=API_KEY=my-api-key:latest"))
+    #expect(cmd.contains("--set-secrets=DB_PASSWORD=db-pass:2"))
+}
+
+@Test func testCloudRunServiceWithVPCConnector() {
+    let service = GoogleCloudRunService(
+        name: "private-api",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/private-api:latest",
+        vpcConnector: "projects/test-project/locations/us-central1/connectors/my-connector",
+        vpcEgress: .allTraffic,
+        ingress: .internal
+    )
+
+    let cmd = service.deployCommand
+    #expect(cmd.contains("--vpc-connector=projects/test-project/locations/us-central1/connectors/my-connector"))
+    #expect(cmd.contains("--vpc-egress=all-traffic"))
+    #expect(cmd.contains("--ingress=internal"))
+}
+
+@Test func testCloudRunServiceWithCPUAlwaysAllocated() {
+    let service = GoogleCloudRunService(
+        name: "worker",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/worker:latest",
+        cpuAllocationType: .alwaysAllocated
+    )
+
+    let cmd = service.deployCommand
+    #expect(cmd.contains("--cpu-boost"))
+    #expect(cmd.contains("--no-cpu-throttling"))
+}
+
+@Test func testCloudRunServiceDeleteCommand() {
+    let service = GoogleCloudRunService(
+        name: "my-api",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/my-api:latest"
+    )
+
+    let cmd = service.deleteCommand
+    #expect(cmd.contains("gcloud run services delete my-api"))
+    #expect(cmd.contains("--project=test-project"))
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testCloudRunServiceDescribeCommand() {
+    let service = GoogleCloudRunService(
+        name: "my-api",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/my-api:latest"
+    )
+
+    let cmd = service.describeCommand
+    #expect(cmd.contains("gcloud run services describe my-api"))
+    #expect(cmd.contains("--project=test-project"))
+}
+
+@Test func testCloudRunServiceLogsCommand() {
+    let service = GoogleCloudRunService(
+        name: "my-api",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/my-api:latest"
+    )
+
+    let cmd = service.logsCommand
+    #expect(cmd.contains("gcloud run services logs read my-api"))
+}
+
+@Test func testCloudRunServiceUpdateTrafficCommand() {
+    let service = GoogleCloudRunService(
+        name: "my-api",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/my-api:latest"
+    )
+
+    let cmd = service.updateTrafficCommand(revisions: ["my-api-v1": 90, "my-api-v2": 10])
+    #expect(cmd.contains("gcloud run services update-traffic my-api"))
+    #expect(cmd.contains("--to-revisions="))
+}
+
+@Test func testCloudRunServiceRouteToLatest() {
+    let service = GoogleCloudRunService(
+        name: "my-api",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/my-api:latest"
+    )
+
+    let cmd = service.routeToLatestCommand
+    #expect(cmd.contains("--to-latest"))
+}
+
+@Test func testCloudRunServiceListCommand() {
+    let cmd = GoogleCloudRunService.listCommand(projectID: "test-project", region: "us-central1")
+    #expect(cmd.contains("gcloud run services list"))
+    #expect(cmd.contains("--project=test-project"))
+    #expect(cmd.contains("--region=us-central1"))
+}
+
+// MARK: - Cloud Run Job Tests
+
+@Test func testGoogleCloudRunJob() {
+    let job = GoogleCloudRunJob(
+        name: "data-processor",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/processor:latest"
+    )
+
+    #expect(job.name == "data-processor")
+    #expect(job.projectID == "test-project")
+    #expect(job.taskCount == 1)
+    #expect(job.parallelism == 1)
+    #expect(job.taskTimeoutSeconds == 600)
+    #expect(job.maxRetries == 3)
+}
+
+@Test func testCloudRunJobResourceName() {
+    let job = GoogleCloudRunJob(
+        name: "batch-job",
+        projectID: "test-project",
+        region: "us-west1",
+        image: "gcr.io/test-project/batch:v1"
+    )
+
+    #expect(job.resourceName == "projects/test-project/locations/us-west1/jobs/batch-job")
+}
+
+@Test func testCloudRunJobCreateCommand() {
+    let job = GoogleCloudRunJob(
+        name: "data-processor",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/processor:latest",
+        taskCount: 10,
+        parallelism: 5,
+        taskTimeoutSeconds: 1800,
+        memoryMB: 2048,
+        cpu: "2"
+    )
+
+    let cmd = job.createCommand
+    #expect(cmd.contains("gcloud run jobs create data-processor"))
+    #expect(cmd.contains("--image=gcr.io/test-project/processor:latest"))
+    #expect(cmd.contains("--tasks=10"))
+    #expect(cmd.contains("--parallelism=5"))
+    #expect(cmd.contains("--task-timeout=1800s"))
+    #expect(cmd.contains("--memory=2048Mi"))
+    #expect(cmd.contains("--cpu=2"))
+}
+
+@Test func testCloudRunJobWithCommand() {
+    let job = GoogleCloudRunJob(
+        name: "custom-job",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/job:latest",
+        command: ["python", "script.py"],
+        args: ["--input", "data.csv"]
+    )
+
+    let cmd = job.createCommand
+    #expect(cmd.contains("--command=python,script.py"))
+    #expect(cmd.contains("--args=--input,data.csv"))
+}
+
+@Test func testCloudRunJobExecuteCommand() {
+    let job = GoogleCloudRunJob(
+        name: "batch-job",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/batch:latest"
+    )
+
+    let cmd = job.executeCommand
+    #expect(cmd.contains("gcloud run jobs execute batch-job"))
+    #expect(cmd.contains("--project=test-project"))
+    #expect(cmd.contains("--region=us-central1"))
+}
+
+@Test func testCloudRunJobExecuteWithOverrides() {
+    let job = GoogleCloudRunJob(
+        name: "batch-job",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/batch:latest"
+    )
+
+    let cmd = job.executeCommand(taskCount: 5, args: ["--verbose"])
+    #expect(cmd.contains("--tasks=5"))
+    #expect(cmd.contains("--args=--verbose"))
+}
+
+@Test func testCloudRunJobDeleteCommand() {
+    let job = GoogleCloudRunJob(
+        name: "batch-job",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/batch:latest"
+    )
+
+    let cmd = job.deleteCommand
+    #expect(cmd.contains("gcloud run jobs delete batch-job"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testCloudRunJobListExecutionsCommand() {
+    let job = GoogleCloudRunJob(
+        name: "batch-job",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/batch:latest"
+    )
+
+    let cmd = job.listExecutionsCommand
+    #expect(cmd.contains("gcloud run jobs executions list"))
+    #expect(cmd.contains("--job=batch-job"))
+}
+
+// MARK: - Cloud Run Revision Tests
+
+@Test func testGoogleCloudRunRevision() {
+    let revision = GoogleCloudRunRevision(
+        name: "my-api-00001",
+        serviceName: "my-api",
+        projectID: "test-project",
+        region: "us-central1"
+    )
+
+    #expect(revision.name == "my-api-00001")
+    #expect(revision.serviceName == "my-api")
+}
+
+@Test func testCloudRunRevisionResourceName() {
+    let revision = GoogleCloudRunRevision(
+        name: "my-api-00001",
+        serviceName: "my-api",
+        projectID: "test-project",
+        region: "us-central1"
+    )
+
+    #expect(revision.resourceName == "projects/test-project/locations/us-central1/services/my-api/revisions/my-api-00001")
+}
+
+@Test func testCloudRunRevisionDescribeCommand() {
+    let revision = GoogleCloudRunRevision(
+        name: "my-api-00001",
+        serviceName: "my-api",
+        projectID: "test-project",
+        region: "us-central1"
+    )
+
+    let cmd = revision.describeCommand
+    #expect(cmd.contains("gcloud run revisions describe my-api-00001"))
+}
+
+// MARK: - Cloud Run Domain Mapping Tests
+
+@Test func testGoogleCloudRunDomainMapping() {
+    let mapping = GoogleCloudRunDomainMapping(
+        domain: "api.example.com",
+        serviceName: "my-api",
+        projectID: "test-project",
+        region: "us-central1"
+    )
+
+    #expect(mapping.domain == "api.example.com")
+    #expect(mapping.serviceName == "my-api")
+}
+
+@Test func testCloudRunDomainMappingCreateCommand() {
+    let mapping = GoogleCloudRunDomainMapping(
+        domain: "api.example.com",
+        serviceName: "my-api",
+        projectID: "test-project",
+        region: "us-central1"
+    )
+
+    let cmd = mapping.createCommand
+    #expect(cmd.contains("gcloud run domain-mappings create"))
+    #expect(cmd.contains("--domain=api.example.com"))
+    #expect(cmd.contains("--service=my-api"))
+}
+
+@Test func testCloudRunDomainMappingListCommand() {
+    let cmd = GoogleCloudRunDomainMapping.listCommand(projectID: "test-project", region: "us-central1")
+    #expect(cmd.contains("gcloud run domain-mappings list"))
+    #expect(cmd.contains("--project=test-project"))
+}
+
+// MARK: - Cloud Run Traffic Split Tests
+
+@Test func testCloudRunTrafficSplitLatest() {
+    let traffic = CloudRunTrafficSplit.latest
+
+    #expect(traffic.routeToLatest == true)
+    #expect(traffic.revisions.isEmpty)
+}
+
+@Test func testCloudRunTrafficSplitCustom() {
+    let traffic = CloudRunTrafficSplit.split(["v1": 80, "v2": 20])
+
+    #expect(traffic.routeToLatest == false)
+    #expect(traffic.revisions["v1"] == 80)
+    #expect(traffic.revisions["v2"] == 20)
+}
+
+@Test func testCloudRunTrafficSplitCanary() {
+    let traffic = CloudRunTrafficSplit.canary(
+        stableRevision: "my-api-v1",
+        canaryRevision: "my-api-v2",
+        canaryPercent: 10
+    )
+
+    #expect(traffic.revisions["my-api-v1"] == 90)
+    #expect(traffic.revisions["my-api-v2"] == 10)
+}
+
+// MARK: - Cloud Run IAM Tests
+
+@Test func testCloudRunRoles() {
+    #expect(GoogleCloudRunService.CloudRunRole.admin.rawValue == "roles/run.admin")
+    #expect(GoogleCloudRunService.CloudRunRole.developer.rawValue == "roles/run.developer")
+    #expect(GoogleCloudRunService.CloudRunRole.viewer.rawValue == "roles/run.viewer")
+    #expect(GoogleCloudRunService.CloudRunRole.invoker.rawValue == "roles/run.invoker")
+}
+
+@Test func testCloudRunAddInvokerCommand() {
+    let service = GoogleCloudRunService(
+        name: "my-api",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/my-api:latest"
+    )
+
+    let cmd = service.addInvokerCommand(member: "serviceAccount:invoker@test-project.iam.gserviceaccount.com")
+    #expect(cmd.contains("gcloud run services add-iam-policy-binding my-api"))
+    #expect(cmd.contains("--member=serviceAccount:invoker@test-project.iam.gserviceaccount.com"))
+    #expect(cmd.contains("--role=roles/run.invoker"))
+}
+
+@Test func testCloudRunMakePublicCommand() {
+    let service = GoogleCloudRunService(
+        name: "my-api",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/my-api:latest"
+    )
+
+    let cmd = service.makePublicCommand
+    #expect(cmd.contains("--member=allUsers"))
+    #expect(cmd.contains("--role=roles/run.invoker"))
+}
+
+// MARK: - DAIS Cloud Run Template Tests
+
+@Test func testDAISCloudRunTemplateGRPCService() {
+    let service = DAISCloudRunTemplate.grpcService(
+        projectID: "test-project",
+        region: "us-central1",
+        deploymentName: "prod",
+        image: "gcr.io/test-project/dais-grpc:latest"
+    )
+
+    #expect(service.name == "prod-grpc")
+    #expect(service.port == 9090)
+    #expect(service.memoryMB == 1024)
+    #expect(service.cpu == "2")
+    #expect(service.minInstances == 1)
+    #expect(service.cpuAllocationType == .alwaysAllocated)
+    #expect(service.labels["app"] == "butteryai")
+    #expect(service.labels["component"] == "grpc-service")
+}
+
+@Test func testDAISCloudRunTemplateHTTPAPI() {
+    let service = DAISCloudRunTemplate.httpAPI(
+        projectID: "test-project",
+        region: "us-central1",
+        deploymentName: "prod",
+        image: "gcr.io/test-project/dais-api:latest"
+    )
+
+    #expect(service.name == "prod-api")
+    #expect(service.port == 8080)
+    #expect(service.memoryMB == 512)
+    #expect(service.minInstances == 0)
+    #expect(service.allowUnauthenticated == true)
+    #expect(service.labels["component"] == "http-api")
+}
+
+@Test func testDAISCloudRunTemplateWorker() {
+    let service = DAISCloudRunTemplate.worker(
+        projectID: "test-project",
+        region: "us-central1",
+        deploymentName: "prod",
+        image: "gcr.io/test-project/dais-worker:latest",
+        concurrency: 1
+    )
+
+    #expect(service.name == "prod-worker")
+    #expect(service.memoryMB == 2048)
+    #expect(service.timeoutSeconds == 3600)
+    #expect(service.concurrency == 1)
+    #expect(service.cpuAllocationType == .alwaysAllocated)
+}
+
+@Test func testDAISCloudRunTemplateBatchJob() {
+    let job = DAISCloudRunTemplate.batchJob(
+        projectID: "test-project",
+        region: "us-central1",
+        deploymentName: "prod",
+        image: "gcr.io/test-project/dais-batch:latest",
+        taskCount: 10,
+        parallelism: 5
+    )
+
+    #expect(job.name == "prod-batch")
+    #expect(job.taskCount == 10)
+    #expect(job.parallelism == 5)
+    #expect(job.labels["component"] == "batch-job")
+}
+
+@Test func testDAISCloudRunTemplateMaintenanceJob() {
+    let job = DAISCloudRunTemplate.maintenanceJob(
+        projectID: "test-project",
+        region: "us-central1",
+        deploymentName: "prod",
+        image: "gcr.io/test-project/dais-maint:latest"
+    )
+
+    #expect(job.name == "prod-maintenance")
+    #expect(job.command == ["/app/maintenance"])
+    #expect(job.taskTimeoutSeconds == 1800)
+    #expect(job.labels["component"] == "maintenance")
+}
+
+@Test func testDAISCloudRunTemplateSetupScript() {
+    let script = DAISCloudRunTemplate.setupScript(
+        projectID: "test-project",
+        region: "us-central1",
+        deploymentName: "prod",
+        grpcImage: "gcr.io/test-project/grpc:latest",
+        apiImage: "gcr.io/test-project/api:latest"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("gcloud services enable run.googleapis.com"))
+    #expect(script.contains("prod-grpc"))
+    #expect(script.contains("prod-api"))
+}
+
+@Test func testDAISCloudRunTemplateDockerfile() {
+    let dockerfile = DAISCloudRunTemplate.dockerfile(
+        baseImage: "swift:5.10-jammy",
+        executableName: "dais-server",
+        port: 8080
+    )
+
+    #expect(dockerfile.contains("FROM swift:5.10-jammy"))
+    #expect(dockerfile.contains("swift build -c release"))
+    #expect(dockerfile.contains("EXPOSE 8080"))
+    #expect(dockerfile.contains("CMD [\"/app/dais-server\"]"))
+}
+
+@Test func testDAISCloudRunTemplateCloudbuildConfig() {
+    let config = DAISCloudRunTemplate.cloudbuildConfig(
+        projectID: "test-project",
+        region: "us-central1",
+        serviceName: "my-service",
+        imageName: "my-image"
+    )
+
+    #expect(config.contains("gcr.io/test-project/my-image"))
+    #expect(config.contains("gcloud"))
+    #expect(config.contains("run"))
+    #expect(config.contains("deploy"))
+}
+
+// MARK: - Container Registry Tests
+
+@Test func testContainerRegistryGCR() {
+    let registry = ContainerRegistry.gcr(
+        projectID: "test-project",
+        imageName: "my-app",
+        tag: "v1.0.0"
+    )
+
+    #expect(registry.imageURL == "gcr.io/test-project/my-app:v1.0.0")
+}
+
+@Test func testContainerRegistryArtifactRegistry() {
+    let registry = ContainerRegistry.artifactRegistry(
+        projectID: "test-project",
+        location: "us-central1",
+        repository: "my-repo",
+        imageName: "my-app",
+        tag: "latest"
+    )
+
+    #expect(registry.imageURL == "us-central1-docker.pkg.dev/test-project/my-repo/my-app:latest")
+}
+
+@Test func testContainerRegistryDockerHub() {
+    let registry = ContainerRegistry.dockerHub(
+        imageName: "nginx",
+        tag: "latest"
+    )
+
+    #expect(registry.imageURL == "nginx:latest")
+}
+
+// MARK: - Cloud Run Codable Tests
+
+@Test func testCloudRunServiceCodable() throws {
+    let service = GoogleCloudRunService(
+        name: "my-api",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/my-api:latest",
+        memoryMB: 1024,
+        labels: ["env": "test"]
+    )
+
+    let data = try JSONEncoder().encode(service)
+    let decoded = try JSONDecoder().decode(GoogleCloudRunService.self, from: data)
+
+    #expect(decoded.name == service.name)
+    #expect(decoded.image == service.image)
+    #expect(decoded.memoryMB == service.memoryMB)
+    #expect(decoded.labels == service.labels)
+}
+
+@Test func testCloudRunJobCodable() throws {
+    let job = GoogleCloudRunJob(
+        name: "batch-job",
+        projectID: "test-project",
+        region: "us-central1",
+        image: "gcr.io/test-project/batch:latest",
+        taskCount: 5
+    )
+
+    let data = try JSONEncoder().encode(job)
+    let decoded = try JSONDecoder().decode(GoogleCloudRunJob.self, from: data)
+
+    #expect(decoded.name == job.name)
+    #expect(decoded.taskCount == job.taskCount)
+}
+
+@Test func testCloudRunRevisionCodable() throws {
+    let revision = GoogleCloudRunRevision(
+        name: "my-api-00001",
+        serviceName: "my-api",
+        projectID: "test-project",
+        region: "us-central1"
+    )
+
+    let data = try JSONEncoder().encode(revision)
+    let decoded = try JSONDecoder().decode(GoogleCloudRunRevision.self, from: data)
+
+    #expect(decoded.name == revision.name)
+    #expect(decoded.serviceName == revision.serviceName)
+}
+
+@Test func testCloudRunDomainMappingCodable() throws {
+    let mapping = GoogleCloudRunDomainMapping(
+        domain: "api.example.com",
+        serviceName: "my-api",
+        projectID: "test-project",
+        region: "us-central1"
+    )
+
+    let data = try JSONEncoder().encode(mapping)
+    let decoded = try JSONDecoder().decode(GoogleCloudRunDomainMapping.self, from: data)
+
+    #expect(decoded.domain == mapping.domain)
+    #expect(decoded.serviceName == mapping.serviceName)
+}
+
+@Test func testCloudRunTrafficSplitCodable() throws {
+    let traffic = CloudRunTrafficSplit.canary(
+        stableRevision: "v1",
+        canaryRevision: "v2",
+        canaryPercent: 10
+    )
+
+    let data = try JSONEncoder().encode(traffic)
+    let decoded = try JSONDecoder().decode(CloudRunTrafficSplit.self, from: data)
+
+    #expect(decoded.revisions == traffic.revisions)
+    #expect(decoded.routeToLatest == traffic.routeToLatest)
+}
+
+@Test func testSecretMountCodable() throws {
+    let mount = GoogleCloudRunService.SecretMount.envVar(
+        name: "API_KEY",
+        secretName: "my-secret",
+        version: "latest"
+    )
+
+    let data = try JSONEncoder().encode(mount)
+    let decoded = try JSONDecoder().decode(GoogleCloudRunService.SecretMount.self, from: data)
+
+    #expect(decoded.secretName == mount.secretName)
+    #expect(decoded.version == mount.version)
+}
