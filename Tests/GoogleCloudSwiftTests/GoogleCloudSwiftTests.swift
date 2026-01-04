@@ -26914,3 +26914,441 @@ import Testing
     #expect(decoded.name == "test-config")
     #expect(decoded.solutionTypes?.contains(.recommendation) == true)
 }
+
+// MARK: - Media CDN Tests
+
+@Test func testEdgeCacheServiceBasic() {
+    let service = GoogleCloudEdgeCacheService(
+        name: "video-cdn",
+        projectID: "my-project",
+        description: "Video streaming CDN"
+    )
+
+    #expect(service.name == "video-cdn")
+    #expect(service.projectID == "my-project")
+    #expect(service.location == "global")
+    #expect(service.resourceName == "projects/my-project/locations/global/edgeCacheServices/video-cdn")
+}
+
+@Test func testEdgeCacheServiceCommands() {
+    let service = GoogleCloudEdgeCacheService(
+        name: "media-cdn",
+        projectID: "my-project"
+    )
+
+    #expect(service.createCommand.contains("edge-cache services create media-cdn"))
+    #expect(service.describeCommand.contains("edge-cache services describe media-cdn"))
+    #expect(service.deleteCommand.contains("edge-cache services delete media-cdn"))
+}
+
+@Test func testEdgeCacheServiceRouting() {
+    let service = GoogleCloudEdgeCacheService(
+        name: "cdn-service",
+        projectID: "my-project",
+        routing: .init(
+            hostRules: [
+                .init(hosts: ["cdn.example.com", "*.example.com"], pathMatcher: "main")
+            ],
+            pathMatchers: [
+                .init(name: "main", routeRules: nil)
+            ]
+        )
+    )
+
+    #expect(service.routing?.hostRules?.count == 1)
+    #expect(service.routing?.hostRules?.first?.hosts.count == 2)
+    #expect(service.routing?.pathMatchers?.first?.name == "main")
+}
+
+@Test func testEdgeCacheServiceCDNPolicy() {
+    let cdnPolicy = GoogleCloudEdgeCacheService.CDNPolicy(
+        cacheMode: .cacheAllStatic,
+        defaultTtl: "3600s",
+        maxTtl: "86400s",
+        clientTtl: "1800s",
+        negativeCaching: true,
+        signedRequestMode: .requireTokens
+    )
+
+    #expect(cdnPolicy.cacheMode == .cacheAllStatic)
+    #expect(cdnPolicy.defaultTtl == "3600s")
+    #expect(cdnPolicy.signedRequestMode == .requireTokens)
+}
+
+@Test func testEdgeCacheServiceCacheModes() {
+    #expect(GoogleCloudEdgeCacheService.CDNPolicy.CacheMode.cacheAllStatic.rawValue == "CACHE_ALL_STATIC")
+    #expect(GoogleCloudEdgeCacheService.CDNPolicy.CacheMode.useOriginHeaders.rawValue == "USE_ORIGIN_HEADERS")
+    #expect(GoogleCloudEdgeCacheService.CDNPolicy.CacheMode.forceCacheAll.rawValue == "FORCE_CACHE_ALL")
+    #expect(GoogleCloudEdgeCacheService.CDNPolicy.CacheMode.bypassCache.rawValue == "BYPASS_CACHE")
+}
+
+@Test func testEdgeCacheServiceSignedRequestModes() {
+    #expect(GoogleCloudEdgeCacheService.CDNPolicy.SignedRequestMode.disabled.rawValue == "DISABLED")
+    #expect(GoogleCloudEdgeCacheService.CDNPolicy.SignedRequestMode.requireTokens.rawValue == "REQUIRE_TOKENS")
+    #expect(GoogleCloudEdgeCacheService.CDNPolicy.SignedRequestMode.requireSignatures.rawValue == "REQUIRE_SIGNATURES")
+}
+
+@Test func testEdgeCacheServiceCorsPolicy() {
+    let cors = GoogleCloudEdgeCacheService.CorsPolicy(
+        allowOrigins: ["https://example.com"],
+        allowMethods: ["GET", "HEAD", "OPTIONS"],
+        allowHeaders: ["Range"],
+        exposeHeaders: ["Content-Length"],
+        maxAge: "3600s",
+        allowCredentials: false
+    )
+
+    #expect(cors.allowOrigins?.contains("https://example.com") == true)
+    #expect(cors.allowMethods?.count == 3)
+    #expect(cors.maxAge == "3600s")
+}
+
+@Test func testEdgeCacheOriginBasic() {
+    let origin = GoogleCloudEdgeCacheOrigin(
+        name: "gcs-origin",
+        projectID: "my-project",
+        originAddress: "my-bucket.storage.googleapis.com"
+    )
+
+    #expect(origin.name == "gcs-origin")
+    #expect(origin.originAddress == "my-bucket.storage.googleapis.com")
+    #expect(origin.resourceName == "projects/my-project/locations/global/edgeCacheOrigins/gcs-origin")
+}
+
+@Test func testEdgeCacheOriginCommands() {
+    let origin = GoogleCloudEdgeCacheOrigin(
+        name: "my-origin",
+        projectID: "my-project",
+        originAddress: "origin.example.com"
+    )
+
+    #expect(origin.createCommand.contains("edge-cache origins create my-origin"))
+    #expect(origin.createCommand.contains("--origin-address=origin.example.com"))
+    #expect(origin.describeCommand.contains("edge-cache origins describe my-origin"))
+}
+
+@Test func testEdgeCacheOriginProtocol() {
+    let origin = GoogleCloudEdgeCacheOrigin(
+        name: "http2-origin",
+        projectID: "my-project",
+        originAddress: "origin.example.com",
+        networkProtocol: .http2,
+        port: 443
+    )
+
+    #expect(origin.networkProtocol == .http2)
+    #expect(origin.port == 443)
+}
+
+@Test func testEdgeCacheOriginRetryConditions() {
+    let origin = GoogleCloudEdgeCacheOrigin(
+        name: "retry-origin",
+        projectID: "my-project",
+        originAddress: "origin.example.com",
+        retryConditions: [.connectFailure, .http5xx, .gatewayError],
+        maxAttempts: 3
+    )
+
+    #expect(origin.retryConditions?.count == 3)
+    #expect(origin.retryConditions?.contains(.connectFailure) == true)
+    #expect(origin.maxAttempts == 3)
+}
+
+@Test func testEdgeCacheOriginRetryConditionValues() {
+    #expect(GoogleCloudEdgeCacheOrigin.RetryCondition.connectFailure.rawValue == "CONNECT_FAILURE")
+    #expect(GoogleCloudEdgeCacheOrigin.RetryCondition.http5xx.rawValue == "HTTP_5XX")
+    #expect(GoogleCloudEdgeCacheOrigin.RetryCondition.gatewayError.rawValue == "GATEWAY_ERROR")
+    #expect(GoogleCloudEdgeCacheOrigin.RetryCondition.notFound.rawValue == "NOT_FOUND")
+}
+
+@Test func testEdgeCacheOriginTimeout() {
+    let timeout = GoogleCloudEdgeCacheOrigin.Timeout(
+        connectTimeout: "5s",
+        maxAttemptsTimeout: "30s",
+        responseTimeout: "60s"
+    )
+
+    #expect(timeout.connectTimeout == "5s")
+    #expect(timeout.maxAttemptsTimeout == "30s")
+    #expect(timeout.responseTimeout == "60s")
+}
+
+@Test func testEdgeCacheOriginAWSAuth() {
+    let awsAuth = GoogleCloudEdgeCacheOrigin.AWSV4Authentication(
+        accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+        secretAccessKeyVersion: "projects/my-project/secrets/aws-key/versions/1",
+        originRegion: "us-east-1"
+    )
+
+    #expect(awsAuth.accessKeyId == "AKIAIOSFODNN7EXAMPLE")
+    #expect(awsAuth.originRegion == "us-east-1")
+}
+
+@Test func testEdgeCacheKeysetBasic() {
+    let keyset = GoogleCloudEdgeCacheKeyset(
+        name: "signing-keys",
+        projectID: "my-project",
+        description: "Keys for signed URLs"
+    )
+
+    #expect(keyset.name == "signing-keys")
+    #expect(keyset.resourceName == "projects/my-project/locations/global/edgeCacheKeysets/signing-keys")
+}
+
+@Test func testEdgeCacheKeysetCommands() {
+    let keyset = GoogleCloudEdgeCacheKeyset(
+        name: "my-keyset",
+        projectID: "my-project"
+    )
+
+    #expect(keyset.createCommand.contains("edge-cache keysets create my-keyset"))
+    #expect(keyset.describeCommand.contains("edge-cache keysets describe my-keyset"))
+    #expect(keyset.deleteCommand.contains("edge-cache keysets delete my-keyset"))
+}
+
+@Test func testEdgeCacheKeysetPublicKeys() {
+    let keyset = GoogleCloudEdgeCacheKeyset(
+        name: "ed25519-keyset",
+        projectID: "my-project",
+        publicKeys: [
+            .init(id: "key-1", value: "base64EncodedPublicKey"),
+            .init(id: "key-2", managed: true)
+        ]
+    )
+
+    #expect(keyset.publicKeys?.count == 2)
+    #expect(keyset.publicKeys?.first?.id == "key-1")
+    #expect(keyset.publicKeys?.last?.managed == true)
+}
+
+@Test func testEdgeCacheKeysetValidationSharedKeys() {
+    let keyset = GoogleCloudEdgeCacheKeyset(
+        name: "hmac-keyset",
+        projectID: "my-project",
+        validationSharedKeys: [
+            .init(secretVersion: "projects/my-project/secrets/hmac-key/versions/1")
+        ]
+    )
+
+    #expect(keyset.validationSharedKeys?.count == 1)
+    #expect(keyset.validationSharedKeys?.first?.secretVersion.contains("hmac-key") == true)
+}
+
+@Test func testMediaCDNOperationsEnableAPI() {
+    let ops = MediaCDNOperations(projectID: "my-project")
+
+    #expect(ops.enableAPICommand.contains("networkservices.googleapis.com"))
+}
+
+@Test func testMediaCDNOperationsListCommands() {
+    let ops = MediaCDNOperations(projectID: "my-project")
+
+    #expect(ops.listServicesCommand.contains("edge-cache services list"))
+    #expect(ops.listOriginsCommand.contains("edge-cache origins list"))
+    #expect(ops.listKeysetsCommand.contains("edge-cache keysets list"))
+}
+
+@Test func testMediaCDNOperationsInvalidateCache() {
+    let ops = MediaCDNOperations(projectID: "my-project")
+    let cmd = ops.invalidateCacheCommand(serviceName: "my-cdn", urlPath: "/videos/*")
+
+    #expect(cmd.contains("invalidate-cache my-cdn"))
+    #expect(cmd.contains("--path=\"/videos/*\""))
+}
+
+@Test func testMediaCDNOperationsInvalidateCacheWithHost() {
+    let ops = MediaCDNOperations(projectID: "my-project")
+    let cmd = ops.invalidateCacheCommand(serviceName: "my-cdn", urlPath: "/*", host: "cdn.example.com")
+
+    #expect(cmd.contains("--host=\"cdn.example.com\""))
+}
+
+@Test func testMediaCDNOperationsExportImport() {
+    let ops = MediaCDNOperations(projectID: "my-project")
+
+    let exportCmd = ops.exportServiceCommand(serviceName: "my-cdn", destination: "config.yaml")
+    let importCmd = ops.importServiceCommand(serviceName: "my-cdn", source: "config.yaml")
+
+    #expect(exportCmd.contains("export my-cdn"))
+    #expect(exportCmd.contains("--destination=config.yaml"))
+    #expect(importCmd.contains("import my-cdn"))
+    #expect(importCmd.contains("--source=config.yaml"))
+}
+
+@Test func testMediaCDNOperationsIAMRoles() {
+    #expect(MediaCDNOperations.MediaCDNRole.networkServicesAdmin.rawValue == "roles/networkservices.admin")
+    #expect(MediaCDNOperations.MediaCDNRole.networkServicesEditor.rawValue == "roles/networkservices.editor")
+    #expect(MediaCDNOperations.MediaCDNRole.networkServicesViewer.rawValue == "roles/networkservices.viewer")
+}
+
+@Test func testMediaCDNOperationsAddIAMBinding() {
+    let ops = MediaCDNOperations(projectID: "my-project")
+    let cmd = ops.addIAMBindingCommand(member: "user:admin@example.com", role: .networkServicesAdmin)
+
+    #expect(cmd.contains("add-iam-policy-binding"))
+    #expect(cmd.contains("--role=roles/networkservices.admin"))
+}
+
+@Test func testDAISMediaCDNTemplateGCSOrigin() {
+    let template = DAISMediaCDNTemplate(projectID: "my-project")
+    let origin = template.gcsOrigin(name: "gcs-origin", bucketName: "my-video-bucket")
+
+    #expect(origin.name == "gcs-origin")
+    #expect(origin.originAddress == "my-video-bucket.storage.googleapis.com")
+    #expect(origin.networkProtocol == .http2)
+    #expect(origin.maxAttempts == 3)
+}
+
+@Test func testDAISMediaCDNTemplateS3Origin() {
+    let template = DAISMediaCDNTemplate(projectID: "my-project")
+    let origin = template.s3Origin(
+        name: "s3-origin",
+        bucketName: "my-s3-bucket",
+        region: "us-west-2",
+        accessKeyId: "AKIATEST",
+        secretAccessKeySecretVersion: "projects/my-project/secrets/aws/versions/1"
+    )
+
+    #expect(origin.name == "s3-origin")
+    #expect(origin.originAddress.contains("s3.us-west-2.amazonaws.com"))
+    #expect(origin.awsV4Authentication?.accessKeyId == "AKIATEST")
+    #expect(origin.awsV4Authentication?.originRegion == "us-west-2")
+}
+
+@Test func testDAISMediaCDNTemplateCustomOrigin() {
+    let template = DAISMediaCDNTemplate(projectID: "my-project")
+    let origin = template.customOrigin(
+        name: "custom-origin",
+        originAddress: "origin.example.com",
+        port: 8443
+    )
+
+    #expect(origin.name == "custom-origin")
+    #expect(origin.originAddress == "origin.example.com")
+    #expect(origin.port == 8443)
+}
+
+@Test func testDAISMediaCDNTemplateSignedURLKeyset() {
+    let template = DAISMediaCDNTemplate(projectID: "my-project")
+    let keyset = template.signedURLKeyset(
+        name: "signing-keyset",
+        publicKeyId: "key-001",
+        publicKeyValue: "base64PublicKey"
+    )
+
+    #expect(keyset.name == "signing-keyset")
+    #expect(keyset.publicKeys?.first?.id == "key-001")
+    #expect(keyset.publicKeys?.first?.value == "base64PublicKey")
+}
+
+@Test func testDAISMediaCDNTemplateVideoStreamingService() {
+    let template = DAISMediaCDNTemplate(projectID: "my-project")
+    let service = template.videoStreamingService(
+        name: "video-cdn",
+        hosts: ["cdn.example.com"],
+        originName: "video-origin"
+    )
+
+    #expect(service.name == "video-cdn")
+    #expect(service.routing?.hostRules?.first?.hosts.contains("cdn.example.com") == true)
+    #expect(service.requireTls == true)
+    #expect(service.logConfig?.enable == true)
+}
+
+@Test func testDAISMediaCDNTemplateVideoStreamingServiceWithSignedURLs() {
+    let template = DAISMediaCDNTemplate(projectID: "my-project")
+    let service = template.videoStreamingService(
+        name: "protected-cdn",
+        hosts: ["secure.example.com"],
+        originName: "video-origin",
+        requireSignedURLs: true,
+        keysetName: "signing-keyset"
+    )
+
+    #expect(service.name == "protected-cdn")
+    let routeRule = service.routing?.pathMatchers?.first?.routeRules?.first
+    #expect(routeRule?.routeAction?.cdnPolicy?.signedRequestMode == .requireTokens)
+}
+
+@Test func testDAISMediaCDNTemplateLiveStreamingService() {
+    let template = DAISMediaCDNTemplate(projectID: "my-project")
+    let service = template.liveStreamingService(
+        name: "live-cdn",
+        hosts: ["live.example.com"],
+        originName: "live-origin"
+    )
+
+    #expect(service.name == "live-cdn")
+    #expect(service.description?.contains("Live streaming") == true)
+
+    // Should have rules for HLS manifests, segments, and DASH
+    let routeRules = service.routing?.pathMatchers?.first?.routeRules
+    #expect(routeRules?.count == 3)
+}
+
+@Test func testDAISMediaCDNTemplateSetupScript() {
+    let template = DAISMediaCDNTemplate(projectID: "my-project")
+    let script = template.videoStreamingSetupScript(
+        serviceName: "video-cdn",
+        originName: "video-origin",
+        bucketName: "my-video-bucket",
+        domains: ["cdn.example.com"]
+    )
+
+    #expect(script.contains("networkservices.googleapis.com"))
+    #expect(script.contains("gsutil mb"))
+    #expect(script.contains("cors set"))
+    #expect(script.contains("edge-cache origins create"))
+    #expect(script.contains("edge-cache services import"))
+}
+
+@Test func testDAISMediaCDNTemplateCacheInvalidationScript() {
+    let template = DAISMediaCDNTemplate(projectID: "my-project")
+    let script = template.cacheInvalidationScript(serviceName: "video-cdn")
+
+    #expect(script.contains("invalidate-cache"))
+    #expect(script.contains("PATH_PATTERN"))
+}
+
+@Test func testEdgeCacheServiceCodable() throws {
+    let service = GoogleCloudEdgeCacheService(
+        name: "test-cdn",
+        projectID: "my-project",
+        requireTls: true
+    )
+
+    let data = try JSONEncoder().encode(service)
+    let decoded = try JSONDecoder().decode(GoogleCloudEdgeCacheService.self, from: data)
+
+    #expect(decoded.name == "test-cdn")
+    #expect(decoded.requireTls == true)
+}
+
+@Test func testEdgeCacheOriginCodable() throws {
+    let origin = GoogleCloudEdgeCacheOrigin(
+        name: "test-origin",
+        projectID: "my-project",
+        originAddress: "origin.example.com",
+        networkProtocol: .http2
+    )
+
+    let data = try JSONEncoder().encode(origin)
+    let decoded = try JSONDecoder().decode(GoogleCloudEdgeCacheOrigin.self, from: data)
+
+    #expect(decoded.name == "test-origin")
+    #expect(decoded.networkProtocol == .http2)
+}
+
+@Test func testEdgeCacheKeysetCodable() throws {
+    let keyset = GoogleCloudEdgeCacheKeyset(
+        name: "test-keyset",
+        projectID: "my-project",
+        publicKeys: [.init(id: "key-1", value: "publicKey")]
+    )
+
+    let data = try JSONEncoder().encode(keyset)
+    let decoded = try JSONDecoder().decode(GoogleCloudEdgeCacheKeyset.self, from: data)
+
+    #expect(decoded.name == "test-keyset")
+    #expect(decoded.publicKeys?.first?.id == "key-1")
+}
