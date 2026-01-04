@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 10 Google Cloud services:
+GoogleCloudSwift provides models for 11 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -95,6 +95,7 @@ GoogleCloudSwift provides models for 10 Google Cloud services:
 | **Compute Engine** | VM instances | `GoogleCloudComputeInstance`, `GoogleCloudMachineType` |
 | **Secret Manager** | Secure credentials | `GoogleCloudSecret`, `SecretManagerIAMBinding` |
 | **Cloud Storage** | Object storage | `GoogleCloudStorageBucket`, `LifecycleRule` |
+| **Cloud SQL** | Managed databases (PostgreSQL, MySQL, SQL Server) | `GoogleCloudSQLInstance`, `GoogleCloudSQLDatabase` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -183,6 +184,86 @@ let logBucket = GoogleCloudStorageBucket(
     ]
 )
 ```
+
+### GoogleCloudSQLInstance (Cloud SQL API)
+
+Cloud SQL is a fully managed relational database service supporting PostgreSQL, MySQL, and SQL Server:
+
+```swift
+// Create a PostgreSQL instance
+let instance = GoogleCloudSQLInstance(
+    name: "my-postgres-db",
+    projectID: "my-project",
+    region: "us-central1",
+    databaseVersion: .postgres16,
+    tier: .dbCustom(cpus: 2, memoryMB: 7680),
+    storageSizeGB: 50,
+    storageAutoResize: true,
+    availabilityType: .regional,  // High availability
+    backupEnabled: true,
+    pointInTimeRecoveryEnabled: true
+)
+
+print(instance.createCommand)
+print(instance.connectionName)  // my-project:us-central1:my-postgres-db
+```
+
+**Creating Databases and Users:**
+
+```swift
+// Create a database
+let database = GoogleCloudSQLDatabase(
+    name: "myapp",
+    instanceName: "my-postgres-db",
+    projectID: "my-project",
+    charset: "UTF8",
+    collation: "en_US.UTF8"
+)
+print(database.createCommand)
+
+// Create a user
+let user = GoogleCloudSQLUser(
+    name: "app_user",
+    instanceName: "my-postgres-db",
+    projectID: "my-project",
+    password: "secure-password"
+)
+print(user.createCommand)
+```
+
+**DAIS PostgreSQL Templates:**
+
+```swift
+// Create a production-ready PostgreSQL instance for DAIS
+let instance = DAISSQLTemplate.postgresInstance(
+    name: "dais-db",
+    projectID: "my-project",
+    region: "us-central1",
+    highAvailability: true
+)
+
+let database = DAISSQLTemplate.daisDatabase(instanceName: "dais-db", projectID: "my-project")
+let user = DAISSQLTemplate.daisUser(instanceName: "dais-db", projectID: "my-project", password: "pass")
+
+// Generate complete setup script
+let script = DAISSQLTemplate.setupScript(instance: instance, database: database, appUser: user)
+```
+
+**Supported Database Versions:**
+
+| Engine | Versions |
+|--------|----------|
+| PostgreSQL | 9.6, 11, 12, 13, 14, 15, 16, 17 |
+| MySQL | 5.6, 5.7, 8.0 |
+| SQL Server | 2017, 2019, 2022 (Standard, Enterprise, Express, Web) |
+
+**Machine Tiers:**
+
+| Tier | Use Case | Approx. Cost |
+|------|----------|--------------|
+| `db-f1-micro` | Development | ~$8/month |
+| `db-g1-small` | Light workloads | ~$26/month |
+| `dbCustom(cpus:memoryMB:)` | Production | Varies |
 
 ### GoogleCloudService (Service Usage API)
 
@@ -755,6 +836,8 @@ MIT License
 - [Google Cloud Compute Engine Documentation](https://cloud.google.com/compute/docs)
 - [Secret Manager Documentation](https://cloud.google.com/secret-manager/docs)
 - [Cloud Storage Documentation](https://cloud.google.com/storage/docs)
+- [Cloud SQL Documentation](https://cloud.google.com/sql/docs)
+- [Cloud SQL for PostgreSQL](https://cloud.google.com/sql/docs/postgres)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)

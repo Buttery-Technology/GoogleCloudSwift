@@ -1406,3 +1406,421 @@ import Testing
     #expect(decoded.name == preview.name)
     #expect(decoded.deploymentName == preview.deploymentName)
 }
+
+// MARK: - Cloud SQL Tests
+
+@Test func testGoogleCloudSQLInstance() {
+    let instance = GoogleCloudSQLInstance(
+        name: "my-postgres",
+        projectID: "test-project",
+        region: "us-central1",
+        databaseVersion: .postgres16
+    )
+
+    #expect(instance.name == "my-postgres")
+    #expect(instance.resourceName == "projects/test-project/instances/my-postgres")
+    #expect(instance.connectionName == "test-project:us-central1:my-postgres")
+}
+
+@Test func testSQLInstanceCreateCommand() {
+    let instance = GoogleCloudSQLInstance(
+        name: "test-db",
+        projectID: "my-project",
+        region: "us-west1",
+        databaseVersion: .postgres16,
+        tier: .dbCustom(cpus: 2, memoryMB: 7680),
+        storageSizeGB: 50,
+        availabilityType: .regional
+    )
+
+    let cmd = instance.createCommand
+    #expect(cmd.contains("gcloud sql instances create test-db"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--region=us-west1"))
+    #expect(cmd.contains("--database-version=POSTGRES_16"))
+    #expect(cmd.contains("--cpu=2"))
+    #expect(cmd.contains("--memory=7680MB"))
+    #expect(cmd.contains("--availability-type=REGIONAL"))
+}
+
+@Test func testSQLInstanceWithMySQLVersion() {
+    let instance = GoogleCloudSQLInstance(
+        name: "mysql-db",
+        projectID: "test-project",
+        region: "us-central1",
+        databaseVersion: .mysql80
+    )
+
+    #expect(instance.databaseVersion.engine == .mysql)
+    #expect(instance.databaseVersion.defaultPort == 3306)
+    #expect(instance.createCommand.contains("--database-version=MYSQL_8_0"))
+}
+
+@Test func testSQLInstanceWithSQLServer() {
+    let instance = GoogleCloudSQLInstance(
+        name: "sqlserver-db",
+        projectID: "test-project",
+        region: "us-central1",
+        databaseVersion: .sqlserver2022Standard
+    )
+
+    #expect(instance.databaseVersion.engine == .sqlserver)
+    #expect(instance.databaseVersion.defaultPort == 1433)
+    #expect(instance.databaseVersion.displayName == "SQL Server 2022 Standard")
+}
+
+@Test func testSQLInstanceCommands() {
+    let instance = GoogleCloudSQLInstance(
+        name: "test-instance",
+        projectID: "test-project",
+        region: "us-central1",
+        databaseVersion: .postgres16
+    )
+
+    #expect(instance.deleteCommand.contains("gcloud sql instances delete test-instance"))
+    #expect(instance.describeCommand.contains("gcloud sql instances describe test-instance"))
+    #expect(instance.restartCommand.contains("gcloud sql instances restart test-instance"))
+    #expect(instance.createBackupCommand.contains("gcloud sql backups create"))
+}
+
+@Test func testSQLInstanceWithBackupConfig() {
+    let instance = GoogleCloudSQLInstance(
+        name: "backup-db",
+        projectID: "test-project",
+        region: "us-central1",
+        databaseVersion: .postgres16,
+        backupEnabled: true,
+        backupStartTime: "04:00",
+        pointInTimeRecoveryEnabled: true,
+        retainedBackupsCount: 14,
+        transactionLogRetentionDays: 7
+    )
+
+    let cmd = instance.createCommand
+    #expect(cmd.contains("--backup"))
+    #expect(cmd.contains("--backup-start-time=04:00"))
+    #expect(cmd.contains("--enable-point-in-time-recovery"))
+    #expect(cmd.contains("--retained-backups-count=14"))
+}
+
+@Test func testSQLInstanceWithPrivateNetwork() {
+    let instance = GoogleCloudSQLInstance(
+        name: "private-db",
+        projectID: "test-project",
+        region: "us-central1",
+        databaseVersion: .postgres16,
+        privateNetwork: "projects/test-project/global/networks/my-vpc",
+        publicIPEnabled: false
+    )
+
+    let cmd = instance.createCommand
+    #expect(cmd.contains("--network=projects/test-project/global/networks/my-vpc"))
+    #expect(cmd.contains("--no-assign-ip"))
+}
+
+@Test func testSQLInstanceWithDatabaseFlags() {
+    let instance = GoogleCloudSQLInstance(
+        name: "custom-db",
+        projectID: "test-project",
+        region: "us-central1",
+        databaseVersion: .postgres16,
+        databaseFlags: ["max_connections": "200", "log_min_duration_statement": "1000"]
+    )
+
+    let cmd = instance.createCommand
+    #expect(cmd.contains("--database-flags="))
+    #expect(cmd.contains("max_connections=200") || cmd.contains("log_min_duration_statement=1000"))
+}
+
+@Test func testSQLInstanceWithMaintenanceWindow() {
+    let instance = GoogleCloudSQLInstance(
+        name: "maint-db",
+        projectID: "test-project",
+        region: "us-central1",
+        databaseVersion: .postgres16,
+        maintenanceWindow: GoogleCloudSQLInstance.MaintenanceWindow(day: .sunday, hour: 3)
+    )
+
+    let cmd = instance.createCommand
+    #expect(cmd.contains("--maintenance-window-day=SUN"))
+    #expect(cmd.contains("--maintenance-window-hour=3"))
+}
+
+@Test func testDatabaseVersion() {
+    #expect(GoogleCloudSQLInstance.DatabaseVersion.postgres16.rawValue == "POSTGRES_16")
+    #expect(GoogleCloudSQLInstance.DatabaseVersion.mysql80.rawValue == "MYSQL_8_0")
+    #expect(GoogleCloudSQLInstance.DatabaseVersion.postgres16.engine == .postgresql)
+    #expect(GoogleCloudSQLInstance.DatabaseVersion.postgres16.defaultPort == 5432)
+    #expect(GoogleCloudSQLInstance.DatabaseVersion.postgres16.displayName == "PostgreSQL 16")
+}
+
+@Test func testMachineTier() {
+    #expect(GoogleCloudSQLInstance.MachineTier.dbF1Micro.tierName == "db-f1-micro")
+    #expect(GoogleCloudSQLInstance.MachineTier.dbG1Small.tierName == "db-g1-small")
+    #expect(GoogleCloudSQLInstance.MachineTier.dbCustom(cpus: 4, memoryMB: 16384).tierName == "db-custom-4-16384")
+    #expect(GoogleCloudSQLInstance.MachineTier.developmentRecommended.tierName == "db-f1-micro")
+}
+
+@Test func testMachineTierCost() {
+    #expect(GoogleCloudSQLInstance.MachineTier.dbF1Micro.approximateMonthlyCostUSD == 8)
+    #expect(GoogleCloudSQLInstance.MachineTier.dbG1Small.approximateMonthlyCostUSD == 26)
+}
+
+@Test func testGoogleCloudSQLDatabase() {
+    let database = GoogleCloudSQLDatabase(
+        name: "mydb",
+        instanceName: "my-instance",
+        projectID: "test-project",
+        charset: "UTF8",
+        collation: "en_US.UTF8"
+    )
+
+    #expect(database.name == "mydb")
+    #expect(database.createCommand.contains("gcloud sql databases create mydb"))
+    #expect(database.createCommand.contains("--instance=my-instance"))
+    #expect(database.createCommand.contains("--charset=UTF8"))
+    #expect(database.createCommand.contains("--collation=en_US.UTF8"))
+}
+
+@Test func testSQLDatabaseCommands() {
+    let database = GoogleCloudSQLDatabase(
+        name: "testdb",
+        instanceName: "test-instance",
+        projectID: "test-project"
+    )
+
+    #expect(database.deleteCommand.contains("gcloud sql databases delete testdb"))
+    #expect(database.describeCommand.contains("gcloud sql databases describe testdb"))
+
+    let listCmd = GoogleCloudSQLDatabase.listCommand(instanceName: "test-instance", projectID: "test-project")
+    #expect(listCmd.contains("gcloud sql databases list"))
+}
+
+@Test func testGoogleCloudSQLUser() {
+    let user = GoogleCloudSQLUser(
+        name: "app_user",
+        instanceName: "my-instance",
+        projectID: "test-project",
+        password: "secret123"
+    )
+
+    #expect(user.name == "app_user")
+    #expect(user.createCommand.contains("gcloud sql users create app_user"))
+    #expect(user.createCommand.contains("--password=secret123"))
+}
+
+@Test func testSQLUserCommands() {
+    let user = GoogleCloudSQLUser(
+        name: "testuser",
+        instanceName: "test-instance",
+        projectID: "test-project"
+    )
+
+    #expect(user.deleteCommand.contains("gcloud sql users delete testuser"))
+
+    let setPasswordCmd = user.setPasswordCommand(newPassword: "newpass123")
+    #expect(setPasswordCmd.contains("gcloud sql users set-password testuser"))
+    #expect(setPasswordCmd.contains("--password=newpass123"))
+}
+
+@Test func testSQLUserWithHost() {
+    let user = GoogleCloudSQLUser(
+        name: "mysql_user",
+        instanceName: "my-mysql",
+        projectID: "test-project",
+        password: "pass",
+        host: "%"
+    )
+
+    #expect(user.createCommand.contains("--host=%"))
+}
+
+@Test func testSQLUserIAMType() {
+    let user = GoogleCloudSQLUser(
+        name: "sa@project.iam.gserviceaccount.com",
+        instanceName: "my-instance",
+        projectID: "test-project",
+        type: .cloudIAMServiceAccount
+    )
+
+    #expect(user.createCommand.contains("--type=CLOUD_IAM_SERVICE_ACCOUNT"))
+}
+
+@Test func testAuthorizedNetwork() {
+    let network = GoogleCloudSQLInstance.AuthorizedNetwork(
+        name: "office",
+        cidr: "203.0.113.0/24"
+    )
+
+    #expect(network.name == "office")
+    #expect(network.cidr == "203.0.113.0/24")
+
+    let allowAll = GoogleCloudSQLInstance.AuthorizedNetwork.allowAll
+    #expect(allowAll.cidr == "0.0.0.0/0")
+}
+
+@Test func testMaintenanceWindow() {
+    let window = GoogleCloudSQLInstance.MaintenanceWindow(day: .saturday, hour: 2)
+
+    #expect(window.day == .saturday)
+    #expect(window.hour == 2)
+}
+
+@Test func testSQLSSLCert() {
+    let cert = GoogleCloudSQLSSLCert(
+        commonName: "my-client",
+        instanceName: "my-instance",
+        projectID: "test-project"
+    )
+
+    #expect(cert.createCommand.contains("gcloud sql ssl client-certs create my-client"))
+    #expect(cert.deleteCommand.contains("gcloud sql ssl client-certs delete my-client"))
+}
+
+@Test func testSQLInstanceClone() {
+    let instance = GoogleCloudSQLInstance(
+        name: "source-db",
+        projectID: "test-project",
+        region: "us-central1",
+        databaseVersion: .postgres16
+    )
+
+    let cloneCmd = instance.cloneCommand(newInstanceName: "cloned-db")
+    #expect(cloneCmd.contains("gcloud sql instances clone source-db cloned-db"))
+}
+
+@Test func testSQLInstanceReplica() {
+    let instance = GoogleCloudSQLInstance(
+        name: "primary-db",
+        projectID: "test-project",
+        region: "us-central1",
+        databaseVersion: .postgres16
+    )
+
+    let replicaCmd = instance.createReplicaCommand(replicaName: "replica-db", replicaRegion: "us-west1")
+    #expect(replicaCmd.contains("gcloud sql instances create replica-db"))
+    #expect(replicaCmd.contains("--master-instance-name=primary-db"))
+    #expect(replicaCmd.contains("--region=us-west1"))
+}
+
+@Test func testDAISSQLTemplatePostgres() {
+    let instance = DAISSQLTemplate.postgresInstance(
+        name: "dais-db",
+        projectID: "test-project",
+        region: "us-central1",
+        highAvailability: true
+    )
+
+    #expect(instance.databaseVersion == .postgres16)
+    #expect(instance.availabilityType == .regional)
+    #expect(instance.deletionProtection == true)
+    #expect(instance.labels["app"] == "butteryai")
+    #expect(instance.databaseFlags["max_connections"] == "200")
+}
+
+@Test func testDAISSQLTemplateDatabase() {
+    let database = DAISSQLTemplate.daisDatabase(
+        instanceName: "dais-db",
+        projectID: "test-project"
+    )
+
+    #expect(database.name == "dais")
+    #expect(database.charset == "UTF8")
+    #expect(database.collation == "en_US.UTF8")
+}
+
+@Test func testDAISSQLTemplateUser() {
+    let user = DAISSQLTemplate.daisUser(
+        instanceName: "dais-db",
+        projectID: "test-project",
+        password: "secret123"
+    )
+
+    #expect(user.name == "dais_app")
+    #expect(user.password == "secret123")
+}
+
+@Test func testDAISSQLTemplateConnectionString() {
+    let instance = GoogleCloudSQLInstance(
+        name: "dais-db",
+        projectID: "test-project",
+        region: "us-central1",
+        databaseVersion: .postgres16
+    )
+    let database = GoogleCloudSQLDatabase(
+        name: "dais",
+        instanceName: "dais-db",
+        projectID: "test-project"
+    )
+    let user = GoogleCloudSQLUser(
+        name: "dais_app",
+        instanceName: "dais-db",
+        projectID: "test-project"
+    )
+
+    let proxyConnStr = DAISSQLTemplate.connectionString(instance: instance, database: database, user: user, useProxy: true)
+    #expect(proxyConnStr.contains("postgresql://dais_app@localhost:5432/dais"))
+    #expect(proxyConnStr.contains("test-project:us-central1:dais-db"))
+}
+
+@Test func testDAISSQLTemplateSetupScript() {
+    let instance = DAISSQLTemplate.postgresInstance(
+        name: "dais-db",
+        projectID: "test-project",
+        region: "us-central1"
+    )
+    let database = DAISSQLTemplate.daisDatabase(instanceName: "dais-db", projectID: "test-project")
+    let user = DAISSQLTemplate.daisUser(instanceName: "dais-db", projectID: "test-project", password: "pass")
+
+    let script = DAISSQLTemplate.setupScript(instance: instance, database: database, appUser: user)
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("gcloud services enable sqladmin.googleapis.com"))
+    #expect(script.contains("gcloud sql instances create"))
+    #expect(script.contains("gcloud sql databases create"))
+    #expect(script.contains("gcloud sql users create"))
+}
+
+// MARK: - Cloud SQL Codable Tests
+
+@Test func testSQLInstanceCodable() throws {
+    let instance = GoogleCloudSQLInstance(
+        name: "test-db",
+        projectID: "test-project",
+        region: "us-central1",
+        databaseVersion: .postgres16,
+        tier: .dbCustom(cpus: 2, memoryMB: 4096),
+        labels: ["env": "test"]
+    )
+    let data = try JSONEncoder().encode(instance)
+    let decoded = try JSONDecoder().decode(GoogleCloudSQLInstance.self, from: data)
+
+    #expect(decoded.name == instance.name)
+    #expect(decoded.databaseVersion == instance.databaseVersion)
+    #expect(decoded.labels == instance.labels)
+}
+
+@Test func testSQLDatabaseCodable() throws {
+    let database = GoogleCloudSQLDatabase(
+        name: "testdb",
+        instanceName: "test-instance",
+        projectID: "test-project"
+    )
+    let data = try JSONEncoder().encode(database)
+    let decoded = try JSONDecoder().decode(GoogleCloudSQLDatabase.self, from: data)
+
+    #expect(decoded.name == database.name)
+    #expect(decoded.instanceName == database.instanceName)
+}
+
+@Test func testSQLUserCodable() throws {
+    let user = GoogleCloudSQLUser(
+        name: "testuser",
+        instanceName: "test-instance",
+        projectID: "test-project"
+    )
+    let data = try JSONEncoder().encode(user)
+    let decoded = try JSONDecoder().decode(GoogleCloudSQLUser.self, from: data)
+
+    #expect(decoded.name == user.name)
+    #expect(decoded.instanceName == user.instanceName)
+}
