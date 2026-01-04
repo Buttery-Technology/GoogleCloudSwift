@@ -14069,3 +14069,353 @@ import Testing
     #expect(cmd.contains("filestore backups list"))
     #expect(cmd.contains("--region=us-central1"))
 }
+
+// MARK: - Cloud VPN Tests
+
+@Test func testVPNGatewayBasicInit() {
+    let gateway = GoogleCloudVPNGateway(
+        name: "my-vpn-gw",
+        projectID: "my-project",
+        region: "us-central1",
+        network: "my-vpc"
+    )
+
+    #expect(gateway.name == "my-vpn-gw")
+    #expect(gateway.region == "us-central1")
+    #expect(gateway.resourceName == "projects/my-project/regions/us-central1/vpnGateways/my-vpn-gw")
+}
+
+@Test func testVPNGatewayCreateCommand() {
+    let gateway = GoogleCloudVPNGateway(
+        name: "prod-vpn",
+        projectID: "my-project",
+        region: "us-west1",
+        network: "prod-vpc",
+        stackType: .ipv4Only,
+        description: "Production VPN"
+    )
+
+    let cmd = gateway.createCommand
+    #expect(cmd.contains("vpn-gateways create prod-vpn"))
+    #expect(cmd.contains("--network=prod-vpc"))
+    #expect(cmd.contains("--stack-type=IPV4_ONLY"))
+}
+
+@Test func testVPNGatewayDeleteCommand() {
+    let gateway = GoogleCloudVPNGateway(
+        name: "test-vpn",
+        projectID: "my-project",
+        region: "us-central1",
+        network: "default"
+    )
+
+    let cmd = gateway.deleteCommand
+    #expect(cmd.contains("vpn-gateways delete test-vpn"))
+    #expect(cmd.contains("--region=us-central1"))
+}
+
+@Test func testExternalVPNGatewayBasicInit() {
+    let external = GoogleCloudExternalVPNGateway(
+        name: "peer-gw",
+        projectID: "my-project",
+        interfaces: [
+            GoogleCloudExternalVPNGateway.Interface(id: 0, ipAddress: "203.0.113.1")
+        ],
+        redundancyType: .singleIPInternally
+    )
+
+    #expect(external.name == "peer-gw")
+    #expect(external.interfaces.count == 1)
+}
+
+@Test func testExternalVPNGatewayCreateCommand() {
+    let external = GoogleCloudExternalVPNGateway(
+        name: "on-prem-gw",
+        projectID: "my-project",
+        interfaces: [
+            GoogleCloudExternalVPNGateway.Interface(id: 0, ipAddress: "198.51.100.1"),
+            GoogleCloudExternalVPNGateway.Interface(id: 1, ipAddress: "198.51.100.2")
+        ],
+        redundancyType: .twoIPs,
+        description: "On-premises gateway"
+    )
+
+    let cmd = external.createCommand
+    #expect(cmd.contains("external-vpn-gateways create on-prem-gw"))
+    #expect(cmd.contains("--redundancy-type=TWO_IPS_REDUNDANCY"))
+    #expect(cmd.contains("0=198.51.100.1"))
+    #expect(cmd.contains("1=198.51.100.2"))
+}
+
+@Test func testVPNTunnelBasicInit() {
+    let tunnel = GoogleCloudVPNTunnel(
+        name: "tunnel-0",
+        projectID: "my-project",
+        region: "us-central1",
+        vpnGateway: "my-vpn-gw",
+        vpnGatewayInterface: 0,
+        peerExternalGateway: "peer-gw",
+        peerExternalGatewayInterface: 0,
+        sharedSecret: "secret123",
+        router: "my-router"
+    )
+
+    #expect(tunnel.name == "tunnel-0")
+    #expect(tunnel.vpnGatewayInterface == 0)
+}
+
+@Test func testVPNTunnelCreateCommand() {
+    let tunnel = GoogleCloudVPNTunnel(
+        name: "prod-tunnel-0",
+        projectID: "my-project",
+        region: "us-west1",
+        vpnGateway: "prod-vpn-gw",
+        vpnGatewayInterface: 0,
+        peerExternalGateway: "on-prem-gw",
+        peerExternalGatewayInterface: 0,
+        sharedSecret: "mysecretkey",
+        router: "prod-router",
+        ikeVersion: .v2
+    )
+
+    let cmd = tunnel.createCommand
+    #expect(cmd.contains("vpn-tunnels create prod-tunnel-0"))
+    #expect(cmd.contains("--vpn-gateway=prod-vpn-gw"))
+    #expect(cmd.contains("--interface=0"))
+    #expect(cmd.contains("--peer-external-gateway=on-prem-gw"))
+    #expect(cmd.contains("--ike-version=2"))
+    #expect(cmd.contains("--router=prod-router"))
+}
+
+@Test func testVPNTunnelResourceName() {
+    let tunnel = GoogleCloudVPNTunnel(
+        name: "test-tunnel",
+        projectID: "my-project",
+        region: "us-central1",
+        vpnGateway: "vpn-gw",
+        vpnGatewayInterface: 0,
+        sharedSecret: "secret",
+        router: "router"
+    )
+
+    #expect(tunnel.resourceName == "projects/my-project/regions/us-central1/vpnTunnels/test-tunnel")
+}
+
+@Test func testVPNTunnelListCommand() {
+    let cmd = GoogleCloudVPNTunnel.listCommand(projectID: "my-project", region: "us-west1")
+    #expect(cmd.contains("vpn-tunnels list"))
+    #expect(cmd.contains("us-west1"))
+}
+
+@Test func testClassicVPNGatewayBasicInit() {
+    let classic = GoogleCloudClassicVPNGateway(
+        name: "classic-vpn",
+        projectID: "my-project",
+        region: "us-central1",
+        network: "legacy-vpc"
+    )
+
+    #expect(classic.name == "classic-vpn")
+    #expect(classic.resourceName.contains("targetVpnGateways"))
+}
+
+@Test func testClassicVPNGatewayCreateCommand() {
+    let classic = GoogleCloudClassicVPNGateway(
+        name: "legacy-vpn",
+        projectID: "my-project",
+        region: "us-east1",
+        network: "old-vpc",
+        description: "Legacy VPN"
+    )
+
+    let cmd = classic.createCommand
+    #expect(cmd.contains("target-vpn-gateways create legacy-vpn"))
+    #expect(cmd.contains("--network=old-vpc"))
+}
+
+@Test func testVPNOperationsGenerateSecret() {
+    let cmd = VPNOperations.generateSharedSecretCommand(length: 32)
+    #expect(cmd.contains("openssl rand -base64 32"))
+}
+
+@Test func testVPNOperationsCheckStatus() {
+    let cmd = VPNOperations.checkTunnelStatusCommand(
+        tunnelName: "my-tunnel",
+        projectID: "my-project",
+        region: "us-central1"
+    )
+    #expect(cmd.contains("vpn-tunnels describe my-tunnel"))
+    #expect(cmd.contains("status"))
+}
+
+@Test func testVPNOperationsClassicForwardingRules() {
+    let cmds = VPNOperations.createClassicForwardingRulesCommands(
+        gatewayName: "classic-gw",
+        projectID: "my-project",
+        region: "us-central1",
+        staticIP: "35.192.0.1"
+    )
+
+    #expect(cmds.count == 3)
+    #expect(cmds[0].contains("ESP"))
+    #expect(cmds[1].contains("500"))
+    #expect(cmds[2].contains("4500"))
+}
+
+@Test func testDAISVPNTemplateHAGateway() {
+    let gateway = DAISVPNTemplate.haVPNGateway(
+        projectID: "my-project",
+        region: "us-central1",
+        deploymentName: "dais-prod",
+        network: "prod-vpc"
+    )
+
+    #expect(gateway.name == "dais-prod-vpn-gw")
+    #expect(gateway.stackType == .ipv4Only)
+    #expect(gateway.labels?["deployment"] == "dais-prod")
+}
+
+@Test func testDAISVPNTemplateExternalGateway() {
+    let external = DAISVPNTemplate.externalGateway(
+        projectID: "my-project",
+        deploymentName: "dais-prod",
+        peerIPs: ["203.0.113.1", "203.0.113.2"]
+    )
+
+    #expect(external.name == "dais-prod-peer-gw")
+    #expect(external.redundancyType == .twoIPs)
+    #expect(external.interfaces.count == 2)
+}
+
+@Test func testDAISVPNTemplateExternalGatewaySingleIP() {
+    let external = DAISVPNTemplate.externalGateway(
+        projectID: "my-project",
+        deploymentName: "dais-prod",
+        peerIPs: ["198.51.100.1"]
+    )
+
+    #expect(external.redundancyType == .singleIPInternally)
+    #expect(external.interfaces.count == 1)
+}
+
+@Test func testDAISVPNTemplateTunnel() {
+    let tunnel = DAISVPNTemplate.vpnTunnel(
+        projectID: "my-project",
+        region: "us-central1",
+        deploymentName: "dais-prod",
+        interfaceNum: 0,
+        peerInterfaceNum: 0,
+        sharedSecret: "supersecret",
+        routerName: "dais-router"
+    )
+
+    #expect(tunnel.name == "dais-prod-tunnel-0")
+    #expect(tunnel.ikeVersion == .v2)
+}
+
+@Test func testDAISVPNTemplateBGPPeerCommand() {
+    let cmd = DAISVPNTemplate.bgpPeerCommand(
+        routerName: "dais-router",
+        peerName: "bgp-peer-0",
+        peerASN: 65001,
+        peerIPAddress: "169.254.0.2",
+        interfaceName: "if-tunnel-0",
+        projectID: "my-project",
+        region: "us-central1"
+    )
+
+    #expect(cmd.contains("add-bgp-peer dais-router"))
+    #expect(cmd.contains("--peer-asn=65001"))
+    #expect(cmd.contains("--peer-ip-address=169.254.0.2"))
+}
+
+@Test func testDAISVPNTemplateSetupScript() {
+    let script = DAISVPNTemplate.setupScript(
+        projectID: "my-project",
+        region: "us-central1",
+        deploymentName: "dais-prod",
+        network: "prod-vpc",
+        peerASN: 65001,
+        peerIPs: ["203.0.113.1"]
+    )
+
+    #expect(script.contains("vpn-gateways create"))
+    #expect(script.contains("vpn-tunnels create"))
+    #expect(script.contains("add-bgp-peer"))
+    #expect(script.contains("65001"))
+}
+
+@Test func testDAISVPNTemplateTeardownScript() {
+    let script = DAISVPNTemplate.teardownScript(
+        projectID: "my-project",
+        region: "us-central1",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(script.contains("remove-bgp-peer"))
+    #expect(script.contains("vpn-tunnels delete"))
+    #expect(script.contains("vpn-gateways delete"))
+}
+
+@Test func testVPNGatewayCodable() throws {
+    let gateway = GoogleCloudVPNGateway(
+        name: "test-gw",
+        projectID: "my-project",
+        region: "us-central1",
+        network: "default",
+        stackType: .ipv4Ipv6
+    )
+
+    let data = try JSONEncoder().encode(gateway)
+    let decoded = try JSONDecoder().decode(GoogleCloudVPNGateway.self, from: data)
+
+    #expect(decoded.name == "test-gw")
+    #expect(decoded.stackType == .ipv4Ipv6)
+}
+
+@Test func testVPNTunnelCodable() throws {
+    let tunnel = GoogleCloudVPNTunnel(
+        name: "test-tunnel",
+        projectID: "my-project",
+        region: "us-central1",
+        vpnGateway: "vpn-gw",
+        vpnGatewayInterface: 0,
+        sharedSecret: "secret",
+        router: "router",
+        ikeVersion: .v2
+    )
+
+    let data = try JSONEncoder().encode(tunnel)
+    let decoded = try JSONDecoder().decode(GoogleCloudVPNTunnel.self, from: data)
+
+    #expect(decoded.name == "test-tunnel")
+    #expect(decoded.ikeVersion == .v2)
+}
+
+@Test func testExternalVPNGatewayCodable() throws {
+    let external = GoogleCloudExternalVPNGateway(
+        name: "peer-gw",
+        projectID: "my-project",
+        interfaces: [
+            GoogleCloudExternalVPNGateway.Interface(id: 0, ipAddress: "1.2.3.4")
+        ],
+        redundancyType: .singleIPInternally
+    )
+
+    let data = try JSONEncoder().encode(external)
+    let decoded = try JSONDecoder().decode(GoogleCloudExternalVPNGateway.self, from: data)
+
+    #expect(decoded.name == "peer-gw")
+    #expect(decoded.interfaces.first?.ipAddress == "1.2.3.4")
+}
+
+@Test func testIKEVersionValues() {
+    #expect(GoogleCloudVPNTunnel.IKEVersion.v1.rawValue == 1)
+    #expect(GoogleCloudVPNTunnel.IKEVersion.v2.rawValue == 2)
+}
+
+@Test func testRedundancyTypeValues() {
+    #expect(GoogleCloudExternalVPNGateway.RedundancyType.singleIPInternally.rawValue == "SINGLE_IP_INTERNALLY_REDUNDANT")
+    #expect(GoogleCloudExternalVPNGateway.RedundancyType.twoIPs.rawValue == "TWO_IPS_REDUNDANCY")
+    #expect(GoogleCloudExternalVPNGateway.RedundancyType.fourIPs.rawValue == "FOUR_IPS_REDUNDANCY")
+}
