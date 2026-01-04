@@ -21754,3 +21754,345 @@ import Testing
     #expect(GoogleCloudDataprocCluster.InstanceGroupConfig.Preemptibility.preemptible.rawValue == "PREEMPTIBLE")
     #expect(GoogleCloudDataprocCluster.InstanceGroupConfig.Preemptibility.nonPreemptible.rawValue == "NON_PREEMPTIBLE")
 }
+
+// MARK: - Cloud Composer Tests
+
+@Test func testComposerEnvironmentBasic() {
+    let env = GoogleCloudComposerEnvironment(
+        name: "my-env",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(env.name == "my-env")
+    #expect(env.projectID == "my-project")
+    #expect(env.location == "us-central1")
+}
+
+@Test func testComposerEnvironmentResourceName() {
+    let env = GoogleCloudComposerEnvironment(
+        name: "my-env",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(env.resourceName == "projects/my-project/locations/us-central1/environments/my-env")
+}
+
+@Test func testComposerEnvironmentCreateCommand() {
+    let env = GoogleCloudComposerEnvironment(
+        name: "my-env",
+        projectID: "my-project",
+        location: "us-central1",
+        config: GoogleCloudComposerEnvironment.EnvironmentConfig(
+            nodeCount: 3,
+            softwareConfig: GoogleCloudComposerEnvironment.SoftwareConfig(
+                imageVersion: "composer-2-airflow-2",
+                pythonVersion: "3"
+            )
+        )
+    )
+
+    let cmd = env.createCommand
+    #expect(cmd.contains("gcloud composer environments create my-env"))
+    #expect(cmd.contains("--location=us-central1"))
+    #expect(cmd.contains("--node-count=3"))
+    #expect(cmd.contains("--image-version=composer-2-airflow-2"))
+}
+
+@Test func testComposerEnvironmentWithNodeConfig() {
+    let env = GoogleCloudComposerEnvironment(
+        name: "my-env",
+        projectID: "my-project",
+        location: "us-central1",
+        config: GoogleCloudComposerEnvironment.EnvironmentConfig(
+            nodeConfig: GoogleCloudComposerEnvironment.NodeConfig(
+                machineType: "n1-standard-4",
+                diskSizeGb: 100,
+                serviceAccount: "sa@my-project.iam.gserviceaccount.com"
+            )
+        )
+    )
+
+    let cmd = env.createCommand
+    #expect(cmd.contains("--machine-type=n1-standard-4"))
+    #expect(cmd.contains("--disk-size=100GB"))
+    #expect(cmd.contains("--service-account=sa@my-project.iam.gserviceaccount.com"))
+}
+
+@Test func testComposerEnvironmentDescribeCommand() {
+    let env = GoogleCloudComposerEnvironment(
+        name: "my-env",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(env.describeCommand == "gcloud composer environments describe my-env --location=us-central1 --project=my-project")
+}
+
+@Test func testComposerEnvironmentDeleteCommand() {
+    let env = GoogleCloudComposerEnvironment(
+        name: "my-env",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(env.deleteCommand == "gcloud composer environments delete my-env --location=us-central1 --project=my-project")
+}
+
+@Test func testComposerEnvironmentUpdateCommand() {
+    let env = GoogleCloudComposerEnvironment(
+        name: "my-env",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let cmd = env.updateCommand(nodeCount: 5)
+    #expect(cmd.contains("gcloud composer environments update my-env"))
+    #expect(cmd.contains("--node-count=5"))
+}
+
+@Test func testComposerEnvironmentListCommand() {
+    let cmd = GoogleCloudComposerEnvironment.listCommand(projectID: "my-project", location: "us-central1")
+    #expect(cmd == "gcloud composer environments list --locations=us-central1 --project=my-project")
+}
+
+@Test func testComposerEnvironmentAirflowCommands() {
+    let env = GoogleCloudComposerEnvironment(
+        name: "my-env",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(env.listDAGsCommand.contains("dags list"))
+    #expect(env.triggerDAGCommand(dagID: "my-dag").contains("dags trigger my-dag"))
+    #expect(env.pauseDAGCommand(dagID: "my-dag").contains("dags pause my-dag"))
+    #expect(env.unpauseDAGCommand(dagID: "my-dag").contains("dags unpause my-dag"))
+}
+
+@Test func testComposerEnvironmentStateValues() {
+    #expect(GoogleCloudComposerEnvironment.EnvironmentState.running.rawValue == "RUNNING")
+    #expect(GoogleCloudComposerEnvironment.EnvironmentState.creating.rawValue == "CREATING")
+    #expect(GoogleCloudComposerEnvironment.EnvironmentState.deleting.rawValue == "DELETING")
+    #expect(GoogleCloudComposerEnvironment.EnvironmentState.error.rawValue == "ERROR")
+}
+
+@Test func testComposerEnvironmentSizeValues() {
+    #expect(GoogleCloudComposerEnvironment.EnvironmentSize.small.rawValue == "ENVIRONMENT_SIZE_SMALL")
+    #expect(GoogleCloudComposerEnvironment.EnvironmentSize.medium.rawValue == "ENVIRONMENT_SIZE_MEDIUM")
+    #expect(GoogleCloudComposerEnvironment.EnvironmentSize.large.rawValue == "ENVIRONMENT_SIZE_LARGE")
+}
+
+@Test func testComposerDAGBasic() {
+    let dag = GoogleCloudComposerDAG(
+        dagID: "my-dag",
+        schedule: "@daily",
+        description: "My daily DAG"
+    )
+
+    #expect(dag.dagID == "my-dag")
+    #expect(dag.schedule == "@daily")
+    #expect(dag.catchup == false)
+}
+
+@Test func testComposerDAGSchedules() {
+    #expect(GoogleCloudComposerDAG.Schedules.hourly == "@hourly")
+    #expect(GoogleCloudComposerDAG.Schedules.daily == "@daily")
+    #expect(GoogleCloudComposerDAG.Schedules.weekly == "@weekly")
+    #expect(GoogleCloudComposerDAG.Schedules.monthly == "@monthly")
+    #expect(GoogleCloudComposerDAG.Schedules.every5Minutes == "*/5 * * * *")
+}
+
+@Test func testComposerDAGPythonTemplate() {
+    let dag = GoogleCloudComposerDAG(
+        dagID: "my-dag",
+        schedule: "@daily",
+        description: "Test DAG",
+        tags: ["test", "dais"]
+    )
+
+    let template = dag.pythonTemplate
+    #expect(template.contains("'my-dag'"))
+    #expect(template.contains("'@daily'"))
+    #expect(template.contains("['test', 'dais']"))
+}
+
+@Test func testComposerImageVersions() {
+    #expect(ComposerImageVersions.composer2Latest == "composer-2-airflow-2")
+    #expect(ComposerImageVersions.composer2Airflow2_7.contains("composer-2.7"))
+}
+
+@Test func testComposerOperationsEnableAPI() {
+    let cmd = ComposerOperations.enableAPICommand
+    #expect(cmd == "gcloud services enable composer.googleapis.com")
+}
+
+@Test func testComposerOperationsRoles() {
+    #expect(ComposerOperations.Roles.admin == "roles/composer.admin")
+    #expect(ComposerOperations.Roles.user == "roles/composer.user")
+    #expect(ComposerOperations.Roles.worker == "roles/composer.worker")
+}
+
+@Test func testComposerOperationsAddAdminRole() {
+    let cmd = ComposerOperations.addAdminRoleCommand(projectID: "my-project", member: "user:admin@example.com")
+    #expect(cmd.contains("--member=user:admin@example.com"))
+    #expect(cmd.contains("--role=roles/composer.admin"))
+}
+
+@Test func testComposerOperationsUploadDAG() {
+    let cmd = ComposerOperations.uploadDAGCommand(projectID: "my-project", location: "us-central1", envName: "my-env", dagFile: "my_dag.py")
+    #expect(cmd.contains("gcloud composer environments storage dags import"))
+    #expect(cmd.contains("--environment=my-env"))
+    #expect(cmd.contains("--source=my_dag.py"))
+}
+
+@Test func testComposerOperationsDeleteDAG() {
+    let cmd = ComposerOperations.deleteDAGCommand(projectID: "my-project", location: "us-central1", envName: "my-env", dagFile: "my_dag.py")
+    #expect(cmd.contains("gcloud composer environments storage dags delete"))
+    #expect(cmd.contains("my_dag.py"))
+}
+
+@Test func testComposerOperationsListDAGs() {
+    let cmd = ComposerOperations.listDAGsCommand(projectID: "my-project", location: "us-central1", envName: "my-env")
+    #expect(cmd.contains("gcloud composer environments storage dags list"))
+}
+
+@Test func testComposerOperationsLocations() {
+    #expect(ComposerOperations.Locations.usCentral1 == "us-central1")
+    #expect(ComposerOperations.Locations.usEast1 == "us-east1")
+    #expect(ComposerOperations.Locations.europeWest1 == "europe-west1")
+}
+
+@Test func testDAISComposerTemplateBasic() {
+    let template = DAISComposerTemplate(projectID: "my-project")
+
+    #expect(template.projectID == "my-project")
+    #expect(template.location == "us-central1")
+    #expect(template.environmentName == "dais-composer")
+}
+
+@Test func testDAISComposerTemplateDevelopmentEnvironment() {
+    let template = DAISComposerTemplate(projectID: "my-project")
+
+    let env = template.developmentEnvironment
+    #expect(env.name == "dais-composer-dev")
+    #expect(env.config?.environmentSize == .small)
+    #expect(env.labels?["env"] == "development")
+}
+
+@Test func testDAISComposerTemplateProductionEnvironment() {
+    let template = DAISComposerTemplate(projectID: "my-project")
+
+    let env = template.productionEnvironment
+    #expect(env.name == "dais-composer")
+    #expect(env.config?.nodeCount == 3)
+    #expect(env.config?.environmentSize == .medium)
+}
+
+@Test func testDAISComposerTemplateHighAvailabilityEnvironment() {
+    let template = DAISComposerTemplate(projectID: "my-project")
+
+    let env = template.highAvailabilityEnvironment
+    #expect(env.name == "dais-composer-ha")
+    #expect(env.config?.environmentSize == .large)
+    #expect(env.labels?["ha"] == "true")
+}
+
+@Test func testDAISComposerTemplateSampleETLDAG() {
+    let template = DAISComposerTemplate(projectID: "my-project")
+
+    let dag = template.sampleETLDAG
+    #expect(dag.dagID == "dais_etl_pipeline")
+    #expect(dag.schedule == "@daily")
+    #expect(dag.tags?.contains("etl") == true)
+}
+
+@Test func testDAISComposerTemplateSampleDataSyncDAG() {
+    let template = DAISComposerTemplate(projectID: "my-project")
+
+    let dag = template.sampleDataSyncDAG
+    #expect(dag.dagID == "dais_data_sync")
+    #expect(dag.schedule == "@hourly")
+}
+
+@Test func testDAISComposerTemplateSetupScript() {
+    let template = DAISComposerTemplate(
+        projectID: "my-project",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com"
+    )
+
+    let script = template.setupScript
+    #expect(script.contains("composer.googleapis.com"))
+    #expect(script.contains("gcloud composer environments create"))
+    #expect(script.contains("composer.user"))
+}
+
+@Test func testDAISComposerTemplateTeardownScript() {
+    let template = DAISComposerTemplate(projectID: "my-project")
+
+    let script = template.teardownScript
+    #expect(script.contains("Deleting Composer environment"))
+    #expect(script.contains("--quiet"))
+}
+
+@Test func testComposerEnvironmentCodable() throws {
+    let env = GoogleCloudComposerEnvironment(
+        name: "my-env",
+        projectID: "my-project",
+        location: "us-central1",
+        labels: ["env": "prod"],
+        state: .running
+    )
+
+    let data = try JSONEncoder().encode(env)
+    let decoded = try JSONDecoder().decode(GoogleCloudComposerEnvironment.self, from: data)
+
+    #expect(decoded.name == "my-env")
+    #expect(decoded.state == .running)
+}
+
+@Test func testComposerSoftwareConfigCodable() throws {
+    let config = GoogleCloudComposerEnvironment.SoftwareConfig(
+        imageVersion: "composer-2-airflow-2",
+        pythonVersion: "3",
+        pypiPackages: ["pandas": "1.5.0"]
+    )
+
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(GoogleCloudComposerEnvironment.SoftwareConfig.self, from: data)
+
+    #expect(decoded.imageVersion == "composer-2-airflow-2")
+    #expect(decoded.pypiPackages?["pandas"] == "1.5.0")
+}
+
+@Test func testComposerWorkloadsConfigCodable() throws {
+    let config = GoogleCloudComposerEnvironment.WorkloadsConfig(
+        scheduler: GoogleCloudComposerEnvironment.WorkloadsConfig.SchedulerConfig(
+            cpu: 2,
+            memoryGb: 4,
+            count: 2
+        ),
+        worker: GoogleCloudComposerEnvironment.WorkloadsConfig.WorkerConfig(
+            minCount: 2,
+            maxCount: 10
+        )
+    )
+
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(GoogleCloudComposerEnvironment.WorkloadsConfig.self, from: data)
+
+    #expect(decoded.scheduler?.cpu == 2)
+    #expect(decoded.worker?.maxCount == 10)
+}
+
+@Test func testComposerPrivateEnvironmentConfig() {
+    let config = GoogleCloudComposerEnvironment.PrivateEnvironmentConfig(
+        enablePrivateEnvironment: true,
+        enablePrivateEndpoint: true,
+        cloudSqlIpv4CidrBlock: "10.0.0.0/12"
+    )
+
+    #expect(config.enablePrivateEnvironment == true)
+    #expect(config.enablePrivateEndpoint == true)
+    #expect(config.cloudSqlIpv4CidrBlock == "10.0.0.0/12")
+}
