@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 15 Google Cloud services:
+GoogleCloudSwift provides models for 16 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -100,6 +100,7 @@ GoogleCloudSwift provides models for 15 Google Cloud services:
 | **Cloud Functions** | Serverless compute | `GoogleCloudFunction`, `CloudFunctionRuntime` |
 | **Cloud Run** | Containerized services | `GoogleCloudRunService`, `GoogleCloudRunJob` |
 | **Cloud Logging** | Log management and analysis | `GoogleCloudLogEntry`, `GoogleCloudLogSink` |
+| **Cloud Monitoring** | Metrics, alerts, and uptime checks | `GoogleCloudAlertPolicy`, `GoogleCloudUptimeCheck` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -972,6 +973,322 @@ let script = DAISLoggingTemplate.setupScript(
 | `alert` | 700 | Action required |
 | `emergency` | 800 | System unusable |
 
+### GoogleCloudAlertPolicy (Cloud Monitoring API)
+
+Cloud Monitoring provides visibility into the performance, availability, and health of your applications:
+
+```swift
+// Create an alert policy for high CPU
+let policy = GoogleCloudAlertPolicy(
+    displayName: "High CPU Usage",
+    projectID: "my-project",
+    conditions: [
+        .threshold(
+            displayName: "CPU > 80%",
+            filter: "metric.type=\"compute.googleapis.com/instance/cpu/utilization\"",
+            comparison: .greaterThan,
+            threshold: 0.8,
+            duration: "300s"
+        )
+    ],
+    notificationChannels: ["projects/my-project/notificationChannels/123"],
+    documentation: AlertDocumentation(
+        content: "CPU usage exceeded 80%. Consider scaling.",
+        subject: "High CPU Alert"
+    ),
+    severity: .warning
+)
+
+print(policy.createCommand)
+print(GoogleCloudAlertPolicy.listCommand(projectID: "my-project"))
+```
+
+**Alert Conditions:**
+
+```swift
+// Threshold condition
+let thresholdCondition = AlertCondition.threshold(
+    displayName: "Error Rate > 1%",
+    filter: "metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class!=\"2xx\"",
+    comparison: .greaterThan,
+    threshold: 0.01,
+    duration: "60s",
+    aggregation: AlertCondition.Aggregation(
+        alignmentPeriod: "60s",
+        perSeriesAligner: .alignRate,
+        crossSeriesReducer: .reduceSum
+    )
+)
+
+// Absence condition (no data)
+let absenceCondition = AlertCondition.absence(
+    displayName: "No Data",
+    filter: "metric.type=\"custom.googleapis.com/my_metric\"",
+    duration: "600s"
+)
+
+// MQL condition
+let mqlCondition = AlertCondition.mql(
+    displayName: "Custom Query",
+    query: "fetch gce_instance | metric cpu/utilization | filter val() > 0.8",
+    duration: "300s"
+)
+```
+
+**Notification Channels:**
+
+```swift
+// Email notification
+let emailChannel = GoogleCloudNotificationChannel.email(
+    displayName: "On-Call Team",
+    projectID: "my-project",
+    emailAddress: "oncall@example.com"
+)
+print(emailChannel.createCommand)
+
+// Slack notification
+let slackChannel = GoogleCloudNotificationChannel.slack(
+    displayName: "Alerts Channel",
+    projectID: "my-project",
+    channelName: "#alerts",
+    authToken: "xoxb-slack-token"
+)
+
+// PagerDuty notification
+let pagerDutyChannel = GoogleCloudNotificationChannel.pagerDuty(
+    displayName: "PagerDuty",
+    projectID: "my-project",
+    serviceKey: "service-key"
+)
+
+// Webhook notification
+let webhookChannel = GoogleCloudNotificationChannel.webhook(
+    displayName: "Custom Webhook",
+    projectID: "my-project",
+    url: "https://example.com/webhook"
+)
+
+// Pub/Sub notification
+let pubsubChannel = GoogleCloudNotificationChannel.pubsub(
+    displayName: "Pub/Sub Alerts",
+    projectID: "my-project",
+    topic: "projects/my-project/topics/alerts"
+)
+```
+
+**Uptime Checks:**
+
+```swift
+// HTTP uptime check
+let httpCheck = GoogleCloudUptimeCheck(
+    displayName: "API Health Check",
+    projectID: "my-project",
+    monitoredResource: .uptime(host: "api.example.com"),
+    httpCheck: GoogleCloudUptimeCheck.HTTPCheckConfig(
+        path: "/health",
+        port: 443,
+        useSsl: true,
+        validateSsl: true,
+        requestMethod: .get
+    ),
+    period: .oneMinute,
+    contentMatchers: [
+        GoogleCloudUptimeCheck.ContentMatcher(content: "ok", matcher: .contains)
+    ]
+)
+print(httpCheck.createCommand)
+
+// TCP uptime check (for gRPC)
+let tcpCheck = GoogleCloudUptimeCheck(
+    displayName: "gRPC Health",
+    projectID: "my-project",
+    monitoredResource: .uptime(host: "grpc.example.com"),
+    tcpCheck: GoogleCloudUptimeCheck.TCPCheckConfig(port: 9090),
+    period: .oneMinute
+)
+
+// Cloud Run uptime check
+let cloudRunCheck = GoogleCloudUptimeCheck(
+    displayName: "Cloud Run Service",
+    projectID: "my-project",
+    monitoredResource: .cloudRun(
+        projectID: "my-project",
+        serviceName: "my-api",
+        location: "us-central1"
+    ),
+    httpCheck: GoogleCloudUptimeCheck.HTTPCheckConfig(path: "/health")
+)
+```
+
+**Custom Metrics:**
+
+```swift
+// Create a custom metric descriptor
+let metric = GoogleCloudMetricDescriptor(
+    type: "custom.googleapis.com/my_app/request_latency",
+    projectID: "my-project",
+    metricKind: .gauge,
+    valueType: .distribution,
+    unit: "ms",
+    description: "Request latency in milliseconds",
+    displayName: "Request Latency",
+    labels: [
+        GoogleCloudMetricDescriptor.LabelDescriptor(key: "method", description: "HTTP method"),
+        GoogleCloudMetricDescriptor.LabelDescriptor(key: "status", description: "Response status")
+    ]
+)
+print(metric.createCommand)
+print(metric.resourceName)
+```
+
+**Monitoring Groups:**
+
+```swift
+// Create a group for related resources
+let group = GoogleCloudMonitoringGroup(
+    displayName: "Production Servers",
+    projectID: "my-project",
+    filter: "resource.metadata.name=starts_with(\"prod\") AND resource.type=\"gce_instance\"",
+    isCluster: true
+)
+print(group.createCommand)
+```
+
+**Dashboards:**
+
+```swift
+// Create a dashboard
+let dashboard = GoogleCloudDashboard(
+    displayName: "DAIS Overview",
+    projectID: "my-project",
+    layout: .grid(columns: 3)
+)
+print(dashboard.createCommand)
+print(GoogleCloudDashboard.listCommand(projectID: "my-project"))
+```
+
+**Service Level Objectives (SLOs):**
+
+```swift
+// Create an SLO for 99.9% availability
+let slo = GoogleCloudSLO(
+    displayName: "API Availability",
+    serviceName: "my-api",
+    projectID: "my-project",
+    goal: 0.999,
+    rollingPeriod: "30d",
+    sli: .requestBased(
+        goodTotalRatio: GoogleCloudSLO.ServiceLevelIndicator.GoodTotalRatio(
+            goodServiceFilter: "metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"2xx\"",
+            totalServiceFilter: "metric.type=\"run.googleapis.com/request_count\""
+        ),
+        distributionCut: nil
+    )
+)
+```
+
+**MQL Query Builder:**
+
+```swift
+// Build Monitoring Query Language queries
+let query = MQLQueryBuilder.fetch(
+    metricType: "compute.googleapis.com/instance/cpu/utilization",
+    resourceType: "gce_instance"
+)
+let filtered = MQLQueryBuilder.filter(query, condition: "resource.zone = 'us-central1-a'")
+let grouped = MQLQueryBuilder.groupBy(filtered, fields: ["resource.zone"], reducer: "mean")
+let aligned = MQLQueryBuilder.align(grouped, aligner: "mean", period: "5m")
+```
+
+**Predefined Metric Filters:**
+
+```swift
+// Common GCP metrics
+let cpuFilter = PredefinedMetricFilter.cpuUtilization
+let cloudRunRequests = PredefinedMetricFilter.cloudRunRequestCount
+let functionExecutions = PredefinedMetricFilter.functionExecutionCount
+let sqlConnections = PredefinedMetricFilter.sqlConnections
+let pubsubBacklog = PredefinedMetricFilter.pubsubSubscriptionBacklog
+```
+
+**DAIS Monitoring Templates:**
+
+```swift
+// Create notification channels
+let emailChannel = DAISMonitoringTemplate.emailChannel(
+    projectID: "my-project",
+    deploymentName: "prod",
+    email: "alerts@example.com"
+)
+
+// Create alert policies
+let cpuAlert = DAISMonitoringTemplate.cpuAlertPolicy(
+    projectID: "my-project",
+    deploymentName: "prod",
+    threshold: 0.8
+)
+
+let memoryAlert = DAISMonitoringTemplate.memoryAlertPolicy(
+    projectID: "my-project",
+    deploymentName: "prod",
+    threshold: 0.85
+)
+
+let errorAlert = DAISMonitoringTemplate.errorRateAlertPolicy(
+    projectID: "my-project",
+    deploymentName: "prod",
+    threshold: 0.01
+)
+
+// Create uptime checks
+let httpCheck = DAISMonitoringTemplate.httpUptimeCheck(
+    projectID: "my-project",
+    deploymentName: "prod",
+    host: "api.example.com"
+)
+
+let grpcCheck = DAISMonitoringTemplate.grpcUptimeCheck(
+    projectID: "my-project",
+    deploymentName: "prod",
+    host: "grpc.example.com"
+)
+
+// Create custom metrics
+let latencyMetric = DAISMonitoringTemplate.requestLatencyMetric(
+    projectID: "my-project",
+    deploymentName: "prod"
+)
+
+// Generate complete setup script
+let script = DAISMonitoringTemplate.setupScript(
+    projectID: "my-project",
+    deploymentName: "prod",
+    alertEmail: "alerts@example.com",
+    httpHost: "api.example.com",
+    grpcHost: "grpc.example.com"
+)
+```
+
+**Notification Channel Types:**
+
+| Type | Description |
+|------|-------------|
+| `email` | Email notifications |
+| `sms` | SMS text messages |
+| `slack` | Slack channel messages |
+| `pagerDuty` | PagerDuty incidents |
+| `webhook` | Custom webhook endpoints |
+| `pubsub` | Pub/Sub topic messages |
+
+**Uptime Check Periods:**
+
+| Period | Value |
+|--------|-------|
+| `oneMinute` | 60s |
+| `fiveMinutes` | 300s |
+| `tenMinutes` | 600s |
+| `fifteenMinutes` | 900s |
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -1553,6 +1870,9 @@ MIT License
 - [Cloud Run Jobs Documentation](https://cloud.google.com/run/docs/create-jobs)
 - [Cloud Logging Documentation](https://cloud.google.com/logging/docs)
 - [Log-Based Metrics Documentation](https://cloud.google.com/logging/docs/logs-based-metrics)
+- [Cloud Monitoring Documentation](https://cloud.google.com/monitoring/docs)
+- [Alerting Policies Documentation](https://cloud.google.com/monitoring/alerts)
+- [Uptime Checks Documentation](https://cloud.google.com/monitoring/uptime-checks)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
