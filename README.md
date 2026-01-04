@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 24 Google Cloud services:
+GoogleCloudSwift provides models for 25 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -109,6 +109,7 @@ GoogleCloudSwift provides models for 24 Google Cloud services:
 | **Cloud Armor** | WAF & DDoS protection | `GoogleCloudSecurityPolicy`, `SecurityPolicyRule`, `WAFRule` |
 | **Cloud CDN** | Content delivery network | `CDNCachePolicy`, `CDNBackendBucket`, `CDNCacheInvalidation` |
 | **Cloud Tasks** | Distributed task queues | `GoogleCloudTaskQueue`, `GoogleCloudHTTPTask`, `GoogleCloudAppEngineTask` |
+| **Cloud KMS** | Key management service | `GoogleCloudKeyRing`, `GoogleCloudCryptoKey`, `GoogleCloudCryptoKeyVersion` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -3174,6 +3175,162 @@ let cloudRunTask = DAISTasksTemplate.cloudRunTask(
 | `taskRunner` | Can run tasks |
 | `viewer` | Read-only access |
 
+### GoogleCloudCryptoKey (Cloud KMS)
+
+Manage encryption keys with Cloud Key Management Service:
+
+```swift
+// Create a key ring
+let keyRing = GoogleCloudKeyRing(
+    name: "my-keyring",
+    projectID: "my-project",
+    location: "us-central1"
+)
+print(keyRing.createCommand)
+
+// Create an encryption key
+let key = GoogleCloudCryptoKey(
+    name: "data-encryption-key",
+    keyRing: "my-keyring",
+    projectID: "my-project",
+    location: "us-central1",
+    purpose: .encryptDecrypt,
+    protectionLevel: .software,
+    rotationPeriod: "7776000s" // 90 days
+)
+print(key.createCommand)
+```
+
+**Key Purposes:**
+
+```swift
+// Symmetric encryption
+let encryptKey = GoogleCloudCryptoKey(
+    name: "encrypt-key",
+    keyRing: "my-keyring",
+    projectID: "my-project",
+    location: "us-central1",
+    purpose: .encryptDecrypt
+)
+
+// Asymmetric signing (for JWT, code signing)
+let signKey = GoogleCloudCryptoKey(
+    name: "signing-key",
+    keyRing: "my-keyring",
+    projectID: "my-project",
+    location: "us-central1",
+    purpose: .asymmetricSign,
+    versionTemplate: GoogleCloudCryptoKey.VersionTemplate(
+        algorithm: .ecSignP256Sha256
+    )
+)
+
+// HSM-protected key
+let hsmKey = GoogleCloudCryptoKey(
+    name: "hsm-key",
+    keyRing: "my-keyring",
+    projectID: "my-project",
+    location: "us-central1",
+    protectionLevel: .hsm
+)
+```
+
+**KMS Operations:**
+
+```swift
+// Encrypt data
+let encryptCmd = KMSOperations.encryptCommand(
+    keyName: "my-key",
+    keyRing: "my-keyring",
+    location: "us-central1",
+    projectID: "my-project",
+    plaintextFile: "secret.txt",
+    ciphertextFile: "secret.enc"
+)
+
+// Decrypt data
+let decryptCmd = KMSOperations.decryptCommand(
+    keyName: "my-key",
+    keyRing: "my-keyring",
+    location: "us-central1",
+    projectID: "my-project",
+    ciphertextFile: "secret.enc",
+    plaintextFile: "secret.txt"
+)
+
+// Sign with asymmetric key
+let signCmd = KMSOperations.asymmetricSignCommand(
+    keyName: "signing-key",
+    keyRing: "my-keyring",
+    location: "us-central1",
+    projectID: "my-project",
+    version: "1",
+    inputFile: "data.txt",
+    signatureFile: "signature.bin"
+)
+```
+
+**Key Versions:**
+
+```swift
+let version = GoogleCloudCryptoKeyVersion(
+    keyName: "my-key",
+    keyRing: "my-keyring",
+    projectID: "my-project",
+    location: "us-central1",
+    version: "1"
+)
+
+print(version.enableCommand)   // Enable version
+print(version.disableCommand)  // Disable version
+print(version.destroyCommand)  // Schedule destruction (24h delay)
+print(version.getPublicKeyCommand)  // Get public key (asymmetric)
+```
+
+**DAIS Templates:**
+
+```swift
+// Key ring for deployment
+let keyRing = DAISKMSTemplate.keyRing(
+    projectID: "my-project",
+    location: "us-central1",
+    deploymentName: "dais-prod"
+)
+
+// Data encryption key with rotation
+let dataKey = DAISKMSTemplate.dataEncryptionKey(
+    projectID: "my-project",
+    location: "us-central1",
+    keyRing: "dais-prod-keyring",
+    deploymentName: "dais-prod"
+)
+
+// HSM-protected key for sensitive data
+let hsmKey = DAISKMSTemplate.hsmEncryptionKey(
+    projectID: "my-project",
+    location: "us-central1",
+    keyRing: "dais-prod-keyring",
+    deploymentName: "dais-prod"
+)
+
+// Signing key for JWT tokens
+let signingKey = DAISKMSTemplate.signingKey(
+    projectID: "my-project",
+    location: "us-central1",
+    keyRing: "dais-prod-keyring",
+    deploymentName: "dais-prod"
+)
+```
+
+**Protection Levels:**
+
+| Level | Description |
+|-------|-------------|
+| `software` | Software-protected (default) |
+| `hsm` | Hardware Security Module protected |
+| `external` | Externally managed key |
+| `externalVpc` | External key via VPC |
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -3795,6 +3952,10 @@ MIT License
 - [Cloud Tasks Documentation](https://cloud.google.com/tasks/docs)
 - [Cloud Tasks Queues](https://cloud.google.com/tasks/docs/creating-queues)
 - [Cloud Tasks HTTP Targets](https://cloud.google.com/tasks/docs/creating-http-target-tasks)
+- [Cloud KMS Documentation](https://cloud.google.com/kms/docs)
+- [Cloud KMS Key Rings](https://cloud.google.com/kms/docs/creating-keys)
+- [Cloud KMS Key Rotation](https://cloud.google.com/kms/docs/key-rotation)
+- [Cloud KMS Envelope Encryption](https://cloud.google.com/kms/docs/envelope-encryption)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
