@@ -17214,3 +17214,679 @@ import Testing
 
     #expect(decoded.name == "test-template")
 }
+
+// MARK: - GKE Cluster Tests
+
+@Test func testGKEClusterBasicInit() {
+    let cluster = GoogleCloudGKECluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(cluster.name == "my-cluster")
+    #expect(cluster.projectID == "my-project")
+    #expect(cluster.location == "us-central1")
+}
+
+@Test func testGKEClusterResourceName() {
+    let cluster = GoogleCloudGKECluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(cluster.resourceName == "projects/my-project/locations/us-central1/clusters/my-cluster")
+}
+
+@Test func testGKEClusterIsRegional() {
+    let regional = GoogleCloudGKECluster(
+        name: "regional-cluster",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+    #expect(regional.isRegional == true)
+
+    let zonal = GoogleCloudGKECluster(
+        name: "zonal-cluster",
+        projectID: "my-project",
+        location: "us-central1-a"
+    )
+    #expect(zonal.isRegional == false)
+}
+
+@Test func testGKEClusterCreateCommandRegional() {
+    let cluster = GoogleCloudGKECluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1",
+        initialNodeCount: 3
+    )
+
+    let cmd = cluster.createCommand
+    #expect(cmd.contains("gcloud container clusters create my-cluster"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(cmd.contains("--num-nodes=3"))
+}
+
+@Test func testGKEClusterCreateCommandZonal() {
+    let cluster = GoogleCloudGKECluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1-a",
+        initialNodeCount: 3
+    )
+
+    let cmd = cluster.createCommand
+    #expect(cmd.contains("--zone=us-central1-a"))
+    #expect(!cmd.contains("--region="))
+}
+
+@Test func testGKEClusterCreateCommandAutopilot() {
+    let cluster = GoogleCloudGKECluster(
+        name: "autopilot-cluster",
+        projectID: "my-project",
+        location: "us-central1",
+        autopilot: GoogleCloudGKECluster.Autopilot(enabled: true)
+    )
+
+    let cmd = cluster.createCommand
+    #expect(cmd.contains("--enable-autopilot"))
+    #expect(!cmd.contains("--num-nodes"))
+}
+
+@Test func testGKEClusterCreateCommandWithNodeConfig() {
+    let cluster = GoogleCloudGKECluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1",
+        initialNodeCount: 3,
+        nodeConfig: GoogleCloudGKECluster.NodeConfig(
+            machineType: "e2-standard-4",
+            diskSizeGb: 100,
+            diskType: .pdSsd,
+            spot: true
+        )
+    )
+
+    let cmd = cluster.createCommand
+    #expect(cmd.contains("--machine-type=e2-standard-4"))
+    #expect(cmd.contains("--disk-size=100"))
+    #expect(cmd.contains("--disk-type=pd-ssd"))
+    #expect(cmd.contains("--spot"))
+}
+
+@Test func testGKEClusterCreateCommandWithPrivateCluster() {
+    let cluster = GoogleCloudGKECluster(
+        name: "private-cluster",
+        projectID: "my-project",
+        location: "us-central1",
+        privateClusterConfig: GoogleCloudGKECluster.PrivateClusterConfig(
+            enablePrivateNodes: true,
+            enablePrivateEndpoint: false,
+            masterIpv4CidrBlock: "172.16.0.0/28"
+        )
+    )
+
+    let cmd = cluster.createCommand
+    #expect(cmd.contains("--enable-private-nodes"))
+    #expect(!cmd.contains("--enable-private-endpoint"))
+    #expect(cmd.contains("--master-ipv4-cidr=172.16.0.0/28"))
+}
+
+@Test func testGKEClusterCreateCommandWithReleaseChannel() {
+    let cluster = GoogleCloudGKECluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1",
+        releaseChannel: GoogleCloudGKECluster.ReleaseChannel(channel: .stable)
+    )
+
+    let cmd = cluster.createCommand
+    #expect(cmd.contains("--release-channel=stable"))
+}
+
+@Test func testGKEClusterCreateCommandWithWorkloadIdentity() {
+    let cluster = GoogleCloudGKECluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1",
+        workloadIdentityConfig: GoogleCloudGKECluster.WorkloadIdentityConfig(
+            workloadPool: "my-project.svc.id.goog"
+        )
+    )
+
+    let cmd = cluster.createCommand
+    #expect(cmd.contains("--workload-pool=my-project.svc.id.goog"))
+}
+
+@Test func testGKEClusterCreateCommandWithNetwork() {
+    let cluster = GoogleCloudGKECluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1",
+        networkConfig: GoogleCloudGKECluster.NetworkConfig(
+            network: "my-vpc",
+            subnetwork: "my-subnet"
+        )
+    )
+
+    let cmd = cluster.createCommand
+    #expect(cmd.contains("--network=my-vpc"))
+    #expect(cmd.contains("--subnetwork=my-subnet"))
+}
+
+@Test func testGKEClusterCreateCommandWithLabels() {
+    let cluster = GoogleCloudGKECluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1",
+        labels: ["env": "prod", "team": "ml"]
+    )
+
+    let cmd = cluster.createCommand
+    #expect(cmd.contains("--labels="))
+}
+
+@Test func testGKEClusterDeleteCommand() {
+    let cluster = GoogleCloudGKECluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let cmd = cluster.deleteCommand
+    #expect(cmd.contains("gcloud container clusters delete my-cluster"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testGKEClusterDescribeCommand() {
+    let cluster = GoogleCloudGKECluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let cmd = cluster.describeCommand
+    #expect(cmd.contains("gcloud container clusters describe my-cluster"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--region=us-central1"))
+}
+
+@Test func testGKEClusterGetCredentialsCommand() {
+    let cluster = GoogleCloudGKECluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let cmd = cluster.getCredentialsCommand
+    #expect(cmd.contains("gcloud container clusters get-credentials my-cluster"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--region=us-central1"))
+}
+
+@Test func testGKEClusterResizeCommand() {
+    let cluster = GoogleCloudGKECluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let cmd = cluster.resizeCommand(nodeCount: 5, nodePool: "default-pool")
+    #expect(cmd.contains("gcloud container clusters resize my-cluster"))
+    #expect(cmd.contains("--node-pool=default-pool"))
+    #expect(cmd.contains("--num-nodes=5"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testGKEClusterUpgradeCommandMaster() {
+    let cluster = GoogleCloudGKECluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let cmd = cluster.upgradeCommand(version: "1.28.3-gke.1200")
+    #expect(cmd.contains("gcloud container clusters upgrade my-cluster"))
+    #expect(cmd.contains("--cluster-version=1.28.3-gke.1200"))
+    #expect(cmd.contains("--master"))
+}
+
+@Test func testGKEClusterUpgradeCommandNodePool() {
+    let cluster = GoogleCloudGKECluster(
+        name: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let cmd = cluster.upgradeCommand(version: "1.28.3-gke.1200", nodePool: "default-pool")
+    #expect(cmd.contains("--node-pool=default-pool"))
+    #expect(!cmd.contains("--master"))
+}
+
+// MARK: - GKE Node Config Tests
+
+@Test func testGKENodeConfigDiskTypes() {
+    #expect(GoogleCloudGKECluster.NodeConfig.DiskType.pdStandard.rawValue == "pd-standard")
+    #expect(GoogleCloudGKECluster.NodeConfig.DiskType.pdSsd.rawValue == "pd-ssd")
+    #expect(GoogleCloudGKECluster.NodeConfig.DiskType.pdBalanced.rawValue == "pd-balanced")
+}
+
+@Test func testGKENodeConfigTaint() {
+    let taint = GoogleCloudGKECluster.NodeConfig.Taint(
+        key: "dedicated",
+        value: "gpu",
+        effect: .noSchedule
+    )
+
+    #expect(taint.key == "dedicated")
+    #expect(taint.value == "gpu")
+    #expect(taint.effect == .noSchedule)
+}
+
+@Test func testGKENodeConfigTaintEffects() {
+    #expect(GoogleCloudGKECluster.NodeConfig.Taint.TaintEffect.noSchedule.rawValue == "NO_SCHEDULE")
+    #expect(GoogleCloudGKECluster.NodeConfig.Taint.TaintEffect.preferNoSchedule.rawValue == "PREFER_NO_SCHEDULE")
+    #expect(GoogleCloudGKECluster.NodeConfig.Taint.TaintEffect.noExecute.rawValue == "NO_EXECUTE")
+}
+
+@Test func testGKENodeConfigAccelerator() {
+    let accelerator = GoogleCloudGKECluster.NodeConfig.Accelerator(
+        acceleratorCount: 2,
+        acceleratorType: "nvidia-tesla-t4",
+        gpuPartitionSize: "1g.5gb"
+    )
+
+    #expect(accelerator.acceleratorCount == 2)
+    #expect(accelerator.acceleratorType == "nvidia-tesla-t4")
+    #expect(accelerator.gpuPartitionSize == "1g.5gb")
+}
+
+// MARK: - GKE Network Config Tests
+
+@Test func testGKENetworkConfigDatapathProvider() {
+    #expect(GoogleCloudGKECluster.NetworkConfig.DatapathProvider.legacyDatapath.rawValue == "LEGACY_DATAPATH")
+    #expect(GoogleCloudGKECluster.NetworkConfig.DatapathProvider.advancedDatapath.rawValue == "ADVANCED_DATAPATH")
+}
+
+// MARK: - GKE Release Channel Tests
+
+@Test func testGKEReleaseChannels() {
+    #expect(GoogleCloudGKECluster.ReleaseChannel.Channel.rapid.rawValue == "RAPID")
+    #expect(GoogleCloudGKECluster.ReleaseChannel.Channel.regular.rawValue == "REGULAR")
+    #expect(GoogleCloudGKECluster.ReleaseChannel.Channel.stable.rawValue == "STABLE")
+}
+
+// MARK: - GKE Cluster Status Tests
+
+@Test func testGKEClusterStatusValues() {
+    #expect(GoogleCloudGKECluster.ClusterStatus.provisioning.rawValue == "PROVISIONING")
+    #expect(GoogleCloudGKECluster.ClusterStatus.running.rawValue == "RUNNING")
+    #expect(GoogleCloudGKECluster.ClusterStatus.reconciling.rawValue == "RECONCILING")
+    #expect(GoogleCloudGKECluster.ClusterStatus.stopping.rawValue == "STOPPING")
+    #expect(GoogleCloudGKECluster.ClusterStatus.error.rawValue == "ERROR")
+    #expect(GoogleCloudGKECluster.ClusterStatus.degraded.rawValue == "DEGRADED")
+}
+
+// MARK: - GKE Node Pool Tests
+
+@Test func testGKENodePoolBasicInit() {
+    let nodePool = GoogleCloudGKENodePool(
+        name: "my-pool",
+        clusterName: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1",
+        initialNodeCount: 3
+    )
+
+    #expect(nodePool.name == "my-pool")
+    #expect(nodePool.clusterName == "my-cluster")
+    #expect(nodePool.initialNodeCount == 3)
+}
+
+@Test func testGKENodePoolResourceName() {
+    let nodePool = GoogleCloudGKENodePool(
+        name: "my-pool",
+        clusterName: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(nodePool.resourceName == "projects/my-project/locations/us-central1/clusters/my-cluster/nodePools/my-pool")
+}
+
+@Test func testGKENodePoolCreateCommand() {
+    let nodePool = GoogleCloudGKENodePool(
+        name: "my-pool",
+        clusterName: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1",
+        initialNodeCount: 3
+    )
+
+    let cmd = nodePool.createCommand
+    #expect(cmd.contains("gcloud container node-pools create my-pool"))
+    #expect(cmd.contains("--cluster=my-cluster"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(cmd.contains("--num-nodes=3"))
+}
+
+@Test func testGKENodePoolCreateCommandWithConfig() {
+    let nodePool = GoogleCloudGKENodePool(
+        name: "my-pool",
+        clusterName: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1",
+        config: GoogleCloudGKECluster.NodeConfig(
+            machineType: "n2-standard-8",
+            diskSizeGb: 200,
+            diskType: .pdSsd,
+            spot: true
+        )
+    )
+
+    let cmd = nodePool.createCommand
+    #expect(cmd.contains("--machine-type=n2-standard-8"))
+    #expect(cmd.contains("--disk-size=200"))
+    #expect(cmd.contains("--disk-type=pd-ssd"))
+    #expect(cmd.contains("--spot"))
+}
+
+@Test func testGKENodePoolCreateCommandWithAutoscaling() {
+    let nodePool = GoogleCloudGKENodePool(
+        name: "my-pool",
+        clusterName: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1",
+        autoscaling: GoogleCloudGKENodePool.Autoscaling(
+            enabled: true,
+            minNodeCount: 1,
+            maxNodeCount: 10
+        )
+    )
+
+    let cmd = nodePool.createCommand
+    #expect(cmd.contains("--enable-autoscaling"))
+    #expect(cmd.contains("--min-nodes=1"))
+    #expect(cmd.contains("--max-nodes=10"))
+}
+
+@Test func testGKENodePoolCreateCommandWithManagement() {
+    let nodePool = GoogleCloudGKENodePool(
+        name: "my-pool",
+        clusterName: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1",
+        management: GoogleCloudGKENodePool.NodeManagement(
+            autoUpgrade: true,
+            autoRepair: true
+        )
+    )
+
+    let cmd = nodePool.createCommand
+    #expect(cmd.contains("--enable-autoupgrade"))
+    #expect(cmd.contains("--enable-autorepair"))
+}
+
+@Test func testGKENodePoolCreateCommandManagementDisabled() {
+    let nodePool = GoogleCloudGKENodePool(
+        name: "my-pool",
+        clusterName: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1",
+        management: GoogleCloudGKENodePool.NodeManagement(
+            autoUpgrade: false,
+            autoRepair: false
+        )
+    )
+
+    let cmd = nodePool.createCommand
+    #expect(cmd.contains("--no-enable-autoupgrade"))
+    #expect(cmd.contains("--no-enable-autorepair"))
+}
+
+@Test func testGKENodePoolDeleteCommand() {
+    let nodePool = GoogleCloudGKENodePool(
+        name: "my-pool",
+        clusterName: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let cmd = nodePool.deleteCommand
+    #expect(cmd.contains("gcloud container node-pools delete my-pool"))
+    #expect(cmd.contains("--cluster=my-cluster"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testGKENodePoolDescribeCommand() {
+    let nodePool = GoogleCloudGKENodePool(
+        name: "my-pool",
+        clusterName: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let cmd = nodePool.describeCommand
+    #expect(cmd.contains("gcloud container node-pools describe my-pool"))
+    #expect(cmd.contains("--cluster=my-cluster"))
+}
+
+@Test func testGKENodePoolResizeCommand() {
+    let nodePool = GoogleCloudGKENodePool(
+        name: "my-pool",
+        clusterName: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    let cmd = nodePool.resizeCommand(nodeCount: 5)
+    #expect(cmd.contains("gcloud container clusters resize my-cluster"))
+    #expect(cmd.contains("--node-pool=my-pool"))
+    #expect(cmd.contains("--num-nodes=5"))
+}
+
+// MARK: - GKE Autoscaling Tests
+
+@Test func testGKEAutoscalingLocationPolicy() {
+    #expect(GoogleCloudGKENodePool.Autoscaling.LocationPolicy.balanced.rawValue == "BALANCED")
+    #expect(GoogleCloudGKENodePool.Autoscaling.LocationPolicy.any.rawValue == "ANY")
+}
+
+// MARK: - GKE Upgrade Settings Tests
+
+@Test func testGKEUpgradeSettingsStrategy() {
+    #expect(GoogleCloudGKENodePool.UpgradeSettings.Strategy.blueGreen.rawValue == "BLUE_GREEN")
+    #expect(GoogleCloudGKENodePool.UpgradeSettings.Strategy.surge.rawValue == "SURGE")
+}
+
+// MARK: - GKE Node Pool Status Tests
+
+@Test func testGKENodePoolStatusValues() {
+    #expect(GoogleCloudGKENodePool.NodePoolStatus.provisioning.rawValue == "PROVISIONING")
+    #expect(GoogleCloudGKENodePool.NodePoolStatus.running.rawValue == "RUNNING")
+    #expect(GoogleCloudGKENodePool.NodePoolStatus.runningWithError.rawValue == "RUNNING_WITH_ERROR")
+    #expect(GoogleCloudGKENodePool.NodePoolStatus.reconciling.rawValue == "RECONCILING")
+    #expect(GoogleCloudGKENodePool.NodePoolStatus.stopping.rawValue == "STOPPING")
+    #expect(GoogleCloudGKENodePool.NodePoolStatus.error.rawValue == "ERROR")
+}
+
+// MARK: - GKE Operations Tests
+
+@Test func testGKEOperationsListClusters() {
+    let cmd = GKEOperations.listClustersCommand(projectID: "my-project")
+    #expect(cmd.contains("gcloud container clusters list"))
+    #expect(cmd.contains("--project=my-project"))
+}
+
+@Test func testGKEOperationsListClustersWithRegion() {
+    let cmd = GKEOperations.listClustersCommand(projectID: "my-project", location: "us-central1")
+    #expect(cmd.contains("--region=us-central1"))
+}
+
+@Test func testGKEOperationsListNodePools() {
+    let cmd = GKEOperations.listNodePoolsCommand(cluster: "my-cluster", projectID: "my-project", location: "us-central1")
+    #expect(cmd.contains("gcloud container node-pools list"))
+    #expect(cmd.contains("--cluster=my-cluster"))
+    #expect(cmd.contains("--project=my-project"))
+}
+
+@Test func testGKEOperationsGetServerConfig() {
+    let cmd = GKEOperations.getServerConfigCommand(projectID: "my-project", location: "us-central1")
+    #expect(cmd.contains("gcloud container get-server-config"))
+    #expect(cmd.contains("--project=my-project"))
+}
+
+@Test func testGKEOperationsEnableAPI() {
+    #expect(GKEOperations.enableAPICommand == "gcloud services enable container.googleapis.com")
+}
+
+@Test func testGKEOperationsListOperations() {
+    let cmd = GKEOperations.listOperationsCommand(projectID: "my-project", location: "us-central1")
+    #expect(cmd.contains("gcloud container operations list"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--location=us-central1"))
+}
+
+@Test func testGKEOperationsGetKubeconfig() {
+    let cmd = GKEOperations.getKubeconfigCommand(cluster: "my-cluster", projectID: "my-project", location: "us-central1")
+    #expect(cmd.contains("gcloud container clusters get-credentials my-cluster"))
+    #expect(cmd.contains("--project=my-project"))
+}
+
+// MARK: - DAIS GKE Template Tests
+
+@Test func testDAISGKETemplateBasicInit() {
+    let template = DAISGKETemplate(
+        projectID: "my-project",
+        location: "us-central1",
+        clusterName: "dais-cluster"
+    )
+
+    #expect(template.projectID == "my-project")
+    #expect(template.location == "us-central1")
+    #expect(template.clusterName == "dais-cluster")
+}
+
+@Test func testDAISGKETemplateStandardCluster() {
+    let template = DAISGKETemplate(projectID: "my-project")
+    let cluster = template.standardCluster
+
+    #expect(cluster.name == "dais-cluster")
+    #expect(cluster.initialNodeCount == 3)
+    #expect(cluster.nodeConfig?.machineType == "e2-standard-4")
+    #expect(cluster.releaseChannel?.channel == .regular)
+    #expect(cluster.workloadIdentityConfig?.workloadPool == "my-project.svc.id.goog")
+}
+
+@Test func testDAISGKETemplateAutopilotCluster() {
+    let template = DAISGKETemplate(projectID: "my-project")
+    let cluster = template.autopilotCluster
+
+    #expect(cluster.name == "dais-cluster-autopilot")
+    #expect(cluster.autopilot?.enabled == true)
+}
+
+@Test func testDAISGKETemplatePrivateCluster() {
+    let template = DAISGKETemplate(projectID: "my-project")
+    let cluster = template.privateCluster
+
+    #expect(cluster.name == "dais-cluster-private")
+    #expect(cluster.privateClusterConfig?.enablePrivateNodes == true)
+    #expect(cluster.privateClusterConfig?.masterIpv4CidrBlock == "172.16.0.0/28")
+}
+
+@Test func testDAISGKETemplateGPUNodePool() {
+    let template = DAISGKETemplate(projectID: "my-project")
+    let nodePool = template.gpuNodePool
+
+    #expect(nodePool.name == "gpu-pool")
+    #expect(nodePool.config?.accelerators?.first?.acceleratorType == "nvidia-tesla-t4")
+    #expect(nodePool.autoscaling?.enabled == true)
+    #expect(nodePool.autoscaling?.minNodeCount == 0)
+    #expect(nodePool.autoscaling?.maxNodeCount == 5)
+}
+
+@Test func testDAISGKETemplateSpotNodePool() {
+    let template = DAISGKETemplate(projectID: "my-project")
+    let nodePool = template.spotNodePool
+
+    #expect(nodePool.name == "spot-pool")
+    #expect(nodePool.config?.spot == true)
+    #expect(nodePool.initialNodeCount == 0)
+}
+
+@Test func testDAISGKETemplateSetupScript() {
+    let template = DAISGKETemplate(projectID: "my-project")
+    let script = template.setupScript
+
+    #expect(script.contains("gcloud services enable container.googleapis.com"))
+    #expect(script.contains("gcloud container clusters create"))
+    #expect(script.contains("gcloud container clusters get-credentials"))
+}
+
+@Test func testDAISGKETemplateTeardownScript() {
+    let template = DAISGKETemplate(projectID: "my-project")
+    let script = template.teardownScript
+
+    #expect(script.contains("gcloud container clusters delete"))
+}
+
+// MARK: - GKE Codable Tests
+
+@Test func testGKEClusterCodable() throws {
+    let cluster = GoogleCloudGKECluster(
+        name: "test-cluster",
+        projectID: "my-project",
+        location: "us-central1",
+        initialNodeCount: 3
+    )
+
+    let data = try JSONEncoder().encode(cluster)
+    let decoded = try JSONDecoder().decode(GoogleCloudGKECluster.self, from: data)
+
+    #expect(decoded.name == "test-cluster")
+    #expect(decoded.initialNodeCount == 3)
+}
+
+@Test func testGKENodePoolCodable() throws {
+    let nodePool = GoogleCloudGKENodePool(
+        name: "test-pool",
+        clusterName: "my-cluster",
+        projectID: "my-project",
+        location: "us-central1",
+        autoscaling: GoogleCloudGKENodePool.Autoscaling(
+            enabled: true,
+            minNodeCount: 1,
+            maxNodeCount: 5
+        )
+    )
+
+    let data = try JSONEncoder().encode(nodePool)
+    let decoded = try JSONDecoder().decode(GoogleCloudGKENodePool.self, from: data)
+
+    #expect(decoded.name == "test-pool")
+    #expect(decoded.autoscaling?.enabled == true)
+}
+
+@Test func testGKENodeConfigCodable() throws {
+    let config = GoogleCloudGKECluster.NodeConfig(
+        machineType: "e2-standard-4",
+        diskSizeGb: 100,
+        diskType: .pdSsd,
+        spot: true
+    )
+
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(GoogleCloudGKECluster.NodeConfig.self, from: data)
+
+    #expect(decoded.machineType == "e2-standard-4")
+    #expect(decoded.diskType == .pdSsd)
+    #expect(decoded.spot == true)
+}
