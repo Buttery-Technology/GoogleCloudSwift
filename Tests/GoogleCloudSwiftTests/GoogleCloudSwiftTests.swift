@@ -20047,3 +20047,415 @@ import Testing
     #expect(decoded.service == "api-server")
     #expect(decoded.profileType == .heap)
 }
+
+// MARK: - Cloud Error Reporting Tests
+
+@Test func testErrorEventBasicInit() {
+    let event = GoogleCloudErrorEvent(
+        projectID: "my-project",
+        serviceContext: GoogleCloudErrorEvent.ServiceContext(
+            service: "my-service",
+            version: "1.0.0"
+        ),
+        message: "Test error message"
+    )
+
+    #expect(event.projectID == "my-project")
+    #expect(event.serviceContext.service == "my-service")
+    #expect(event.message == "Test error message")
+}
+
+@Test func testErrorEventServiceContext() {
+    let context = GoogleCloudErrorEvent.ServiceContext(
+        service: "api-server",
+        version: "2.0.0",
+        resourceType: "gae_app"
+    )
+
+    #expect(context.service == "api-server")
+    #expect(context.version == "2.0.0")
+    #expect(context.resourceType == "gae_app")
+}
+
+@Test func testErrorEventWithContext() {
+    let httpContext = GoogleCloudErrorEvent.ErrorContext.HTTPRequestContext(
+        method: "POST",
+        url: "/api/users",
+        userAgent: "Mozilla/5.0",
+        responseStatusCode: 500
+    )
+
+    let reportLocation = GoogleCloudErrorEvent.ErrorContext.ReportLocation(
+        filePath: "main.go",
+        lineNumber: 42,
+        functionName: "handleRequest"
+    )
+
+    let errorContext = GoogleCloudErrorEvent.ErrorContext(
+        httpRequest: httpContext,
+        user: "user123",
+        reportLocation: reportLocation
+    )
+
+    let event = GoogleCloudErrorEvent(
+        projectID: "my-project",
+        serviceContext: GoogleCloudErrorEvent.ServiceContext(service: "api"),
+        message: "Error occurred",
+        context: errorContext
+    )
+
+    #expect(event.context?.httpRequest?.method == "POST")
+    #expect(event.context?.httpRequest?.responseStatusCode == 500)
+    #expect(event.context?.user == "user123")
+    #expect(event.context?.reportLocation?.lineNumber == 42)
+}
+
+@Test func testErrorEventReportCommand() {
+    let event = GoogleCloudErrorEvent(
+        projectID: "my-project",
+        serviceContext: GoogleCloudErrorEvent.ServiceContext(service: "my-service"),
+        message: "Something went wrong"
+    )
+
+    let cmd = event.reportCommand
+    #expect(cmd.contains("error-reporting events report"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--service=my-service"))
+    #expect(cmd.contains("Something went wrong"))
+}
+
+@Test func testErrorGroupBasicInit() {
+    let group = GoogleCloudErrorGroup(
+        name: "error-group-1",
+        projectID: "my-project",
+        groupID: "abc123",
+        resolutionStatus: .open
+    )
+
+    #expect(group.name == "error-group-1")
+    #expect(group.projectID == "my-project")
+    #expect(group.groupID == "abc123")
+    #expect(group.resolutionStatus == .open)
+}
+
+@Test func testErrorGroupResourceName() {
+    let group = GoogleCloudErrorGroup(
+        name: "test-group",
+        projectID: "my-project",
+        groupID: "xyz789"
+    )
+
+    #expect(group.resourceName == "projects/my-project/groups/xyz789")
+}
+
+@Test func testErrorGroupGetCommand() {
+    let group = GoogleCloudErrorGroup(
+        name: "test-group",
+        projectID: "my-project",
+        groupID: "abc123"
+    )
+
+    let cmd = group.getCommand
+    #expect(cmd.contains("clouderrorreporting.googleapis.com"))
+    #expect(cmd.contains("projects/my-project/groups/abc123"))
+}
+
+@Test func testErrorGroupUpdateResolutionCommand() {
+    let group = GoogleCloudErrorGroup(
+        name: "test-group",
+        projectID: "my-project",
+        groupID: "abc123"
+    )
+
+    let cmd = group.updateResolutionCommand(status: .resolved)
+    #expect(cmd.contains("PUT"))
+    #expect(cmd.contains("RESOLVED"))
+}
+
+@Test func testErrorGroupResolutionStatusValues() {
+    let statuses: [GoogleCloudErrorGroup.ResolutionStatus] = [
+        .open, .acknowledged, .resolved, .muted
+    ]
+
+    #expect(statuses.count == 4)
+    #expect(GoogleCloudErrorGroup.ResolutionStatus.open.rawValue == "OPEN")
+    #expect(GoogleCloudErrorGroup.ResolutionStatus.resolved.rawValue == "RESOLVED")
+}
+
+@Test func testErrorGroupWithTrackingIssue() {
+    let group = GoogleCloudErrorGroup(
+        name: "test-group",
+        projectID: "my-project",
+        groupID: "abc123",
+        trackingIssues: [GoogleCloudErrorGroup.TrackingIssue(url: "https://issues.example.com/123")]
+    )
+
+    #expect(group.trackingIssues?.first?.url == "https://issues.example.com/123")
+}
+
+@Test func testErrorGroupStatsBasicInit() {
+    let stats = GoogleCloudErrorGroupStats(
+        projectID: "my-project",
+        groupID: "abc123",
+        count: 100,
+        affectedUsersCount: 25
+    )
+
+    #expect(stats.projectID == "my-project")
+    #expect(stats.groupID == "abc123")
+    #expect(stats.count == 100)
+    #expect(stats.affectedUsersCount == 25)
+}
+
+@Test func testErrorReportingOperationsEnableAPI() {
+    #expect(ErrorReportingOperations.enableAPICommand == "gcloud services enable clouderrorreporting.googleapis.com")
+}
+
+@Test func testErrorReportingOperationsRoles() {
+    #expect(ErrorReportingOperations.Roles.admin == "roles/errorreporting.admin")
+    #expect(ErrorReportingOperations.Roles.user == "roles/errorreporting.user")
+    #expect(ErrorReportingOperations.Roles.viewer == "roles/errorreporting.viewer")
+    #expect(ErrorReportingOperations.Roles.writer == "roles/errorreporting.writer")
+}
+
+@Test func testErrorReportingOperationsTimeRanges() {
+    #expect(ErrorReportingOperations.TimeRanges.period1Hour == "PERIOD_1_HOUR")
+    #expect(ErrorReportingOperations.TimeRanges.period1Day == "PERIOD_1_DAY")
+    #expect(ErrorReportingOperations.TimeRanges.period30Days == "PERIOD_30_DAYS")
+}
+
+@Test func testErrorReportingOperationsListGroups() {
+    let cmd = ErrorReportingOperations.listGroupsCommand(projectID: "my-project")
+    #expect(cmd.contains("clouderrorreporting.googleapis.com"))
+    #expect(cmd.contains("projects/my-project/groupStats"))
+}
+
+@Test func testErrorReportingOperationsListGroupsWithFilter() {
+    let cmd = ErrorReportingOperations.listGroupsCommand(
+        projectID: "my-project",
+        service: "api-server",
+        timeRange: "PERIOD_1_DAY"
+    )
+    #expect(cmd.contains("serviceFilter.service=api-server"))
+    #expect(cmd.contains("timeRange.period=PERIOD_1_DAY"))
+}
+
+@Test func testErrorReportingOperationsListEvents() {
+    let cmd = ErrorReportingOperations.listEventsCommand(projectID: "my-project", groupID: "abc123")
+    #expect(cmd.contains("projects/my-project/events"))
+    #expect(cmd.contains("groupId=abc123"))
+}
+
+@Test func testErrorReportingOperationsDeleteEvents() {
+    let cmd = ErrorReportingOperations.deleteEventsCommand(projectID: "my-project")
+    #expect(cmd.contains("DELETE"))
+    #expect(cmd.contains("projects/my-project/events"))
+}
+
+@Test func testErrorReportingOperationsAddWriterRole() {
+    let cmd = ErrorReportingOperations.addWriterRoleCommand(
+        projectID: "my-project",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com"
+    )
+
+    #expect(cmd.contains("add-iam-policy-binding"))
+    #expect(cmd.contains("roles/errorreporting.writer"))
+}
+
+@Test func testErrorReportingGoConfigBasicInit() {
+    let config = ErrorReportingLanguageConfig.Go(
+        projectID: "my-project",
+        service: "my-service",
+        serviceVersion: "1.0.0"
+    )
+
+    #expect(config.projectID == "my-project")
+    #expect(config.service == "my-service")
+}
+
+@Test func testErrorReportingGoConfigInitCode() {
+    let config = ErrorReportingLanguageConfig.Go(
+        projectID: "my-project",
+        service: "my-service",
+        serviceVersion: "1.0.0"
+    )
+
+    let code = config.initCode
+    #expect(code.contains("errorreporting.NewClient"))
+    #expect(code.contains("my-service"))
+}
+
+@Test func testErrorReportingGoModuleDependency() {
+    #expect(ErrorReportingLanguageConfig.Go.moduleDependency == "cloud.google.com/go/errorreporting")
+}
+
+@Test func testErrorReportingPythonConfigInitCode() {
+    let config = ErrorReportingLanguageConfig.Python(
+        projectID: "my-project",
+        service: "my-service",
+        serviceVersion: "1.0.0"
+    )
+
+    let code = config.initCode
+    #expect(code.contains("error_reporting.Client"))
+    #expect(code.contains("my-service"))
+}
+
+@Test func testErrorReportingPythonPipInstall() {
+    #expect(ErrorReportingLanguageConfig.Python.pipInstallCommand == "pip install google-cloud-error-reporting")
+}
+
+@Test func testErrorReportingNodeJSConfigInitCode() {
+    let config = ErrorReportingLanguageConfig.NodeJS(
+        projectID: "my-project",
+        service: "my-service",
+        serviceVersion: "1.0.0"
+    )
+
+    let code = config.initCode
+    #expect(code.contains("@google-cloud/error-reporting"))
+    #expect(code.contains("my-service"))
+}
+
+@Test func testErrorReportingNodeJSNpmInstall() {
+    #expect(ErrorReportingLanguageConfig.NodeJS.npmInstallCommand == "npm install @google-cloud/error-reporting")
+}
+
+@Test func testErrorReportingJavaConfigInitCode() {
+    let config = ErrorReportingLanguageConfig.Java(
+        projectID: "my-project",
+        service: "my-service",
+        serviceVersion: "1.0.0"
+    )
+
+    let code = config.initCode
+    #expect(code.contains("ReportErrorsServiceClient"))
+    #expect(code.contains("my-service"))
+}
+
+@Test func testErrorReportingJavaMavenDependency() {
+    let dep = ErrorReportingLanguageConfig.Java.mavenDependency
+    #expect(dep.contains("google-cloud-errorreporting"))
+}
+
+@Test func testDAISErrorReportingTemplateBasicInit() {
+    let template = DAISErrorReportingTemplate(
+        projectID: "my-project",
+        service: "dais-api"
+    )
+
+    #expect(template.projectID == "my-project")
+    #expect(template.service == "dais-api")
+}
+
+@Test func testDAISErrorReportingTemplateServiceContext() {
+    let template = DAISErrorReportingTemplate(
+        projectID: "my-project",
+        service: "dais-api",
+        serviceVersion: "2.0.0"
+    )
+
+    let context = template.serviceContext
+    #expect(context.service == "dais-api")
+    #expect(context.version == "2.0.0")
+}
+
+@Test func testDAISErrorReportingTemplateErrorEvent() {
+    let template = DAISErrorReportingTemplate(
+        projectID: "my-project",
+        service: "dais-api"
+    )
+
+    let event = template.errorEvent(message: "Test error")
+    #expect(event.projectID == "my-project")
+    #expect(event.message == "Test error")
+    #expect(event.serviceContext.service == "dais-api")
+}
+
+@Test func testDAISErrorReportingTemplateLanguageConfigs() {
+    let template = DAISErrorReportingTemplate(
+        projectID: "my-project",
+        service: "dais-api"
+    )
+
+    #expect(template.goConfig.service == "dais-api")
+    #expect(template.pythonConfig.service == "dais-api")
+    #expect(template.nodeJSConfig.service == "dais-api")
+    #expect(template.javaConfig.service == "dais-api")
+}
+
+@Test func testDAISErrorReportingTemplateListErrorsCommand() {
+    let template = DAISErrorReportingTemplate(
+        projectID: "my-project",
+        service: "dais-api"
+    )
+
+    let cmd = template.listErrorsCommand
+    #expect(cmd.contains("dais-api"))
+    #expect(cmd.contains("PERIOD_1_DAY"))
+}
+
+@Test func testDAISErrorReportingTemplateSetupScript() {
+    let template = DAISErrorReportingTemplate(
+        projectID: "my-project",
+        service: "dais-api",
+        serviceVersion: "1.0.0",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com"
+    )
+
+    let script = template.setupScript
+    #expect(script.contains("clouderrorreporting.googleapis.com"))
+    #expect(script.contains("errorreporting.writer"))
+    #expect(script.contains("dais-api"))
+}
+
+@Test func testErrorEventCodable() throws {
+    let event = GoogleCloudErrorEvent(
+        projectID: "my-project",
+        serviceContext: GoogleCloudErrorEvent.ServiceContext(
+            service: "api-server",
+            version: "1.0.0"
+        ),
+        message: "Test error",
+        context: GoogleCloudErrorEvent.ErrorContext(
+            user: "user123"
+        )
+    )
+
+    let data = try JSONEncoder().encode(event)
+    let decoded = try JSONDecoder().decode(GoogleCloudErrorEvent.self, from: data)
+
+    #expect(decoded.projectID == "my-project")
+    #expect(decoded.message == "Test error")
+    #expect(decoded.context?.user == "user123")
+}
+
+@Test func testErrorGroupCodable() throws {
+    let group = GoogleCloudErrorGroup(
+        name: "test-group",
+        projectID: "my-project",
+        groupID: "abc123",
+        resolutionStatus: .acknowledged
+    )
+
+    let data = try JSONEncoder().encode(group)
+    let decoded = try JSONDecoder().decode(GoogleCloudErrorGroup.self, from: data)
+
+    #expect(decoded.groupID == "abc123")
+    #expect(decoded.resolutionStatus == .acknowledged)
+}
+
+@Test func testErrorGroupStatsCodable() throws {
+    let stats = GoogleCloudErrorGroupStats(
+        projectID: "my-project",
+        groupID: "abc123",
+        count: 100,
+        affectedUsersCount: 10
+    )
+
+    let data = try JSONEncoder().encode(stats)
+    let decoded = try JSONDecoder().decode(GoogleCloudErrorGroupStats.self, from: data)
+
+    #expect(decoded.count == 100)
+    #expect(decoded.affectedUsersCount == 10)
+}

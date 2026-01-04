@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 42 Google Cloud services:
+GoogleCloudSwift provides models for 43 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -122,6 +122,7 @@ GoogleCloudSwift provides models for 42 Google Cloud services:
 | **Vertex AI** | Machine learning platform | `GoogleCloudVertexAIModel`, `GoogleCloudVertexAIEndpoint`, `GoogleCloudVertexAICustomJob`, `DAISVertexAITemplate` |
 | **Cloud Trace** | Distributed tracing | `GoogleCloudTraceSpan`, `GoogleCloudTraceSink`, `TraceOperations`, `DAISTraceTemplate` |
 | **Cloud Profiler** | Continuous profiling | `GoogleCloudProfilerProfile`, `GoogleCloudProfilerAgentConfig`, `ProfilerOperations`, `DAISProfilerTemplate` |
+| **Error Reporting** | Error collection and analysis | `GoogleCloudErrorEvent`, `GoogleCloudErrorGroup`, `ErrorReportingOperations`, `DAISErrorReportingTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -4963,6 +4964,151 @@ print(template.setupScript)
 | `roles/cloudprofiler.agent` | Write profiles |
 | `roles/cloudprofiler.user` | View profiles |
 
+### GoogleCloudErrorEvent (Cloud Error Reporting API)
+
+Cloud Error Reporting collects and analyzes errors from your applications:
+
+```swift
+// Create an error event
+let event = GoogleCloudErrorEvent(
+    projectID: "my-project",
+    serviceContext: GoogleCloudErrorEvent.ServiceContext(
+        service: "api-server",
+        version: "1.0.0"
+    ),
+    message: "NullPointerException: Cannot invoke method on null object",
+    context: GoogleCloudErrorEvent.ErrorContext(
+        httpRequest: GoogleCloudErrorEvent.ErrorContext.HTTPRequestContext(
+            method: "POST",
+            url: "/api/users",
+            responseStatusCode: 500
+        ),
+        user: "user123",
+        reportLocation: GoogleCloudErrorEvent.ErrorContext.ReportLocation(
+            filePath: "src/handlers/users.go",
+            lineNumber: 142,
+            functionName: "CreateUser"
+        )
+    )
+)
+
+print(event.reportCommand)
+```
+
+**Error Groups:**
+
+```swift
+// Manage error groups
+let group = GoogleCloudErrorGroup(
+    name: "error-group-1",
+    projectID: "my-project",
+    groupID: "abc123",
+    resolutionStatus: .open
+)
+
+print(group.resourceName)  // projects/my-project/groups/abc123
+print(group.getCommand)
+
+// Update resolution status
+print(group.updateResolutionCommand(status: .resolved))
+```
+
+**Error Reporting Operations:**
+
+```swift
+// Enable API
+print(ErrorReportingOperations.enableAPICommand)
+
+// List error groups
+print(ErrorReportingOperations.listGroupsCommand(projectID: "my-project"))
+
+// List with filters
+print(ErrorReportingOperations.listGroupsCommand(
+    projectID: "my-project",
+    service: "api-server",
+    timeRange: ErrorReportingOperations.TimeRanges.period1Day
+))
+
+// List events for a group
+print(ErrorReportingOperations.listEventsCommand(
+    projectID: "my-project",
+    groupID: "abc123"
+))
+
+// Delete all events
+print(ErrorReportingOperations.deleteEventsCommand(projectID: "my-project"))
+```
+
+**Language-Specific Configurations:**
+
+```swift
+// Go error reporting
+let goConfig = ErrorReportingLanguageConfig.Go(
+    projectID: "my-project",
+    service: "my-service",
+    serviceVersion: "1.0.0"
+)
+print(goConfig.initCode)
+
+// Python error reporting
+let pythonConfig = ErrorReportingLanguageConfig.Python(
+    projectID: "my-project",
+    service: "my-service",
+    serviceVersion: "1.0.0"
+)
+print(pythonConfig.initCode)
+
+// Node.js error reporting
+let nodeConfig = ErrorReportingLanguageConfig.NodeJS(
+    projectID: "my-project",
+    service: "my-service",
+    serviceVersion: "1.0.0"
+)
+print(nodeConfig.initCode)
+```
+
+**DAIS Error Reporting Templates:**
+
+```swift
+let template = DAISErrorReportingTemplate(
+    projectID: "my-project",
+    service: "dais-api",
+    serviceVersion: "1.0.0",
+    serviceAccount: "sa@my-project.iam.gserviceaccount.com"
+)
+
+// Create error event
+let event = template.errorEvent(message: "Error occurred")
+
+// Language configs
+let goConfig = template.goConfig
+let pythonConfig = template.pythonConfig
+
+// List errors
+print(template.listErrorsCommand)
+
+// Setup script
+print(template.setupScript)
+```
+
+**Resolution Status:**
+
+| Status | Description |
+|--------|-------------|
+| `OPEN` | Error is active |
+| `ACKNOWLEDGED` | Error has been seen |
+| `RESOLVED` | Error has been fixed |
+| `MUTED` | Error is suppressed |
+
+**IAM Roles:**
+
+| Role | Description |
+|------|-------------|
+| `roles/errorreporting.admin` | Full access |
+| `roles/errorreporting.user` | View and manage errors |
+| `roles/errorreporting.viewer` | View errors |
+| `roles/errorreporting.writer` | Write errors |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -6428,6 +6574,16 @@ MIT License
 - [Java Profiler](https://cloud.google.com/profiler/docs/profiling-java)
 - [Using the Interface](https://cloud.google.com/profiler/docs/using-profiler)
 - [Profiler IAM Roles](https://cloud.google.com/profiler/docs/iam)
+
+### Error Reporting
+- [Error Reporting Documentation](https://cloud.google.com/error-reporting/docs)
+- [Reporting Errors](https://cloud.google.com/error-reporting/docs/setup)
+- [Viewing Errors](https://cloud.google.com/error-reporting/docs/viewing-errors)
+- [Managing Error Groups](https://cloud.google.com/error-reporting/docs/managing-errors)
+- [Go Client Library](https://cloud.google.com/error-reporting/docs/setup/go)
+- [Python Client Library](https://cloud.google.com/error-reporting/docs/setup/python)
+- [Node.js Client Library](https://cloud.google.com/error-reporting/docs/setup/nodejs)
+- [Error Reporting IAM Roles](https://cloud.google.com/error-reporting/docs/iam)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)
