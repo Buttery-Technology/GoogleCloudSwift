@@ -22096,3 +22096,473 @@ import Testing
     #expect(config.enablePrivateEndpoint == true)
     #expect(config.cloudSqlIpv4CidrBlock == "10.0.0.0/12")
 }
+
+// MARK: - Document AI Tests
+
+@Test func testDocumentAIProcessorBasicInit() {
+    let processor = GoogleCloudDocumentAIProcessor(
+        name: "my-ocr-processor",
+        projectID: "my-project",
+        location: "us",
+        type: .ocrProcessor,
+        displayName: "My OCR Processor"
+    )
+
+    #expect(processor.name == "my-ocr-processor")
+    #expect(processor.projectID == "my-project")
+    #expect(processor.location == "us")
+    #expect(processor.type == .ocrProcessor)
+    #expect(processor.displayName == "My OCR Processor")
+}
+
+@Test func testDocumentAIProcessorResourceName() {
+    let processor = GoogleCloudDocumentAIProcessor(
+        name: "invoice-parser",
+        projectID: "my-project",
+        location: "eu",
+        type: .invoiceParser
+    )
+
+    #expect(processor.resourceName == "projects/my-project/locations/eu/processors/invoice-parser")
+}
+
+@Test func testDocumentAIProcessorTypes() {
+    #expect(GoogleCloudDocumentAIProcessor.ProcessorType.ocrProcessor.rawValue == "OCR_PROCESSOR")
+    #expect(GoogleCloudDocumentAIProcessor.ProcessorType.formParser.rawValue == "FORM_PARSER_PROCESSOR")
+    #expect(GoogleCloudDocumentAIProcessor.ProcessorType.invoiceParser.rawValue == "INVOICE_PROCESSOR")
+    #expect(GoogleCloudDocumentAIProcessor.ProcessorType.expenseParser.rawValue == "EXPENSE_PROCESSOR")
+    #expect(GoogleCloudDocumentAIProcessor.ProcessorType.identityDocument.rawValue == "ID_PROOFING_PROCESSOR")
+    #expect(GoogleCloudDocumentAIProcessor.ProcessorType.w2Parser.rawValue == "W2_PROCESSOR")
+    #expect(GoogleCloudDocumentAIProcessor.ProcessorType.bankStatement.rawValue == "BANK_STATEMENT_PROCESSOR")
+}
+
+@Test func testDocumentAIProcessorCreateCommand() {
+    let processor = GoogleCloudDocumentAIProcessor(
+        name: "form-parser",
+        projectID: "my-project",
+        location: "us",
+        type: .formParser,
+        displayName: "Form Parser"
+    )
+
+    #expect(processor.createCommand.contains("gcloud documentai processors create"))
+    #expect(processor.createCommand.contains("--location=us"))
+    #expect(processor.createCommand.contains("--type=FORM_PARSER_PROCESSOR"))
+    #expect(processor.createCommand.contains("--display-name=\"Form Parser\""))
+}
+
+@Test func testDocumentAIProcessorListCommand() {
+    let cmd = GoogleCloudDocumentAIProcessor.listCommand(projectID: "my-project", location: "us")
+    #expect(cmd.contains("gcloud documentai processors list"))
+    #expect(cmd.contains("--location=us"))
+    #expect(cmd.contains("--project=my-project"))
+}
+
+@Test func testDocumentAIProcessorEnableDisableCommands() {
+    let processor = GoogleCloudDocumentAIProcessor(
+        name: "my-processor",
+        projectID: "my-project",
+        location: "us",
+        type: .ocrProcessor
+    )
+
+    #expect(processor.enableCommand.contains("processors enable"))
+    #expect(processor.disableCommand.contains("processors disable"))
+}
+
+@Test func testDocumentAIProcessorVersionBasicInit() {
+    let version = GoogleCloudDocumentAIProcessorVersion(
+        name: "v1.0",
+        processorName: "my-processor",
+        projectID: "my-project",
+        location: "us",
+        displayName: "Version 1.0",
+        state: .deployed
+    )
+
+    #expect(version.name == "v1.0")
+    #expect(version.processorName == "my-processor")
+    #expect(version.state == .deployed)
+}
+
+@Test func testDocumentAIProcessorVersionResourceName() {
+    let version = GoogleCloudDocumentAIProcessorVersion(
+        name: "pretrained-v1",
+        processorName: "ocr-processor",
+        projectID: "my-project",
+        location: "eu"
+    )
+
+    #expect(version.resourceName == "projects/my-project/locations/eu/processors/ocr-processor/processorVersions/pretrained-v1")
+}
+
+@Test func testDocumentAIProcessorVersionStates() {
+    #expect(GoogleCloudDocumentAIProcessorVersion.VersionState.deployed.rawValue == "DEPLOYED")
+    #expect(GoogleCloudDocumentAIProcessorVersion.VersionState.deploying.rawValue == "DEPLOYING")
+    #expect(GoogleCloudDocumentAIProcessorVersion.VersionState.undeployed.rawValue == "UNDEPLOYED")
+    #expect(GoogleCloudDocumentAIProcessorVersion.VersionState.creating.rawValue == "CREATING")
+}
+
+@Test func testDocumentAIProcessorVersionDeployCommands() {
+    let version = GoogleCloudDocumentAIProcessorVersion(
+        name: "v2.0",
+        processorName: "my-processor",
+        projectID: "my-project",
+        location: "us"
+    )
+
+    #expect(version.deployCommand.contains("versions deploy"))
+    #expect(version.undeployCommand.contains("versions undeploy"))
+}
+
+@Test func testDocumentFromGCS() {
+    let document = GoogleCloudDocument.fromGCS(
+        uri: "gs://my-bucket/documents/invoice.pdf",
+        mimeType: .pdf
+    )
+
+    #expect(document.gcsUri == "gs://my-bucket/documents/invoice.pdf")
+    #expect(document.mimeType == "application/pdf")
+    #expect(document.content == nil)
+}
+
+@Test func testDocumentMimeTypes() {
+    #expect(GoogleCloudDocument.MimeType.pdf.rawValue == "application/pdf")
+    #expect(GoogleCloudDocument.MimeType.jpeg.rawValue == "image/jpeg")
+    #expect(GoogleCloudDocument.MimeType.png.rawValue == "image/png")
+    #expect(GoogleCloudDocument.MimeType.tiff.rawValue == "image/tiff")
+    #expect(GoogleCloudDocument.MimeType.gif.rawValue == "image/gif")
+}
+
+@Test func testDocumentAIProcessRequestBasic() {
+    let request = GoogleCloudDocumentAIProcessRequest(
+        processorName: "my-processor",
+        projectID: "my-project",
+        location: "us",
+        document: GoogleCloudDocument(mimeType: "application/pdf"),
+        skipHumanReview: true
+    )
+
+    #expect(request.processorName == "my-processor")
+    #expect(request.projectID == "my-project")
+    #expect(request.skipHumanReview == true)
+}
+
+@Test func testDocumentAIProcessRequestBatch() {
+    let request = GoogleCloudDocumentAIProcessRequest(
+        processorName: "ocr-processor",
+        projectID: "my-project",
+        location: "us",
+        inputGcsUri: "gs://input-bucket/documents/",
+        outputGcsUri: "gs://output-bucket/results/",
+        skipHumanReview: true
+    )
+
+    let cmd = request.batchProcessCommand()
+    #expect(cmd.contains("batchProcess"))
+    #expect(cmd.contains("gs://input-bucket/documents/"))
+    #expect(cmd.contains("gs://output-bucket/results/"))
+}
+
+@Test func testDocumentAIProcessResponseEntity() {
+    let entity = GoogleCloudDocumentAIProcessResponse.Entity(
+        type: "invoice_total",
+        mentionText: "$1,234.56",
+        confidence: 0.95
+    )
+
+    #expect(entity.type == "invoice_total")
+    #expect(entity.mentionText == "$1,234.56")
+    #expect(entity.confidence == 0.95)
+}
+
+@Test func testDocumentAIProcessResponseMoneyValue() {
+    let money = GoogleCloudDocumentAIProcessResponse.MoneyValue(
+        currencyCode: "USD",
+        units: 1234,
+        nanos: 560000000
+    )
+
+    #expect(money.currencyCode == "USD")
+    #expect(money.units == 1234)
+    #expect(money.nanos == 560000000)
+}
+
+@Test func testDocumentAIProcessResponseDateValue() {
+    let date = GoogleCloudDocumentAIProcessResponse.DateValue(
+        year: 2024,
+        month: 12,
+        day: 15
+    )
+
+    #expect(date.year == 2024)
+    #expect(date.month == 12)
+    #expect(date.day == 15)
+}
+
+@Test func testDocumentAIProcessResponsePage() {
+    let page = GoogleCloudDocumentAIProcessResponse.Page(
+        pageNumber: 1,
+        detectedLanguages: [
+            GoogleCloudDocumentAIProcessResponse.DetectedLanguage(languageCode: "en", confidence: 0.98)
+        ]
+    )
+
+    #expect(page.pageNumber == 1)
+    #expect(page.detectedLanguages?.first?.languageCode == "en")
+    #expect(page.detectedLanguages?.first?.confidence == 0.98)
+}
+
+@Test func testDocumentAIProcessResponseFormField() {
+    let field = GoogleCloudDocumentAIProcessResponse.FormField(
+        fieldName: GoogleCloudDocumentAIProcessResponse.TextAnchor(content: "Name"),
+        fieldValue: GoogleCloudDocumentAIProcessResponse.TextAnchor(content: "John Doe"),
+        confidence: 0.92
+    )
+
+    #expect(field.fieldName?.content == "Name")
+    #expect(field.fieldValue?.content == "John Doe")
+    #expect(field.confidence == 0.92)
+}
+
+@Test func testDocumentAIProcessResponseTable() {
+    let table = GoogleCloudDocumentAIProcessResponse.Table(
+        headerRows: [
+            GoogleCloudDocumentAIProcessResponse.TableRow(cells: [
+                GoogleCloudDocumentAIProcessResponse.TableCell(colSpan: 1)
+            ])
+        ],
+        bodyRows: []
+    )
+
+    #expect(table.headerRows?.count == 1)
+    #expect(table.headerRows?.first?.cells?.first?.colSpan == 1)
+}
+
+@Test func testDocumentAIHumanReviewConfig() {
+    let config = GoogleCloudDocumentAIHumanReviewConfig(
+        processorName: "my-processor",
+        projectID: "my-project",
+        location: "us",
+        enabled: true
+    )
+
+    #expect(config.processorName == "my-processor")
+    #expect(config.enabled == true)
+    #expect(config.updateCommand.contains("humanReviewConfig"))
+}
+
+@Test func testDocumentAIEvaluationMetrics() {
+    let metrics = GoogleCloudDocumentAIEvaluation.EvaluationMetrics(
+        precision: 0.95,
+        recall: 0.92,
+        f1Score: 0.935,
+        predictedDocumentCount: 100,
+        groundTruthDocumentCount: 100
+    )
+
+    #expect(metrics.precision == 0.95)
+    #expect(metrics.recall == 0.92)
+    #expect(metrics.f1Score == 0.935)
+}
+
+@Test func testDocumentAIEvaluationListCommand() {
+    let evaluation = GoogleCloudDocumentAIEvaluation(
+        processorName: "my-processor",
+        versionName: "v1.0",
+        projectID: "my-project",
+        location: "us"
+    )
+
+    #expect(evaluation.listCommand.contains("evaluations list"))
+    #expect(evaluation.listCommand.contains("--processor=my-processor"))
+    #expect(evaluation.listCommand.contains("--processor-version=v1.0"))
+}
+
+@Test func testDocumentAIOperationsEnableAPI() {
+    #expect(DocumentAIOperations.enableAPICommand == "gcloud services enable documentai.googleapis.com")
+}
+
+@Test func testDocumentAIOperationsListProcessors() {
+    let cmd = DocumentAIOperations.listProcessorsCommand(projectID: "my-project", location: "eu")
+    #expect(cmd.contains("processors list"))
+    #expect(cmd.contains("--location=eu"))
+}
+
+@Test func testDocumentAIOperationsRoles() {
+    let editorCmd = DocumentAIOperations.addEditorRoleCommand(projectID: "my-project", member: "user:admin@example.com")
+    #expect(editorCmd.contains("roles/documentai.editor"))
+
+    let adminCmd = DocumentAIOperations.addAdminRoleCommand(projectID: "my-project", member: "user:admin@example.com")
+    #expect(adminCmd.contains("roles/documentai.admin"))
+
+    let viewerCmd = DocumentAIOperations.addViewerRoleCommand(projectID: "my-project", member: "user:viewer@example.com")
+    #expect(viewerCmd.contains("roles/documentai.viewer"))
+}
+
+@Test func testDAISDocumentAITemplateBasic() {
+    let template = DAISDocumentAITemplate(
+        projectID: "my-project",
+        location: "us",
+        processorPrefix: "dais",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+        documentBucket: "my-project-documents"
+    )
+
+    #expect(template.projectID == "my-project")
+    #expect(template.location == "us")
+    #expect(template.processorPrefix == "dais")
+}
+
+@Test func testDAISDocumentAITemplateOCRProcessor() {
+    let template = DAISDocumentAITemplate(
+        projectID: "my-project",
+        location: "us",
+        processorPrefix: "dais",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+        documentBucket: "my-project-documents"
+    )
+
+    let processor = template.ocrProcessor
+    #expect(processor.name == "dais-ocr")
+    #expect(processor.type == .ocrProcessor)
+    #expect(processor.displayName == "DAIS OCR Processor")
+}
+
+@Test func testDAISDocumentAITemplateFormParser() {
+    let template = DAISDocumentAITemplate(
+        projectID: "my-project",
+        location: "us",
+        processorPrefix: "dais",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+        documentBucket: "my-project-documents"
+    )
+
+    let processor = template.formParserProcessor
+    #expect(processor.type == .formParser)
+    #expect(processor.displayName == "DAIS Form Parser")
+}
+
+@Test func testDAISDocumentAITemplateInvoiceProcessor() {
+    let template = DAISDocumentAITemplate(
+        projectID: "my-project",
+        location: "us",
+        processorPrefix: "dais",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+        documentBucket: "my-project-documents"
+    )
+
+    let processor = template.invoiceProcessor
+    #expect(processor.type == .invoiceParser)
+}
+
+@Test func testDAISDocumentAITemplateSetupScript() {
+    let template = DAISDocumentAITemplate(
+        projectID: "my-project",
+        location: "us",
+        processorPrefix: "dais",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+        documentBucket: "my-project-documents"
+    )
+
+    let script = template.setupScript
+    #expect(script.contains("gcloud services enable documentai.googleapis.com"))
+    #expect(script.contains("gsutil mb"))
+    #expect(script.contains("OCR_PROCESSOR"))
+    #expect(script.contains("FORM_PARSER_PROCESSOR"))
+    #expect(script.contains("INVOICE_PROCESSOR"))
+}
+
+@Test func testDAISDocumentAITemplateOCRRequest() {
+    let template = DAISDocumentAITemplate(
+        projectID: "my-project",
+        location: "us",
+        processorPrefix: "dais",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+        documentBucket: "my-project-documents"
+    )
+
+    let request = template.ocrRequest(gcsUri: "gs://my-bucket/doc.pdf")
+    #expect(request.processorName == "dais-ocr")
+    #expect(request.document?.gcsUri == "gs://my-bucket/doc.pdf")
+}
+
+@Test func testDAISDocumentAITemplateBatchRequest() {
+    let template = DAISDocumentAITemplate(
+        projectID: "my-project",
+        location: "us",
+        processorPrefix: "dais",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+        documentBucket: "my-project-documents"
+    )
+
+    let request = template.batchProcessRequest(inputPrefix: "input/", outputPrefix: "output/")
+    #expect(request.inputGcsUri?.contains("input/") == true)
+    #expect(request.outputGcsUri?.contains("output/") == true)
+}
+
+@Test func testDAISDocumentAITemplatePythonScript() {
+    let template = DAISDocumentAITemplate(
+        projectID: "my-project",
+        location: "us",
+        processorPrefix: "dais",
+        serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+        documentBucket: "my-project-documents"
+    )
+
+    let script = template.pythonProcessingScript
+    #expect(script.contains("from google.cloud import documentai"))
+    #expect(script.contains("def process_document"))
+    #expect(script.contains("def extract_entities"))
+    #expect(script.contains("def extract_form_fields"))
+}
+
+@Test func testDocumentAIProcessorCodable() throws {
+    let processor = GoogleCloudDocumentAIProcessor(
+        name: "test-processor",
+        projectID: "my-project",
+        location: "us",
+        type: .ocrProcessor,
+        displayName: "Test Processor",
+        state: .enabled
+    )
+
+    let data = try JSONEncoder().encode(processor)
+    let decoded = try JSONDecoder().decode(GoogleCloudDocumentAIProcessor.self, from: data)
+
+    #expect(decoded.name == "test-processor")
+    #expect(decoded.type == .ocrProcessor)
+    #expect(decoded.state == .enabled)
+}
+
+@Test func testDocumentAIProcessorVersionCodable() throws {
+    let version = GoogleCloudDocumentAIProcessorVersion(
+        name: "v1",
+        processorName: "my-processor",
+        projectID: "my-project",
+        location: "us",
+        state: .deployed,
+        modelType: .generativeAI
+    )
+
+    let data = try JSONEncoder().encode(version)
+    let decoded = try JSONDecoder().decode(GoogleCloudDocumentAIProcessorVersion.self, from: data)
+
+    #expect(decoded.name == "v1")
+    #expect(decoded.state == .deployed)
+    #expect(decoded.modelType == .generativeAI)
+}
+
+@Test func testDocumentAIHumanReviewStates() {
+    #expect(GoogleCloudDocumentAIProcessResponse.HumanReviewStatus.State.skipped.rawValue == "SKIPPED")
+    #expect(GoogleCloudDocumentAIProcessResponse.HumanReviewStatus.State.validationPassed.rawValue == "VALIDATION_PASSED")
+    #expect(GoogleCloudDocumentAIProcessResponse.HumanReviewStatus.State.inProgress.rawValue == "IN_PROGRESS")
+    #expect(GoogleCloudDocumentAIProcessResponse.HumanReviewStatus.State.error.rawValue == "ERROR")
+}
+
+@Test func testDocumentAIProcessorStates() {
+    #expect(GoogleCloudDocumentAIProcessor.ProcessorState.enabled.rawValue == "ENABLED")
+    #expect(GoogleCloudDocumentAIProcessor.ProcessorState.disabled.rawValue == "DISABLED")
+    #expect(GoogleCloudDocumentAIProcessor.ProcessorState.creating.rawValue == "CREATING")
+    #expect(GoogleCloudDocumentAIProcessor.ProcessorState.deleting.rawValue == "DELETING")
+}

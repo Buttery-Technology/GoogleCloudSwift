@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 46 Google Cloud services:
+GoogleCloudSwift provides models for 47 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -126,6 +126,7 @@ GoogleCloudSwift provides models for 46 Google Cloud services:
 | **Cloud Bigtable** | Wide-column NoSQL database | `GoogleCloudBigtableInstance`, `GoogleCloudBigtableCluster`, `GoogleCloudBigtableTable`, `DAISBigtableTemplate` |
 | **Dataproc** | Managed Spark and Hadoop | `GoogleCloudDataprocCluster`, `GoogleCloudDataprocJob`, `GoogleCloudDataprocBatch`, `DAISDataprocTemplate` |
 | **Cloud Composer** | Managed Apache Airflow | `GoogleCloudComposerEnvironment`, `GoogleCloudComposerDAG`, `ComposerOperations`, `DAISComposerTemplate` |
+| **Document AI** | Intelligent document processing | `GoogleCloudDocumentAIProcessor`, `GoogleCloudDocument`, `DocumentAIOperations`, `DAISDocumentAITemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -5698,6 +5699,204 @@ print(template.teardownScript)
 | `roles/composer.worker` | Worker node access |
 | `roles/composer.environmentAndStorageObjectAdmin` | Environment and storage access |
 
+### GoogleCloudDocumentAIProcessor (Document AI API)
+
+Document AI is a document understanding platform for extracting text, tables, and entities from documents:
+
+```swift
+// Create an OCR processor
+let processor = GoogleCloudDocumentAIProcessor(
+    name: "invoice-ocr",
+    projectID: "my-project",
+    location: "us",
+    type: .ocrProcessor,
+    displayName: "Invoice OCR Processor"
+)
+
+print(processor.resourceName)  // projects/my-project/locations/us/processors/invoice-ocr
+print(processor.createCommand)
+print(processor.describeCommand)
+
+// Available processor types
+let formParser = GoogleCloudDocumentAIProcessor(
+    name: "form-parser",
+    projectID: "my-project",
+    location: "us",
+    type: .formParser
+)
+
+let invoiceParser = GoogleCloudDocumentAIProcessor(
+    name: "invoice-parser",
+    projectID: "my-project",
+    location: "us",
+    type: .invoiceParser
+)
+
+let expenseParser = GoogleCloudDocumentAIProcessor(
+    name: "expense-parser",
+    projectID: "my-project",
+    location: "us",
+    type: .expenseParser
+)
+```
+
+**Processor Versions:**
+
+```swift
+let version = GoogleCloudDocumentAIProcessorVersion(
+    name: "pretrained-v1.0",
+    processorName: "invoice-ocr",
+    projectID: "my-project",
+    location: "us",
+    displayName: "Version 1.0",
+    state: .deployed,
+    modelType: .generativeAI
+)
+
+print(version.resourceName)
+print(version.deployCommand)
+print(version.undeployCommand)
+```
+
+**Processing Documents:**
+
+```swift
+// Process a document from GCS
+let document = GoogleCloudDocument.fromGCS(
+    uri: "gs://my-bucket/invoices/invoice-001.pdf",
+    mimeType: .pdf
+)
+
+// Create a process request
+let request = GoogleCloudDocumentAIProcessRequest(
+    processorName: "invoice-ocr",
+    projectID: "my-project",
+    location: "us",
+    document: document,
+    skipHumanReview: true
+)
+
+print(request.processCommand(inputFile: "invoice.pdf"))
+```
+
+**Batch Processing:**
+
+```swift
+// Process multiple documents
+let batchRequest = GoogleCloudDocumentAIProcessRequest(
+    processorName: "ocr-processor",
+    projectID: "my-project",
+    location: "us",
+    inputGcsUri: "gs://my-bucket/input/",
+    outputGcsUri: "gs://my-bucket/output/",
+    skipHumanReview: true
+)
+
+print(batchRequest.batchProcessCommand())
+```
+
+**Processing Results:**
+
+```swift
+// Entity extraction result
+let entity = GoogleCloudDocumentAIProcessResponse.Entity(
+    type: "invoice_total",
+    mentionText: "$1,234.56",
+    confidence: 0.95,
+    normalizedValue: GoogleCloudDocumentAIProcessResponse.NormalizedValue(
+        moneyValue: GoogleCloudDocumentAIProcessResponse.MoneyValue(
+            currencyCode: "USD",
+            units: 1234,
+            nanos: 560000000
+        )
+    )
+)
+
+// Date extraction
+let dateEntity = GoogleCloudDocumentAIProcessResponse.Entity(
+    type: "invoice_date",
+    mentionText: "December 15, 2024",
+    confidence: 0.98,
+    normalizedValue: GoogleCloudDocumentAIProcessResponse.NormalizedValue(
+        dateValue: GoogleCloudDocumentAIProcessResponse.DateValue(
+            year: 2024,
+            month: 12,
+            day: 15
+        )
+    )
+)
+```
+
+**Document AI Operations:**
+
+```swift
+// Enable API
+print(DocumentAIOperations.enableAPICommand)
+
+// List processors
+print(DocumentAIOperations.listProcessorsCommand(projectID: "my-project", location: "us"))
+
+// List processor types
+print(DocumentAIOperations.listProcessorTypesCommand(projectID: "my-project", location: "us"))
+
+// Grant roles
+print(DocumentAIOperations.addAdminRoleCommand(projectID: "my-project", member: "user:admin@example.com"))
+print(DocumentAIOperations.addEditorRoleCommand(projectID: "my-project", member: "user:editor@example.com"))
+```
+
+**DAIS Document AI Template:**
+
+```swift
+let template = DAISDocumentAITemplate(
+    projectID: "my-project",
+    location: "us",
+    processorPrefix: "dais",
+    serviceAccount: "sa@my-project.iam.gserviceaccount.com",
+    documentBucket: "my-project-documents"
+)
+
+// Pre-configured processors
+let ocrProcessor = template.ocrProcessor
+let formParser = template.formParserProcessor
+let invoiceParser = template.invoiceProcessor
+let qualityChecker = template.qualityProcessor
+
+// Process requests
+let ocrRequest = template.ocrRequest(gcsUri: "gs://my-bucket/doc.pdf")
+let batchRequest = template.batchProcessRequest(inputPrefix: "input/", outputPrefix: "output/")
+
+// Setup and teardown
+print(template.setupScript)
+print(template.teardownScript)
+
+// Python processing script
+print(template.pythonProcessingScript)
+```
+
+**Processor Types:**
+
+| Type | Description |
+|------|-------------|
+| `OCR_PROCESSOR` | General text extraction |
+| `FORM_PARSER_PROCESSOR` | Form field extraction |
+| `INVOICE_PROCESSOR` | Invoice parsing |
+| `EXPENSE_PROCESSOR` | Expense/receipt parsing |
+| `ID_PROOFING_PROCESSOR` | ID document verification |
+| `W2_PROCESSOR` | W-2 form parsing |
+| `1099_PROCESSOR` | 1099 form parsing |
+| `BANK_STATEMENT_PROCESSOR` | Bank statement parsing |
+| `CONTRACT_PROCESSOR` | Contract analysis |
+| `CUSTOM_EXTRACTION_PROCESSOR` | Custom entity extraction |
+
+**IAM Roles:**
+
+| Role | Description |
+|------|-------------|
+| `roles/documentai.admin` | Full access to processors |
+| `roles/documentai.editor` | Create and manage processors |
+| `roles/documentai.viewer` | View processors only |
+| `roles/documentai.apiUser` | Use processors via API |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -7207,6 +7406,17 @@ MIT License
 - [Environment Scaling](https://cloud.google.com/composer/docs/composer-2/scale-environments)
 - [Triggering DAGs](https://cloud.google.com/composer/docs/triggering-dags)
 - [Composer IAM Roles](https://cloud.google.com/composer/docs/access-control)
+
+### Document AI
+- [Document AI Documentation](https://cloud.google.com/document-ai/docs)
+- [Processor Types](https://cloud.google.com/document-ai/docs/processors-list)
+- [Processing Documents](https://cloud.google.com/document-ai/docs/send-request)
+- [Batch Processing](https://cloud.google.com/document-ai/docs/send-batch-request)
+- [Custom Processors](https://cloud.google.com/document-ai/docs/workbench/build-custom-processor)
+- [Human Review](https://cloud.google.com/document-ai/docs/human-review)
+- [Processor Versions](https://cloud.google.com/document-ai/docs/manage-processor-versions)
+- [Specialized Processors](https://cloud.google.com/document-ai/docs/specialized-processors)
+- [Document AI IAM Roles](https://cloud.google.com/document-ai/docs/access-control)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)
