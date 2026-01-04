@@ -87,6 +87,19 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
+GoogleCloudSwift provides models for 8 Google Cloud services:
+
+| Module | Purpose | Key Types |
+|--------|---------|-----------|
+| **Provider** | Project & region configuration | `GoogleCloudProvider`, `GoogleCloudRegion` |
+| **Compute Engine** | VM instances | `GoogleCloudComputeInstance`, `GoogleCloudMachineType` |
+| **Secret Manager** | Secure credentials | `GoogleCloudSecret`, `SecretManagerIAMBinding` |
+| **Cloud Storage** | Object storage | `GoogleCloudStorageBucket`, `LifecycleRule` |
+| **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
+| **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
+| **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
+| **DAIS Deployment** | Complete orchestration | `GoogleCloudDAISDeployment` |
+
 ### GoogleCloudProvider
 
 The main configuration for your Google Cloud environment:
@@ -167,6 +180,159 @@ let logBucket = GoogleCloudStorageBucket(
         .deleteAfter7Years
     ]
 )
+```
+
+### GoogleCloudService (Service Usage API)
+
+Enable and manage Google Cloud APIs:
+
+```swift
+// Enable a single service
+let computeAPI = GoogleCloudService(
+    name: "compute.googleapis.com",
+    projectID: "my-project"
+)
+print(computeAPI.enableCommand)
+// Output: gcloud services enable compute.googleapis.com --project=my-project
+
+// Use predefined API enum
+let service = GoogleCloudAPI.secretManager.service(projectID: "my-project")
+
+// Batch enable required services
+let batch = GoogleCloudServiceBatch(
+    projectID: "my-project",
+    services: DAISServiceTemplate.required.map { $0.rawValue }
+)
+print(batch.batchEnableCommand)
+
+// Or use templates directly
+let enableCmd = DAISServiceTemplate.enableCommand(
+    for: DAISServiceTemplate.production,
+    projectID: "my-project"
+)
+```
+
+**Available API Templates:**
+
+| Template | APIs Included |
+|----------|---------------|
+| `required` | Compute, Storage, Secret Manager, IAM, Resource Manager, Service Usage |
+| `production` | Required + Logging, Monitoring, Cloud Trace, Cloud KMS |
+| `kubernetes` | Container, Storage, Secret Manager, IAM, Logging, Monitoring |
+
+### GoogleCloudServiceAccount (IAM API)
+
+Create and manage service accounts:
+
+```swift
+// Create a service account
+let serviceAccount = GoogleCloudServiceAccount(
+    name: "dais-node",
+    projectID: "my-project",
+    displayName: "DAIS Node Service Account",
+    description: "Service account for DAIS compute nodes"
+)
+
+print(serviceAccount.email)
+// Output: dais-node@my-project.iam.gserviceaccount.com
+
+print(serviceAccount.createCommand)
+// Output: gcloud iam service-accounts create dais-node --project=my-project --display-name="DAIS Node Service Account" ...
+
+// Create a key
+print(serviceAccount.createKeyCommand(outputPath: "/tmp/key.json"))
+
+// Use predefined templates
+let nodeSA = DAISServiceAccountTemplate.nodeServiceAccount(
+    projectID: "my-project",
+    deploymentName: "prod"
+)
+```
+
+### GoogleCloudIAMBinding
+
+Manage IAM permissions:
+
+```swift
+// Grant a role to a service account
+let binding = GoogleCloudIAMBinding(
+    projectID: "my-project",
+    role: .secretManagerAccessor,
+    serviceAccount: serviceAccount
+)
+print(binding.addBindingCommand)
+// Output: gcloud projects add-iam-policy-binding my-project --member=serviceAccount:... --role=roles/secretmanager.secretAccessor
+
+// Bind to different resource types
+let bucketBinding = GoogleCloudIAMBinding(
+    resource: "my-bucket",
+    resourceType: .bucket,
+    role: GoogleCloudPredefinedRole.storageObjectViewer.rawValue,
+    member: "allUsers"
+)
+
+// Conditional access (expires after date)
+let tempBinding = GoogleCloudIAMBinding(
+    resource: "my-project",
+    resourceType: .project,
+    role: "roles/viewer",
+    member: "user:temp@example.com",
+    condition: .expiresAfter(date: Date().addingTimeInterval(86400 * 30), title: "30 Day Access")
+)
+```
+
+**Available Predefined Roles:**
+
+| Category | Roles |
+|----------|-------|
+| Basic | `owner`, `editor`, `viewer` |
+| Compute | `computeAdmin`, `computeViewer`, `computeInstanceAdmin` |
+| Storage | `storageAdmin`, `storageObjectAdmin`, `storageObjectViewer` |
+| Secrets | `secretManagerAdmin`, `secretManagerAccessor`, `secretManagerViewer` |
+| IAM | `iamServiceAccountAdmin`, `iamServiceAccountUser`, `iamWorkloadIdentityUser` |
+| Logging | `loggingLogWriter`, `loggingViewer`, `monitoringMetricWriter` |
+
+### GoogleCloudProject (Resource Manager API)
+
+Manage projects, folders, and organizations:
+
+```swift
+// Create a project
+let project = GoogleCloudProject(
+    projectID: "my-dais-project",
+    name: "My DAIS Project",
+    parent: .folder(id: "123456789"),
+    labels: ["environment": "production", "team": "platform"]
+)
+
+print(project.createCommand)
+// Output: gcloud projects create my-dais-project --name="My DAIS Project" --folder=123456789 --labels=...
+
+// Use predefined templates
+let devProject = DAISProjectTemplate.development(
+    projectID: "dais-dev",
+    name: "DAIS Development"
+)
+
+let prodProject = DAISProjectTemplate.production(
+    projectID: "dais-prod",
+    name: "DAIS Production"
+)
+
+// Create folders
+let folder = GoogleCloudFolder(
+    folderID: "new-folder",
+    displayName: "DAIS Projects",
+    parent: .organization(id: "123456789")
+)
+
+// Protect production projects from deletion
+let lien = GoogleCloudLien(
+    projectID: "dais-prod",
+    reason: "Production DAIS deployment",
+    origin: "dais-deployment"
+)
+print(lien.createCommand)
 ```
 
 ## Cost Optimization
@@ -433,8 +599,16 @@ MIT License
 
 ## Additional Resources
 
+### Core Services
 - [Google Cloud Compute Engine Documentation](https://cloud.google.com/compute/docs)
 - [Secret Manager Documentation](https://cloud.google.com/secret-manager/docs)
 - [Cloud Storage Documentation](https://cloud.google.com/storage/docs)
+
+### Management APIs
+- [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
+- [Cloud IAM Documentation](https://cloud.google.com/iam/docs)
+- [Resource Manager Documentation](https://cloud.google.com/resource-manager/docs)
+
+### Cost & Planning
 - [Pricing Calculator](https://cloud.google.com/products/calculator)
 - [Free Tier Details](https://cloud.google.com/free)
