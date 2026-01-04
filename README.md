@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 8 Google Cloud services:
+GoogleCloudSwift provides models for 10 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -98,6 +98,8 @@ GoogleCloudSwift provides models for 8 Google Cloud services:
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
+| **Deployment Manager** | YAML/Jinja2 deployments (deprecated) | `GoogleCloudDeployment`, `GoogleCloudDeploymentType` |
+| **Infrastructure Manager** | Terraform-based deployments | `InfrastructureManagerDeployment`, `TerraformBlueprint` |
 | **DAIS Deployment** | Complete orchestration | `GoogleCloudDAISDeployment` |
 
 ### GoogleCloudProvider
@@ -334,6 +336,156 @@ let lien = GoogleCloudLien(
 )
 print(lien.createCommand)
 ```
+
+### GoogleCloudDeployment (Deployment Manager API)
+
+> **DEPRECATION NOTICE**: Cloud Deployment Manager will reach end of support on March 31, 2026. Consider using `InfrastructureManagerDeployment` instead.
+
+Manage infrastructure deployments using YAML or Jinja2 templates:
+
+```swift
+// Create a deployment configuration
+let deployment = GoogleCloudDeployment(
+    name: "my-deployment",
+    projectID: "my-project",
+    description: "Production infrastructure",
+    configPath: "/path/to/config.yaml",
+    labels: ["environment": "production"]
+)
+
+print(deployment.createCommand)
+// Output: gcloud deployment-manager deployments create my-deployment --project=my-project --config=/path/to/config.yaml ...
+
+print(deployment.previewCommand)  // Dry-run
+print(deployment.deleteCommand)
+print(deployment.describeCommand)
+```
+
+**DAIS Deployment Manager Templates:**
+
+```swift
+// Generate YAML configuration for DAIS
+let config = DAISDeploymentManagerTemplate.completeDeploymentConfig(
+    deploymentName: "production-dais",
+    nodeCount: 3,
+    machineType: .n2Standard2,
+    zone: "us-central1-a",
+    grpcPort: 9090,
+    httpPort: 8080
+)
+// Returns complete YAML with instances and firewall rules
+```
+
+**Available Deployment Types:**
+
+| Type | Description |
+|------|-------------|
+| `compute.v1.instance` | Compute Engine instance |
+| `compute.v1.firewall` | Firewall rule |
+| `compute.v1.network` | VPC network |
+| `storage.v1.bucket` | Cloud Storage bucket |
+| `iam.v1.serviceAccount` | Service account |
+| `pubsub.v1.topic` | Pub/Sub topic |
+
+### InfrastructureManagerDeployment (Infrastructure Manager API)
+
+Infrastructure Manager uses Terraform to create and manage Google Cloud resources. It's the recommended replacement for Deployment Manager:
+
+```swift
+// Create a Terraform-based deployment
+let deployment = InfrastructureManagerDeployment(
+    name: "my-infra",
+    projectID: "my-project",
+    location: "us-central1",
+    serviceAccount: "infra@my-project.iam.gserviceaccount.com",
+    labels: ["app": "dais", "env": "production"]
+)
+
+print(deployment.createCommand)
+// Output: gcloud infra-manager deployments apply my-infra --project=my-project --location=us-central1 ...
+```
+
+**Using Terraform Blueprints:**
+
+```swift
+// Git repository source
+let gitBlueprint = TerraformBlueprint(
+    source: .git(
+        repo: "https://github.com/example/infra",
+        directory: "terraform",
+        ref: "main"
+    ),
+    inputValues: ["region": "us-west1", "node_count": "3"]
+)
+
+// GCS source
+let gcsBlueprint = TerraformBlueprint(
+    source: .gcs(bucket: "my-tf-configs", object: "infra.tar.gz")
+)
+
+// Local source
+let localBlueprint = TerraformBlueprint(
+    source: .local(path: "/path/to/terraform")
+)
+
+let deployment = InfrastructureManagerDeployment(
+    name: "prod-infra",
+    projectID: "my-project",
+    location: "us-central1",
+    blueprint: gitBlueprint
+)
+```
+
+**Deployment Operations:**
+
+```swift
+// Preview changes before applying
+let preview = InfrastructureManagerPreview(
+    name: "preview-001",
+    projectID: "my-project",
+    location: "us-central1",
+    deploymentName: "my-infra"
+)
+print(preview.createCommand)
+
+// Lock/unlock deployments
+print(deployment.lockCommand)
+print(deployment.unlockCommand)
+
+// Export Terraform state
+print(deployment.exportStateCommand)
+```
+
+**DAIS Infrastructure Manager Templates:**
+
+```swift
+// Generate complete Terraform configuration
+let terraformConfig = DAISInfrastructureTemplate.terraformConfig(
+    deploymentName: "prod-dais",
+    projectID: "my-project",
+    region: "us-central1",
+    zone: "us-central1-a",
+    nodeCount: 3,
+    machineType: .n2Standard2,
+    grpcPort: 9090,
+    httpPort: 8080
+)
+
+// Create deployment with predefined settings
+let daisDeployment = DAISInfrastructureTemplate.deployment(
+    name: "prod-infra",
+    projectID: "my-project",
+    location: "us-central1",
+    gitRepo: "https://github.com/example/dais-infra",
+    gitRef: "v1.0.0"
+)
+```
+
+**Key Benefits of Infrastructure Manager:**
+- Uses standard Terraform configurations
+- State management and drift detection
+- Preview changes before applying
+- Integration with Cloud Build and Cloud Source Repositories
 
 ## Cost Optimization
 
@@ -608,6 +760,10 @@ MIT License
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
 - [Cloud IAM Documentation](https://cloud.google.com/iam/docs)
 - [Resource Manager Documentation](https://cloud.google.com/resource-manager/docs)
+
+### Infrastructure Deployment
+- [Infrastructure Manager Documentation](https://cloud.google.com/infrastructure-manager/docs)
+- [Deployment Manager Documentation](https://cloud.google.com/deployment-manager/docs) (Deprecated - EOL March 2026)
 
 ### Cost & Planning
 - [Pricing Calculator](https://cloud.google.com/products/calculator)
