@@ -2301,3 +2301,695 @@ import Testing
     #expect(decoded.name == schema.name)
     #expect(decoded.type == schema.type)
 }
+
+// MARK: - Cloud Functions Tests
+
+@Test func testGoogleCloudFunction() {
+    let function = GoogleCloudFunction(
+        name: "my-function",
+        projectID: "test-project",
+        region: "us-central1",
+        runtime: .python312,
+        entryPoint: "main"
+    )
+
+    #expect(function.name == "my-function")
+    #expect(function.projectID == "test-project")
+    #expect(function.region == "us-central1")
+    #expect(function.runtime == .python312)
+    #expect(function.entryPoint == "main")
+    #expect(function.memoryMB == 256)
+    #expect(function.timeoutSeconds == 60)
+    #expect(function.generation == .gen2)
+}
+
+@Test func testCloudFunctionResourceName() {
+    let function = GoogleCloudFunction(
+        name: "test-func",
+        projectID: "my-project",
+        region: "us-west1",
+        runtime: .nodejs20,
+        entryPoint: "handler"
+    )
+
+    #expect(function.resourceName == "projects/my-project/locations/us-west1/functions/test-func")
+}
+
+@Test func testCloudFunctionDeployCommand() {
+    let function = GoogleCloudFunction(
+        name: "my-function",
+        projectID: "test-project",
+        region: "us-central1",
+        runtime: .python312,
+        entryPoint: "main",
+        trigger: .http(allowUnauthenticated: true),
+        memoryMB: 512,
+        timeoutSeconds: 120
+    )
+
+    let cmd = function.deployCommand
+    #expect(cmd.contains("gcloud functions deploy my-function"))
+    #expect(cmd.contains("--gen2"))
+    #expect(cmd.contains("--runtime=python312"))
+    #expect(cmd.contains("--entry-point=main"))
+    #expect(cmd.contains("--trigger-http"))
+    #expect(cmd.contains("--allow-unauthenticated"))
+    #expect(cmd.contains("--memory=512MB"))
+    #expect(cmd.contains("--timeout=120s"))
+}
+
+@Test func testCloudFunctionGen1DeployCommand() {
+    let function = GoogleCloudFunction(
+        name: "legacy-function",
+        projectID: "test-project",
+        region: "us-central1",
+        runtime: .nodejs18,
+        entryPoint: "handler",
+        generation: .gen1
+    )
+
+    let cmd = function.deployCommand
+    #expect(cmd.contains("gcloud functions deploy legacy-function"))
+    #expect(!cmd.contains("--gen2"))
+}
+
+@Test func testCloudFunctionPubSubTrigger() {
+    let function = GoogleCloudFunction(
+        name: "event-processor",
+        projectID: "test-project",
+        region: "us-central1",
+        runtime: .python312,
+        entryPoint: "process_event",
+        trigger: .pubsub(topic: "my-events")
+    )
+
+    let cmd = function.deployCommand
+    #expect(cmd.contains("--trigger-topic=my-events"))
+    #expect(!cmd.contains("--trigger-http"))
+}
+
+@Test func testCloudFunctionStorageTrigger() {
+    let function = GoogleCloudFunction(
+        name: "file-processor",
+        projectID: "test-project",
+        region: "us-central1",
+        runtime: .go122,
+        entryPoint: "ProcessFile",
+        trigger: .storage(bucket: "my-bucket", event: .finalize)
+    )
+
+    let cmd = function.deployCommand
+    #expect(cmd.contains("--trigger-bucket=my-bucket"))
+    #expect(cmd.contains("--trigger-event=google.storage.object.finalize"))
+}
+
+@Test func testCloudFunctionWithSecrets() {
+    let function = GoogleCloudFunction(
+        name: "secure-function",
+        projectID: "test-project",
+        region: "us-central1",
+        runtime: .python312,
+        entryPoint: "main",
+        secretEnvironmentVariables: [
+            GoogleCloudFunction.SecretEnvVar(variableName: "API_KEY", secretName: "my-api-key"),
+            GoogleCloudFunction.SecretEnvVar(variableName: "DB_PASSWORD", secretName: "db-pass", version: "2")
+        ]
+    )
+
+    let cmd = function.deployCommand
+    #expect(cmd.contains("--set-secrets=API_KEY=my-api-key:latest"))
+    #expect(cmd.contains("--set-secrets=DB_PASSWORD=db-pass:2"))
+}
+
+@Test func testCloudFunctionWithEnvVars() {
+    let function = GoogleCloudFunction(
+        name: "configured-function",
+        projectID: "test-project",
+        region: "us-central1",
+        runtime: .python312,
+        entryPoint: "main",
+        environmentVariables: ["NODE_ENV": "production", "LOG_LEVEL": "debug"]
+    )
+
+    let cmd = function.deployCommand
+    #expect(cmd.contains("--set-env-vars="))
+    #expect(cmd.contains("NODE_ENV=production") || cmd.contains("LOG_LEVEL=debug"))
+}
+
+@Test func testCloudFunctionWithVPCConnector() {
+    let function = GoogleCloudFunction(
+        name: "private-function",
+        projectID: "test-project",
+        region: "us-central1",
+        runtime: .python312,
+        entryPoint: "main",
+        vpcConnector: "projects/test-project/locations/us-central1/connectors/my-connector",
+        ingressSettings: .internalOnly
+    )
+
+    let cmd = function.deployCommand
+    #expect(cmd.contains("--vpc-connector=projects/test-project/locations/us-central1/connectors/my-connector"))
+    #expect(cmd.contains("--ingress-settings=internal-only"))
+}
+
+@Test func testCloudFunctionDeleteCommand() {
+    let function = GoogleCloudFunction(
+        name: "my-function",
+        projectID: "test-project",
+        region: "us-central1",
+        runtime: .python312,
+        entryPoint: "main"
+    )
+
+    let cmd = function.deleteCommand
+    #expect(cmd.contains("gcloud functions delete my-function"))
+    #expect(cmd.contains("--project=test-project"))
+    #expect(cmd.contains("--region=us-central1"))
+    #expect(cmd.contains("--gen2"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testCloudFunctionDescribeCommand() {
+    let function = GoogleCloudFunction(
+        name: "my-function",
+        projectID: "test-project",
+        region: "us-central1",
+        runtime: .python312,
+        entryPoint: "main"
+    )
+
+    let cmd = function.describeCommand
+    #expect(cmd.contains("gcloud functions describe my-function"))
+    #expect(cmd.contains("--project=test-project"))
+    #expect(cmd.contains("--region=us-central1"))
+}
+
+@Test func testCloudFunctionLogsCommand() {
+    let function = GoogleCloudFunction(
+        name: "my-function",
+        projectID: "test-project",
+        region: "us-central1",
+        runtime: .python312,
+        entryPoint: "main"
+    )
+
+    let cmd = function.logsCommand
+    #expect(cmd.contains("gcloud functions logs read my-function"))
+    #expect(cmd.contains("--project=test-project"))
+}
+
+@Test func testCloudFunctionCallCommand() {
+    let function = GoogleCloudFunction(
+        name: "my-function",
+        projectID: "test-project",
+        region: "us-central1",
+        runtime: .python312,
+        entryPoint: "main",
+        trigger: .http(allowUnauthenticated: false)
+    )
+
+    let cmd = function.callCommand(data: "{\"key\": \"value\"}")
+    #expect(cmd.contains("gcloud functions call my-function"))
+    #expect(cmd.contains("--data='{\"key\": \"value\"}'"))
+}
+
+@Test func testCloudFunctionListCommand() {
+    let cmd = GoogleCloudFunction.listCommand(projectID: "test-project", region: "us-central1")
+    #expect(cmd.contains("gcloud functions list"))
+    #expect(cmd.contains("--project=test-project"))
+    #expect(cmd.contains("--region=us-central1"))
+}
+
+@Test func testCloudFunctionHTTPURL() {
+    let function = GoogleCloudFunction(
+        name: "my-function",
+        projectID: "test-project",
+        region: "us-central1",
+        runtime: .python312,
+        entryPoint: "main",
+        trigger: .http(allowUnauthenticated: true),
+        generation: .gen1
+    )
+
+    #expect(function.httpURL == "https://us-central1-test-project.cloudfunctions.net/my-function")
+}
+
+@Test func testCloudFunctionHTTPURLNilForNonHTTP() {
+    let function = GoogleCloudFunction(
+        name: "my-function",
+        projectID: "test-project",
+        region: "us-central1",
+        runtime: .python312,
+        entryPoint: "main",
+        trigger: .pubsub(topic: "my-topic")
+    )
+
+    #expect(function.httpURL == nil)
+}
+
+// MARK: - Cloud Function Runtime Tests
+
+@Test func testCloudFunctionRuntime() {
+    #expect(CloudFunctionRuntime.python312.rawValue == "python312")
+    #expect(CloudFunctionRuntime.nodejs20.rawValue == "nodejs20")
+    #expect(CloudFunctionRuntime.go122.rawValue == "go122")
+    #expect(CloudFunctionRuntime.java21.rawValue == "java21")
+    #expect(CloudFunctionRuntime.dotnet8.rawValue == "dotnet8")
+}
+
+@Test func testCloudFunctionRuntimeLanguage() {
+    #expect(CloudFunctionRuntime.python312.language == "Python")
+    #expect(CloudFunctionRuntime.nodejs20.language == "Node.js")
+    #expect(CloudFunctionRuntime.go122.language == "Go")
+    #expect(CloudFunctionRuntime.java21.language == "Java")
+    #expect(CloudFunctionRuntime.dotnet8.language == ".NET")
+    #expect(CloudFunctionRuntime.ruby33.language == "Ruby")
+    #expect(CloudFunctionRuntime.php83.language == "PHP")
+}
+
+@Test func testCloudFunctionRuntimeRecommended() {
+    #expect(CloudFunctionRuntime.python312.isRecommended == true)
+    #expect(CloudFunctionRuntime.nodejs20.isRecommended == true)
+    #expect(CloudFunctionRuntime.go122.isRecommended == true)
+    #expect(CloudFunctionRuntime.python39.isRecommended == false)
+    #expect(CloudFunctionRuntime.nodejs18.isRecommended == false)
+}
+
+// MARK: - Cloud Function Source Tests
+
+@Test func testCloudFunctionSourceLocal() {
+    let function = GoogleCloudFunction(
+        name: "my-function",
+        projectID: "test-project",
+        region: "us-central1",
+        runtime: .python312,
+        entryPoint: "main",
+        source: .localDirectory(path: "./src")
+    )
+
+    let cmd = function.deployCommand
+    #expect(cmd.contains("--source=./src"))
+}
+
+@Test func testCloudFunctionSourceGCS() {
+    let function = GoogleCloudFunction(
+        name: "my-function",
+        projectID: "test-project",
+        region: "us-central1",
+        runtime: .python312,
+        entryPoint: "main",
+        source: .gcs(bucket: "my-bucket", object: "functions/code.zip")
+    )
+
+    let cmd = function.deployCommand
+    #expect(cmd.contains("--source=gs://my-bucket/functions/code.zip"))
+}
+
+// MARK: - Cloud Function Trigger Tests
+
+@Test func testCloudFunctionFirestoreTrigger() {
+    let function = GoogleCloudFunction(
+        name: "firestore-handler",
+        projectID: "test-project",
+        region: "us-central1",
+        runtime: .python312,
+        entryPoint: "on_document_create",
+        trigger: .firestore(document: "users/{userId}", event: .create)
+    )
+
+    let cmd = function.deployCommand
+    #expect(cmd.contains("--trigger-event=providers/cloud.firestore/eventTypes/document.create"))
+    #expect(cmd.contains("--trigger-resource=users/{userId}"))
+}
+
+@Test func testStorageEventRawValues() {
+    #expect(GoogleCloudFunction.StorageEvent.finalize.rawValue == "google.storage.object.finalize")
+    #expect(GoogleCloudFunction.StorageEvent.delete.rawValue == "google.storage.object.delete")
+    #expect(GoogleCloudFunction.StorageEvent.archive.rawValue == "google.storage.object.archive")
+    #expect(GoogleCloudFunction.StorageEvent.metadataUpdate.rawValue == "google.storage.object.metadataUpdate")
+}
+
+@Test func testFirestoreEventRawValues() {
+    #expect(GoogleCloudFunction.FirestoreEvent.create.rawValue == "providers/cloud.firestore/eventTypes/document.create")
+    #expect(GoogleCloudFunction.FirestoreEvent.update.rawValue == "providers/cloud.firestore/eventTypes/document.update")
+    #expect(GoogleCloudFunction.FirestoreEvent.delete.rawValue == "providers/cloud.firestore/eventTypes/document.delete")
+    #expect(GoogleCloudFunction.FirestoreEvent.write.rawValue == "providers/cloud.firestore/eventTypes/document.write")
+}
+
+// MARK: - Cloud Function IAM Tests
+
+@Test func testCloudFunctionRoles() {
+    #expect(GoogleCloudFunction.FunctionRole.admin.rawValue == "roles/cloudfunctions.admin")
+    #expect(GoogleCloudFunction.FunctionRole.developer.rawValue == "roles/cloudfunctions.developer")
+    #expect(GoogleCloudFunction.FunctionRole.viewer.rawValue == "roles/cloudfunctions.viewer")
+    #expect(GoogleCloudFunction.FunctionRole.invoker.rawValue == "roles/cloudfunctions.invoker")
+}
+
+@Test func testCloudFunctionAddInvokerCommand() {
+    let function = GoogleCloudFunction(
+        name: "my-function",
+        projectID: "test-project",
+        region: "us-central1",
+        runtime: .python312,
+        entryPoint: "main"
+    )
+
+    let cmd = function.addInvokerCommand(member: "serviceAccount:invoker@test-project.iam.gserviceaccount.com")
+    #expect(cmd.contains("gcloud functions add-iam-policy-binding my-function"))
+    #expect(cmd.contains("--member=serviceAccount:invoker@test-project.iam.gserviceaccount.com"))
+    #expect(cmd.contains("--role=roles/cloudfunctions.invoker"))
+}
+
+@Test func testCloudFunctionGetIAMPolicyCommand() {
+    let function = GoogleCloudFunction(
+        name: "my-function",
+        projectID: "test-project",
+        region: "us-central1",
+        runtime: .python312,
+        entryPoint: "main"
+    )
+
+    let cmd = function.getIAMPolicyCommand
+    #expect(cmd.contains("gcloud functions get-iam-policy my-function"))
+    #expect(cmd.contains("--project=test-project"))
+}
+
+// MARK: - Cloud Scheduler Job Tests
+
+@Test func testCloudSchedulerJob() {
+    let job = CloudSchedulerJob(
+        name: "daily-task",
+        projectID: "test-project",
+        location: "us-central1",
+        schedule: "0 2 * * *",
+        timezone: "America/Los_Angeles",
+        targetFunction: "https://us-central1-test-project.cloudfunctions.net/my-function"
+    )
+
+    #expect(job.name == "daily-task")
+    #expect(job.schedule == "0 2 * * *")
+    #expect(job.timezone == "America/Los_Angeles")
+}
+
+@Test func testCloudSchedulerJobCreateCommand() {
+    let job = CloudSchedulerJob(
+        name: "daily-task",
+        projectID: "test-project",
+        location: "us-central1",
+        schedule: "0 2 * * *",
+        timezone: "UTC",
+        targetFunction: "https://example.com/function",
+        httpMethod: "POST",
+        body: "{\"action\": \"run\"}",
+        serviceAccountEmail: "scheduler@test-project.iam.gserviceaccount.com"
+    )
+
+    let cmd = job.createCommand
+    #expect(cmd.contains("gcloud scheduler jobs create http daily-task"))
+    #expect(cmd.contains("--schedule=\"0 2 * * *\""))
+    #expect(cmd.contains("--time-zone=\"UTC\""))
+    #expect(cmd.contains("--uri=https://example.com/function"))
+    #expect(cmd.contains("--http-method=POST"))
+    #expect(cmd.contains("--message-body='{\"action\": \"run\"}'"))
+    #expect(cmd.contains("--oidc-service-account-email=scheduler@test-project.iam.gserviceaccount.com"))
+}
+
+@Test func testCloudSchedulerJobCommands() {
+    let job = CloudSchedulerJob(
+        name: "my-job",
+        projectID: "test-project",
+        location: "us-central1",
+        schedule: "0 * * * *",
+        targetFunction: "https://example.com/function"
+    )
+
+    #expect(job.deleteCommand.contains("gcloud scheduler jobs delete my-job"))
+    #expect(job.pauseCommand.contains("gcloud scheduler jobs pause my-job"))
+    #expect(job.resumeCommand.contains("gcloud scheduler jobs resume my-job"))
+    #expect(job.runCommand.contains("gcloud scheduler jobs run my-job"))
+}
+
+// MARK: - VPC Connector Tests
+
+@Test func testVPCConnector() {
+    let connector = VPCConnector(
+        name: "my-connector",
+        projectID: "test-project",
+        region: "us-central1",
+        network: "default",
+        ipCidrRange: "10.8.0.0/28"
+    )
+
+    #expect(connector.name == "my-connector")
+    #expect(connector.network == "default")
+    #expect(connector.ipCidrRange == "10.8.0.0/28")
+    #expect(connector.minThroughput == 200)
+    #expect(connector.maxThroughput == 300)
+}
+
+@Test func testVPCConnectorResourceName() {
+    let connector = VPCConnector(
+        name: "my-connector",
+        projectID: "test-project",
+        region: "us-central1",
+        ipCidrRange: "10.8.0.0/28"
+    )
+
+    #expect(connector.resourceName == "projects/test-project/locations/us-central1/connectors/my-connector")
+}
+
+@Test func testVPCConnectorCreateCommand() {
+    let connector = VPCConnector(
+        name: "my-connector",
+        projectID: "test-project",
+        region: "us-central1",
+        network: "my-vpc",
+        ipCidrRange: "10.8.0.0/28",
+        minThroughput: 300,
+        maxThroughput: 500
+    )
+
+    let cmd = connector.createCommand
+    #expect(cmd.contains("gcloud compute networks vpc-access connectors create my-connector"))
+    #expect(cmd.contains("--network=my-vpc"))
+    #expect(cmd.contains("--range=10.8.0.0/28"))
+    #expect(cmd.contains("--min-throughput=300"))
+    #expect(cmd.contains("--max-throughput=500"))
+}
+
+@Test func testVPCConnectorDeleteCommand() {
+    let connector = VPCConnector(
+        name: "my-connector",
+        projectID: "test-project",
+        region: "us-central1",
+        ipCidrRange: "10.8.0.0/28"
+    )
+
+    let cmd = connector.deleteCommand
+    #expect(cmd.contains("gcloud compute networks vpc-access connectors delete my-connector"))
+    #expect(cmd.contains("--quiet"))
+}
+
+// MARK: - DAIS Function Template Tests
+
+@Test func testDAISFunctionTemplateEventProcessor() {
+    let function = DAISFunctionTemplate.eventProcessor(
+        projectID: "test-project",
+        region: "us-central1",
+        deploymentName: "prod",
+        eventsTopic: "prod-events"
+    )
+
+    #expect(function.name == "prod-event-processor")
+    #expect(function.runtime == .python312)
+    #expect(function.entryPoint == "process_event")
+    #expect(function.memoryMB == 512)
+    #expect(function.timeoutSeconds == 120)
+    #expect(function.labels["app"] == "butteryai")
+    #expect(function.labels["deployment"] == "prod")
+    #expect(function.labels["component"] == "event-processor")
+}
+
+@Test func testDAISFunctionTemplateHealthCheck() {
+    let function = DAISFunctionTemplate.healthCheck(
+        projectID: "test-project",
+        region: "us-central1",
+        deploymentName: "prod"
+    )
+
+    #expect(function.name == "prod-health-check")
+    #expect(function.memoryMB == 128)
+    #expect(function.timeoutSeconds == 10)
+
+    // Health check should allow unauthenticated access
+    if case .http(let allowUnauthenticated) = function.trigger {
+        #expect(allowUnauthenticated == true)
+    } else {
+        #expect(Bool(false), "Expected HTTP trigger")
+    }
+}
+
+@Test func testDAISFunctionTemplateWebhook() {
+    let function = DAISFunctionTemplate.webhookHandler(
+        projectID: "test-project",
+        region: "us-central1",
+        deploymentName: "prod",
+        allowUnauthenticated: false
+    )
+
+    #expect(function.name == "prod-webhook")
+    #expect(function.entryPoint == "handle_webhook")
+    #expect(function.memoryMB == 256)
+}
+
+@Test func testDAISFunctionTemplateScheduledMaintenance() {
+    let (function, scheduler) = DAISFunctionTemplate.scheduledMaintenance(
+        projectID: "test-project",
+        region: "us-central1",
+        deploymentName: "prod",
+        schedule: "0 3 * * *",
+        timezone: "America/New_York"
+    )
+
+    #expect(function.name == "prod-maintenance")
+    #expect(function.timeoutSeconds == 540)
+    #expect(function.maxInstances == 1)
+
+    #expect(scheduler.name == "prod-maintenance-trigger")
+    #expect(scheduler.schedule == "0 3 * * *")
+    #expect(scheduler.timezone == "America/New_York")
+}
+
+@Test func testDAISFunctionTemplateStorageProcessor() {
+    let function = DAISFunctionTemplate.storageProcessor(
+        projectID: "test-project",
+        region: "us-central1",
+        deploymentName: "prod",
+        bucket: "my-uploads"
+    )
+
+    #expect(function.name == "prod-storage-processor")
+    #expect(function.entryPoint == "process_file")
+    #expect(function.memoryMB == 1024)
+
+    if case .storage(let bucket, let event) = function.trigger {
+        #expect(bucket == "my-uploads")
+        #expect(event == .finalize)
+    } else {
+        #expect(Bool(false), "Expected storage trigger")
+    }
+}
+
+@Test func testDAISFunctionTemplateEventProcessorCode() {
+    let code = DAISFunctionTemplate.eventProcessorCode()
+
+    #expect(code.contains("def process_event(event, context):"))
+    #expect(code.contains("base64.b64decode"))
+    #expect(code.contains("DEPLOYMENT_NAME"))
+    #expect(code.contains("return 'OK'"))
+}
+
+@Test func testDAISFunctionTemplateHealthCheckCode() {
+    let code = DAISFunctionTemplate.healthCheckCode()
+
+    #expect(code.contains("def health_check(request):"))
+    #expect(code.contains("'status': 'healthy'"))
+    #expect(code.contains("application/json"))
+}
+
+@Test func testDAISFunctionTemplateSetupScript() {
+    let script = DAISFunctionTemplate.setupScript(
+        projectID: "test-project",
+        region: "us-central1",
+        deploymentName: "prod",
+        eventsTopic: "prod-events"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("gcloud services enable cloudfunctions.googleapis.com"))
+    #expect(script.contains("gcloud services enable cloudbuild.googleapis.com"))
+    #expect(script.contains("prod-event-processor"))
+    #expect(script.contains("prod-health-check"))
+    #expect(script.contains("def process_event"))
+}
+
+// MARK: - Cloud Function Codable Tests
+
+@Test func testCloudFunctionCodable() throws {
+    let function = GoogleCloudFunction(
+        name: "my-function",
+        projectID: "test-project",
+        region: "us-central1",
+        runtime: .python312,
+        entryPoint: "main",
+        memoryMB: 512,
+        timeoutSeconds: 120,
+        labels: ["env": "test"]
+    )
+
+    let data = try JSONEncoder().encode(function)
+    let decoded = try JSONDecoder().decode(GoogleCloudFunction.self, from: data)
+
+    #expect(decoded.name == function.name)
+    #expect(decoded.runtime == function.runtime)
+    #expect(decoded.memoryMB == function.memoryMB)
+    #expect(decoded.labels == function.labels)
+}
+
+@Test func testCloudSchedulerJobCodable() throws {
+    let job = CloudSchedulerJob(
+        name: "my-job",
+        projectID: "test-project",
+        location: "us-central1",
+        schedule: "0 * * * *",
+        timezone: "UTC",
+        targetFunction: "https://example.com/function"
+    )
+
+    let data = try JSONEncoder().encode(job)
+    let decoded = try JSONDecoder().decode(CloudSchedulerJob.self, from: data)
+
+    #expect(decoded.name == job.name)
+    #expect(decoded.schedule == job.schedule)
+    #expect(decoded.timezone == job.timezone)
+}
+
+@Test func testVPCConnectorCodable() throws {
+    let connector = VPCConnector(
+        name: "my-connector",
+        projectID: "test-project",
+        region: "us-central1",
+        ipCidrRange: "10.8.0.0/28"
+    )
+
+    let data = try JSONEncoder().encode(connector)
+    let decoded = try JSONDecoder().decode(VPCConnector.self, from: data)
+
+    #expect(decoded.name == connector.name)
+    #expect(decoded.ipCidrRange == connector.ipCidrRange)
+}
+
+@Test func testCloudFunctionEventCodable() throws {
+    let event = CloudFunctionEvent.pubsub(topic: "my-topic", projectID: "test-project")
+
+    let data = try JSONEncoder().encode(event)
+    let decoded = try JSONDecoder().decode(CloudFunctionEvent.self, from: data)
+
+    #expect(decoded.eventType == event.eventType)
+    #expect(decoded.filters == event.filters)
+}
+
+@Test func testSecretEnvVarCodable() throws {
+    let secretVar = GoogleCloudFunction.SecretEnvVar(
+        variableName: "API_KEY",
+        secretName: "my-secret",
+        version: "latest"
+    )
+
+    let data = try JSONEncoder().encode(secretVar)
+    let decoded = try JSONDecoder().decode(GoogleCloudFunction.SecretEnvVar.self, from: data)
+
+    #expect(decoded.variableName == secretVar.variableName)
+    #expect(decoded.secretName == secretVar.secretName)
+    #expect(decoded.version == secretVar.version)
+}
