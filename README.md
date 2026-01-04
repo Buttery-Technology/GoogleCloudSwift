@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 51 Google Cloud services:
+GoogleCloudSwift provides models for 52 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -131,6 +131,7 @@ GoogleCloudSwift provides models for 51 Google Cloud services:
 | **Speech-to-Text** | Audio transcription | `GoogleCloudSpeechRecognitionRequest`, `GoogleCloudSpeechRecognizer`, `SpeechToTextOperations`, `DAISSpeechToTextTemplate` |
 | **Text-to-Speech** | Speech synthesis | `GoogleCloudTextToSpeechRequest`, `GoogleCloudTextToSpeechVoice`, `SSMLBuilder`, `DAISTextToSpeechTemplate` |
 | **Translation AI** | Text translation | `GoogleCloudTranslationRequest`, `GoogleCloudGlossary`, `LanguageCode`, `DAISTranslationTemplate` |
+| **Cloud Batch** | Containerized batch processing | `GoogleCloudBatchJob`, `TaskGroup`, `AllocationPolicy`, `DAISBatchTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -6580,6 +6581,200 @@ print(template.setupScript)
 | Portuguese | `pt` | Hindi | `hi` |
 | Russian | `ru` | Dutch | `nl` |
 
+### GoogleCloudBatchJob (Cloud Batch API)
+
+Cloud Batch is a fully managed service for running containerized batch workloads at scale:
+
+```swift
+// Create a simple batch job with a script
+let scriptJob = GoogleCloudBatchJob(
+    name: "data-processing-job",
+    projectID: "my-project",
+    location: "us-central1",
+    taskGroups: [
+        TaskGroup(
+            taskSpec: TaskSpec(
+                runnables: [
+                    Runnable.script(
+                        text: """
+                        #!/bin/bash
+                        echo "Processing task $BATCH_TASK_INDEX of $BATCH_TASK_COUNT"
+                        python3 /scripts/process.py --input $INPUT_FILE
+                        """
+                    )
+                ],
+                maxRunDuration: "3600s",
+                maxRetryCount: 2
+            ),
+            taskCount: 100,
+            parallelism: 10
+        )
+    ]
+)
+
+print(scriptJob.createCommand)
+// gcloud batch jobs submit data-processing-job --project=my-project --location=us-central1 --config=job.json
+```
+
+**Container-Based Jobs:**
+
+```swift
+// Run a container image across multiple tasks
+let containerJob = GoogleCloudBatchJob(
+    name: "ml-batch-inference",
+    projectID: "my-project",
+    location: "us-central1",
+    taskGroups: [
+        TaskGroup(
+            taskSpec: TaskSpec(
+                runnables: [
+                    Runnable.container(
+                        imageUri: "gcr.io/my-project/inference:latest",
+                        commands: ["python", "inference.py"],
+                        entrypoint: "/bin/sh"
+                    )
+                ],
+                volumes: [
+                    Volume(
+                        gcs: GCSVolume(remotePath: "gs://my-bucket/data"),
+                        mountPath: "/mnt/data"
+                    )
+                ],
+                environment: EnvironmentConfig(
+                    variables: [
+                        "MODEL_PATH": "/mnt/data/model",
+                        "BATCH_SIZE": "32"
+                    ]
+                )
+            ),
+            taskCount: 1000,
+            parallelism: 50
+        )
+    ],
+    allocationPolicy: AllocationPolicy(
+        instances: [
+            InstancePolicyOrTemplate(
+                policy: InstancePolicy(
+                    machineType: "n1-standard-4",
+                    provisioningModel: .spot
+                )
+            )
+        ]
+    )
+)
+
+print(containerJob.createCommand)
+```
+
+**GPU Batch Jobs:**
+
+```swift
+// Configure GPU-accelerated batch processing
+let gpuJob = GoogleCloudBatchJob(
+    name: "gpu-training-job",
+    projectID: "my-project",
+    location: "us-central1",
+    taskGroups: [
+        TaskGroup(
+            taskSpec: TaskSpec(
+                runnables: [
+                    Runnable.container(
+                        imageUri: "gcr.io/my-project/training:cuda12",
+                        commands: ["python", "train.py", "--epochs", "100"]
+                    )
+                ],
+                computeResource: ComputeResource(
+                    cpuMilli: 4000,
+                    memoryMib: 16384
+                )
+            ),
+            taskCount: 10,
+            parallelism: 5
+        )
+    ],
+    allocationPolicy: AllocationPolicy(
+        instances: [
+            InstancePolicyOrTemplate(
+                policy: InstancePolicy(
+                    machineType: "n1-standard-8",
+                    accelerators: [
+                        Accelerator(type: .nvidiaT4, count: 1)
+                    ],
+                    provisioningModel: .standard
+                )
+            )
+        ],
+        location: AllocationPolicy.LocationPolicy(
+            allowedLocations: ["zones/us-central1-a", "zones/us-central1-b"]
+        )
+    )
+)
+
+print(gpuJob.toJSON())
+```
+
+**Batch Operations:**
+
+```swift
+let ops = BatchOperations(projectID: "my-project", location: "us-central1")
+
+// List jobs
+print(ops.listJobsCommand)
+// gcloud batch jobs list --project=my-project --location=us-central1
+
+// Get job status
+print(ops.describeJobCommand(jobName: "ml-batch-inference"))
+
+// Delete completed job
+print(ops.deleteJobCommand(jobName: "old-job"))
+
+// List tasks in a job
+print(ops.listTasksCommand(jobName: "data-processing-job", taskGroup: "group0"))
+
+// Cancel a running job
+print(ops.cancelJobCommand(jobName: "long-running-job"))
+```
+
+**DAIS Batch Template:**
+
+```swift
+let template = DAISBatchTemplate(
+    projectID: "my-project",
+    location: "us-central1",
+    defaultMachineType: "n1-standard-4"
+)
+
+// Quick container job
+let job = template.containerJob(
+    name: "quick-process",
+    image: "gcr.io/my-project/processor:v1",
+    taskCount: 100,
+    parallelism: 20
+)
+
+// GPU job with specific accelerator
+let gpuJob = template.gpuJob(
+    name: "ml-training",
+    image: "gcr.io/my-project/training:cuda",
+    gpuType: .nvidiaA100,
+    gpuCount: 2,
+    taskCount: 10
+)
+
+// Generate job monitoring script
+print(template.monitoringScript)
+```
+
+**GPU Types:**
+
+| GPU Type | Description | Use Case |
+|----------|-------------|----------|
+| `nvidiaT4` | NVIDIA T4 | Inference, light training |
+| `nvidiaV100` | NVIDIA V100 | Training, HPC |
+| `nvidiaA100` | NVIDIA A100 | Large-scale training |
+| `nvidiaL4` | NVIDIA L4 | Inference, AI workloads |
+| `nvidiaH100` | NVIDIA H100 | LLM training |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -8141,6 +8336,17 @@ MIT License
 - [Custom Models](https://cloud.google.com/translate/docs/advanced/automl-overview)
 - [Adaptive MT](https://cloud.google.com/translate/docs/advanced/adaptive-mt)
 - [Translation Client Libraries](https://cloud.google.com/translate/docs/reference/libraries)
+
+### Cloud Batch
+- [Cloud Batch Documentation](https://cloud.google.com/batch/docs)
+- [Batch Jobs Overview](https://cloud.google.com/batch/docs/get-started)
+- [Creating Jobs](https://cloud.google.com/batch/docs/create-run-job)
+- [Container Runnables](https://cloud.google.com/batch/docs/create-run-job-container-image)
+- [Script Runnables](https://cloud.google.com/batch/docs/create-run-job-script)
+- [Task Groups](https://cloud.google.com/batch/docs/task-groups)
+- [GPU Support](https://cloud.google.com/batch/docs/vm-gpus)
+- [Environment Variables](https://cloud.google.com/batch/docs/create-run-job-environment-variables)
+- [Batch API Reference](https://cloud.google.com/batch/docs/reference/rest)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)
