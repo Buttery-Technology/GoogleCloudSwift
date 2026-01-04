@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 49 Google Cloud services:
+GoogleCloudSwift provides models for 50 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -129,6 +129,7 @@ GoogleCloudSwift provides models for 49 Google Cloud services:
 | **Document AI** | Intelligent document processing | `GoogleCloudDocumentAIProcessor`, `GoogleCloudDocument`, `DocumentAIOperations`, `DAISDocumentAITemplate` |
 | **Vision AI** | Image analysis and understanding | `GoogleCloudVisionRequest`, `GoogleCloudVisionResponse`, `VisionOperations`, `DAISVisionAITemplate` |
 | **Speech-to-Text** | Audio transcription | `GoogleCloudSpeechRecognitionRequest`, `GoogleCloudSpeechRecognizer`, `SpeechToTextOperations`, `DAISSpeechToTextTemplate` |
+| **Text-to-Speech** | Speech synthesis | `GoogleCloudTextToSpeechRequest`, `GoogleCloudTextToSpeechVoice`, `SSMLBuilder`, `DAISTextToSpeechTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -6242,6 +6243,171 @@ print(template.pythonProcessingScript)
 | `medical_dictation` | Medical dictation |
 | `telephony` | Telephony optimized |
 
+### GoogleCloudTextToSpeechRequest (Text-to-Speech API)
+
+Text-to-Speech converts text into natural-sounding speech using powerful neural network models:
+
+```swift
+// Create a basic speech synthesis request
+let request = GoogleCloudTextToSpeechRequest(
+    projectID: "my-project",
+    input: .plainText("Hello, welcome to our application!"),
+    voice: .wavenet("D"),
+    audioConfig: .mp3
+)
+
+print(request.synthesizeCommand)
+// gcloud ml speech synthesize-text "Hello..." --voice-name=en-US-Wavenet-D --output-file=output.mp3
+```
+
+**Voice Types:**
+
+```swift
+// Standard voices (basic quality)
+let standard = GoogleCloudTextToSpeechVoice.standard("en-US-Standard-A", languageCode: "en-US")
+
+// WaveNet voices (natural sounding)
+let wavenet = GoogleCloudTextToSpeechVoice.wavenet("D")  // en-US-Wavenet-D
+
+// Neural2 voices (highest quality)
+let neural2 = GoogleCloudTextToSpeechVoice.neural2("A")  // en-US-Neural2-A
+
+// Studio voices (professional narration)
+let studio = GoogleCloudTextToSpeechVoice.studio("O")   // en-US-Studio-O
+
+// Select by gender
+let female = GoogleCloudTextToSpeechVoice.byGender(.female, languageCode: "en-US")
+```
+
+**SSML Builder:**
+
+```swift
+// Build SSML for advanced speech control
+var builder = SSMLBuilder()
+builder.text("Welcome to our service. ")
+builder.pause(time: "500ms")
+builder.emphasis("Important announcement!", level: .strong)
+builder.pause(time: "300ms")
+builder.prosody("Please listen carefully.", rate: "slow", pitch: "low")
+builder.sayAs("12/25/2024", interpretAs: .date, format: "mdy")
+
+let request = GoogleCloudTextToSpeechRequest(
+    projectID: "my-project",
+    input: .ssmlBuilder(builder),
+    voice: .neural2("A"),
+    audioConfig: .mp3
+)
+```
+
+**Audio Configurations:**
+
+```swift
+// Pre-defined configs
+let mp3Config = GoogleCloudTextToSpeechAudioConfig.mp3
+let wavConfig = GoogleCloudTextToSpeechAudioConfig.wav
+let telephonyConfig = GoogleCloudTextToSpeechAudioConfig.telephony  // 8kHz mulaw
+
+// Custom config with speaking rate and pitch
+let customConfig = GoogleCloudTextToSpeechAudioConfig(
+    audioEncoding: .mp3,
+    speakingRate: 1.2,    // 20% faster
+    pitch: -2.0,          // Slightly lower pitch
+    volumeGainDb: 3.0,    // Slightly louder
+    sampleRateHertz: 24000
+)
+
+// Add effects profiles for specific playback devices
+let podcastConfig = GoogleCloudTextToSpeechAudioConfig.mp3
+    .withEffects([.headphoneClassDevice])
+
+let ivrConfig = GoogleCloudTextToSpeechAudioConfig.telephony
+    .withEffects([.telephonyClassApplication])
+```
+
+**Long Audio Synthesis:**
+
+```swift
+// For content longer than 5 minutes
+let longRequest = GoogleCloudTextToSpeechLongAudioRequest(
+    projectID: "my-project",
+    location: "us-central1",
+    input: .plainText(longArticleText),
+    voice: .neural2("A"),
+    audioConfig: .mp3,
+    outputGcsUri: "gs://my-bucket/audiobooks/chapter1.mp3"
+)
+```
+
+**Text-to-Speech Operations:**
+
+```swift
+let ops = GoogleCloudTextToSpeechOperations(projectID: "my-project")
+
+// List available voices
+print(ops.listVoicesCommand)
+// gcloud ml speech list-voices --project=my-project
+
+// List voices for a specific language
+print(ops.listVoicesForLanguage("es-ES"))
+
+// Synthesize to file
+print(ops.synthesizeToFile(text: "Hello", voice: "en-US-Wavenet-D", output: "output.mp3"))
+
+// Enable API
+print(ops.enableAPICommand)
+// gcloud services enable texttospeech.googleapis.com --project=my-project
+```
+
+**DAIS Text-to-Speech Template:**
+
+```swift
+let template = DAISTextToSpeechTemplate(
+    projectID: "my-project",
+    defaultVoice: .wavenet("D"),
+    defaultAudioConfig: .mp3,
+    serviceAccount: "tts-service",
+    outputBucket: "tts-audio"
+)
+
+// Pre-configured voices
+let male = template.americanMaleVoice       // en-US-Wavenet-D
+let female = template.americanFemaleVoice   // en-US-Wavenet-F
+let british = template.britishMaleVoice     // en-GB-Wavenet-B
+let hq = template.neural2Voice              // en-US-Neural2-A
+
+// Pre-configured audio for different use cases
+let podcast = template.podcastAudioConfig   // MP3 @ 24kHz with headphone profile
+let ivr = template.ivrAudioConfig           // mulaw @ 8kHz for phone systems
+let speaker = template.smartSpeakerAudioConfig
+
+// Quick synthesis
+let request = template.synthesize("Hello world")
+
+// Generate setup script
+print(template.setupScript)
+```
+
+**Voice Types:**
+
+| Type | Quality | Use Case |
+|------|---------|----------|
+| `Standard` | Basic | High-volume, cost-sensitive |
+| `Wavenet` | Natural | General purpose |
+| `Neural2` | Highest | Premium experiences |
+| `Studio` | Professional | Narration, audiobooks |
+| `Polyglot` | Multi-lingual | Code-switching content |
+| `News` | Broadcast | News reading |
+
+**Audio Encodings:**
+
+| Encoding | Format | Use Case |
+|----------|--------|----------|
+| `LINEAR16` | WAV | High quality, editing |
+| `MP3` | MP3 | General purpose |
+| `OGG_OPUS` | Ogg | Web streaming |
+| `MULAW` | μ-law | Telephony |
+| `ALAW` | A-law | European telephony |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -7783,6 +7949,16 @@ MIT License
 - [Class Tokens](https://cloud.google.com/speech-to-text/docs/class-tokens)
 - [Multi-Channel Recognition](https://cloud.google.com/speech-to-text/docs/multi-channel)
 - [Speech-to-Text Client Libraries](https://cloud.google.com/speech-to-text/docs/libraries)
+
+### Text-to-Speech
+- [Text-to-Speech Documentation](https://cloud.google.com/text-to-speech/docs)
+- [Available Voices](https://cloud.google.com/text-to-speech/docs/voices)
+- [SSML Reference](https://cloud.google.com/text-to-speech/docs/ssml)
+- [Audio Profiles](https://cloud.google.com/text-to-speech/docs/audio-profiles)
+- [Custom Voice](https://cloud.google.com/text-to-speech/docs/custom-voice)
+- [Long Audio Synthesis](https://cloud.google.com/text-to-speech/docs/create-audio-text-long-audio-synthesis)
+- [Pricing](https://cloud.google.com/text-to-speech/pricing)
+- [Text-to-Speech Client Libraries](https://cloud.google.com/text-to-speech/docs/libraries)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)
