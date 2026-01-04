@@ -8977,3 +8977,1087 @@ import Testing
     #expect(decoded.type == .serverless)
     #expect(decoded.cloudRunService == "my-service")
 }
+
+// MARK: - Artifact Registry Tests
+
+// MARK: Repository Tests
+
+@Test func testGoogleCloudArtifactRegistryRepository() {
+    let repo = GoogleCloudArtifactRegistryRepository(
+        name: "my-docker-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        format: .docker,
+        description: "My Docker repository",
+        labels: ["env": "production"]
+    )
+
+    #expect(repo.name == "my-docker-repo")
+    #expect(repo.format == .docker)
+    #expect(repo.location == "us-central1")
+    #expect(repo.resourceName == "projects/test-project/locations/us-central1/repositories/my-docker-repo")
+    #expect(repo.dockerHost == "us-central1-docker.pkg.dev")
+    #expect(repo.dockerImagePrefix == "us-central1-docker.pkg.dev/test-project/my-docker-repo")
+}
+
+@Test func testRepositoryCreateCommand() {
+    let repo = GoogleCloudArtifactRegistryRepository(
+        name: "docker-repo",
+        projectID: "my-project",
+        location: "us-west1",
+        format: .docker,
+        description: "Docker images",
+        labels: ["app": "dais"]
+    )
+
+    let cmd = repo.createCommand
+    #expect(cmd.contains("gcloud artifacts repositories create docker-repo"))
+    #expect(cmd.contains("--project=my-project"))
+    #expect(cmd.contains("--location=us-west1"))
+    #expect(cmd.contains("--repository-format=docker"))
+    #expect(cmd.contains("--description=\"Docker images\""))
+    #expect(cmd.contains("--labels=app=dais"))
+}
+
+@Test func testRepositoryMavenFormat() {
+    let repo = GoogleCloudArtifactRegistryRepository(
+        name: "maven-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        format: .maven
+    )
+
+    #expect(repo.mavenRepositoryURL == "https://us-central1-maven.pkg.dev/test-project/maven-repo")
+
+    let cmd = repo.createCommand
+    #expect(cmd.contains("--repository-format=maven"))
+}
+
+@Test func testRepositoryNpmFormat() {
+    let repo = GoogleCloudArtifactRegistryRepository(
+        name: "npm-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        format: .npm
+    )
+
+    #expect(repo.npmRegistryURL == "https://us-central1-npm.pkg.dev/test-project/npm-repo")
+
+    let cmd = repo.createCommand
+    #expect(cmd.contains("--repository-format=npm"))
+}
+
+@Test func testRepositoryPythonFormat() {
+    let repo = GoogleCloudArtifactRegistryRepository(
+        name: "python-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        format: .python
+    )
+
+    #expect(repo.pythonRepositoryURL == "https://us-central1-python.pkg.dev/test-project/python-repo")
+
+    let cmd = repo.createCommand
+    #expect(cmd.contains("--repository-format=python"))
+}
+
+@Test func testRepositoryWithKMSKey() {
+    let repo = GoogleCloudArtifactRegistryRepository(
+        name: "encrypted-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        format: .docker,
+        kmsKeyName: "projects/test-project/locations/us-central1/keyRings/my-ring/cryptoKeys/my-key"
+    )
+
+    let cmd = repo.createCommand
+    #expect(cmd.contains("--kms-key=projects/test-project/locations/us-central1/keyRings/my-ring/cryptoKeys/my-key"))
+}
+
+@Test func testRepositoryVirtualMode() {
+    let repo = GoogleCloudArtifactRegistryRepository(
+        name: "virtual-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        format: .docker,
+        mode: .virtualRepository
+    )
+
+    let cmd = repo.createCommand
+    #expect(cmd.contains("--mode=virtual-repository"))
+}
+
+@Test func testRepositoryRemoteMode() {
+    let repo = GoogleCloudArtifactRegistryRepository(
+        name: "remote-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        format: .docker,
+        mode: .remoteRepository
+    )
+
+    let cmd = repo.createCommand
+    #expect(cmd.contains("--mode=remote-repository"))
+}
+
+@Test func testRepositoryDeleteCommand() {
+    let repo = GoogleCloudArtifactRegistryRepository(
+        name: "to-delete",
+        projectID: "test-project",
+        location: "us-central1",
+        format: .docker
+    )
+
+    let cmd = repo.deleteCommand
+    #expect(cmd.contains("gcloud artifacts repositories delete to-delete"))
+    #expect(cmd.contains("--project=test-project"))
+    #expect(cmd.contains("--location=us-central1"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testRepositoryDescribeCommand() {
+    let repo = GoogleCloudArtifactRegistryRepository(
+        name: "describe-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        format: .docker
+    )
+
+    let cmd = repo.describeCommand
+    #expect(cmd.contains("gcloud artifacts repositories describe describe-repo"))
+    #expect(cmd.contains("--project=test-project"))
+    #expect(cmd.contains("--location=us-central1"))
+}
+
+@Test func testRepositoryUpdateCommand() {
+    let repo = GoogleCloudArtifactRegistryRepository(
+        name: "update-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        format: .docker
+    )
+
+    let cmd = repo.updateCommand(description: "Updated description", labels: ["env": "staging"])
+    #expect(cmd.contains("gcloud artifacts repositories update update-repo"))
+    #expect(cmd.contains("--description=\"Updated description\""))
+    #expect(cmd.contains("--update-labels=env=staging"))
+}
+
+@Test func testRepositoryListCommand() {
+    let cmd = GoogleCloudArtifactRegistryRepository.listCommand(projectID: "test-project", location: "us-central1")
+    #expect(cmd.contains("gcloud artifacts repositories list"))
+    #expect(cmd.contains("--project=test-project"))
+    #expect(cmd.contains("--location=us-central1"))
+}
+
+@Test func testRepositoryListCommandAllLocations() {
+    let cmd = GoogleCloudArtifactRegistryRepository.listCommand(projectID: "test-project")
+    #expect(cmd.contains("gcloud artifacts repositories list"))
+    #expect(cmd.contains("--project=test-project"))
+    #expect(!cmd.contains("--location"))
+}
+
+@Test func testRepositoryAddIAMBindingCommand() {
+    let repo = GoogleCloudArtifactRegistryRepository(
+        name: "my-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        format: .docker
+    )
+
+    let cmd = repo.addIAMBindingCommand(member: "user:dev@example.com", role: "roles/artifactregistry.reader")
+    #expect(cmd.contains("gcloud artifacts repositories add-iam-policy-binding my-repo"))
+    #expect(cmd.contains("--member=user:dev@example.com"))
+    #expect(cmd.contains("--role=roles/artifactregistry.reader"))
+}
+
+@Test func testRepositoryGetIAMPolicyCommand() {
+    let repo = GoogleCloudArtifactRegistryRepository(
+        name: "my-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        format: .docker
+    )
+
+    let cmd = repo.getIAMPolicyCommand
+    #expect(cmd.contains("gcloud artifacts repositories get-iam-policy my-repo"))
+}
+
+@Test func testRepositoryCleanupPolicy() {
+    let policy = GoogleCloudArtifactRegistryRepository.CleanupPolicy(
+        id: "delete-old-untagged",
+        action: .delete,
+        condition: .init(tagState: .untagged, olderThan: "604800s")
+    )
+
+    #expect(policy.id == "delete-old-untagged")
+    #expect(policy.action == .delete)
+    #expect(policy.condition?.tagState == .untagged)
+    #expect(policy.condition?.olderThan == "604800s")
+}
+
+@Test func testRepositoryCleanupPolicyKeepRecent() {
+    let policy = GoogleCloudArtifactRegistryRepository.CleanupPolicy(
+        id: "keep-recent",
+        action: .keep,
+        mostRecentVersions: .init(keepCount: 10)
+    )
+
+    #expect(policy.action == .keep)
+    #expect(policy.mostRecentVersions?.keepCount == 10)
+}
+
+@Test func testRepositoryVulnerabilityScanningConfig() {
+    let config = GoogleCloudArtifactRegistryRepository.VulnerabilityScanningConfig(
+        enablementConfig: .automatic
+    )
+
+    #expect(config.enablementConfig == .automatic)
+}
+
+@Test func testRepositoryFormats() {
+    #expect(GoogleCloudArtifactRegistryRepository.RepositoryFormat.docker.rawValue == "DOCKER")
+    #expect(GoogleCloudArtifactRegistryRepository.RepositoryFormat.maven.rawValue == "MAVEN")
+    #expect(GoogleCloudArtifactRegistryRepository.RepositoryFormat.npm.rawValue == "NPM")
+    #expect(GoogleCloudArtifactRegistryRepository.RepositoryFormat.python.rawValue == "PYTHON")
+    #expect(GoogleCloudArtifactRegistryRepository.RepositoryFormat.apt.rawValue == "APT")
+    #expect(GoogleCloudArtifactRegistryRepository.RepositoryFormat.yum.rawValue == "YUM")
+    #expect(GoogleCloudArtifactRegistryRepository.RepositoryFormat.go.rawValue == "GO")
+    #expect(GoogleCloudArtifactRegistryRepository.RepositoryFormat.generic.rawValue == "GENERIC")
+}
+
+// MARK: Docker Image Tests
+
+@Test func testGoogleCloudDockerImage() {
+    let image = GoogleCloudDockerImage(
+        name: "my-app",
+        repositoryName: "docker-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        tag: "v1.0.0"
+    )
+
+    #expect(image.name == "my-app")
+    #expect(image.tag == "v1.0.0")
+    #expect(image.imageURL == "us-central1-docker.pkg.dev/test-project/docker-repo/my-app:v1.0.0")
+}
+
+@Test func testDockerImageWithDigest() {
+    let image = GoogleCloudDockerImage(
+        name: "my-app",
+        repositoryName: "docker-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        digest: "sha256:abc123"
+    )
+
+    #expect(image.imageURL == "us-central1-docker.pkg.dev/test-project/docker-repo/my-app@sha256:abc123")
+}
+
+@Test func testDockerImageURLWithTag() {
+    let image = GoogleCloudDockerImage(
+        name: "my-app",
+        repositoryName: "docker-repo",
+        projectID: "test-project",
+        location: "us-central1"
+    )
+
+    let url = image.imageURL(tag: "latest")
+    #expect(url == "us-central1-docker.pkg.dev/test-project/docker-repo/my-app:latest")
+}
+
+@Test func testDockerImageURLWithDigest() {
+    let image = GoogleCloudDockerImage(
+        name: "my-app",
+        repositoryName: "docker-repo",
+        projectID: "test-project",
+        location: "us-central1"
+    )
+
+    let url = image.imageURL(digest: "sha256:def456")
+    #expect(url == "us-central1-docker.pkg.dev/test-project/docker-repo/my-app@sha256:def456")
+}
+
+@Test func testDockerImageListTagsCommand() {
+    let image = GoogleCloudDockerImage(
+        name: "my-app",
+        repositoryName: "docker-repo",
+        projectID: "test-project",
+        location: "us-central1"
+    )
+
+    let cmd = image.listTagsCommand
+    #expect(cmd.contains("gcloud artifacts docker tags list"))
+    #expect(cmd.contains("us-central1-docker.pkg.dev/test-project/docker-repo/my-app"))
+}
+
+@Test func testDockerImageAddTagCommand() {
+    let image = GoogleCloudDockerImage(
+        name: "my-app",
+        repositoryName: "docker-repo",
+        projectID: "test-project",
+        location: "us-central1"
+    )
+
+    let cmd = image.addTagCommand(sourceTag: "v1.0.0", newTag: "latest")
+    #expect(cmd.contains("gcloud artifacts docker tags add"))
+    #expect(cmd.contains("my-app:v1.0.0"))
+    #expect(cmd.contains("my-app:latest"))
+}
+
+@Test func testDockerImageDeleteTagCommand() {
+    let image = GoogleCloudDockerImage(
+        name: "my-app",
+        repositoryName: "docker-repo",
+        projectID: "test-project",
+        location: "us-central1"
+    )
+
+    let cmd = image.deleteTagCommand(tag: "old-tag")
+    #expect(cmd.contains("gcloud artifacts docker tags delete"))
+    #expect(cmd.contains("my-app:old-tag"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testDockerImageDeleteCommand() {
+    let image = GoogleCloudDockerImage(
+        name: "my-app",
+        repositoryName: "docker-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        tag: "v1.0.0"
+    )
+
+    let cmd = image.deleteCommand
+    #expect(cmd.contains("gcloud artifacts docker images delete"))
+    #expect(cmd.contains("my-app:v1.0.0"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testDockerImageDescribeCommand() {
+    let image = GoogleCloudDockerImage(
+        name: "my-app",
+        repositoryName: "docker-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        tag: "latest"
+    )
+
+    let cmd = image.describeCommand
+    #expect(cmd.contains("gcloud artifacts docker images describe"))
+    #expect(cmd.contains("my-app:latest"))
+}
+
+@Test func testDockerImageListCommand() {
+    let cmd = GoogleCloudDockerImage.listCommand(
+        projectID: "test-project",
+        location: "us-central1",
+        repositoryName: "docker-repo"
+    )
+    #expect(cmd.contains("gcloud artifacts docker images list"))
+    #expect(cmd.contains("us-central1-docker.pkg.dev/test-project/docker-repo"))
+}
+
+@Test func testDockerImagePullCommand() {
+    let image = GoogleCloudDockerImage(
+        name: "my-app",
+        repositoryName: "docker-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        tag: "latest"
+    )
+
+    #expect(image.dockerPullCommand == "docker pull us-central1-docker.pkg.dev/test-project/docker-repo/my-app:latest")
+}
+
+@Test func testDockerImagePushCommand() {
+    let image = GoogleCloudDockerImage(
+        name: "my-app",
+        repositoryName: "docker-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        tag: "v1.0.0"
+    )
+
+    #expect(image.dockerPushCommand == "docker push us-central1-docker.pkg.dev/test-project/docker-repo/my-app:v1.0.0")
+}
+
+@Test func testDockerImageTagCommand() {
+    let image = GoogleCloudDockerImage(
+        name: "my-app",
+        repositoryName: "docker-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        tag: "v1.0.0"
+    )
+
+    let cmd = image.dockerTagCommand(sourceImage: "local-image:latest")
+    #expect(cmd == "docker tag local-image:latest us-central1-docker.pkg.dev/test-project/docker-repo/my-app:v1.0.0")
+}
+
+// MARK: Package Tests
+
+@Test func testGoogleCloudPackage() {
+    let pkg = GoogleCloudPackage(
+        name: "my-package",
+        repositoryName: "npm-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        format: .npm
+    )
+
+    #expect(pkg.name == "my-package")
+    #expect(pkg.format == .npm)
+    #expect(pkg.resourceName == "projects/test-project/locations/us-central1/repositories/npm-repo/packages/my-package")
+}
+
+@Test func testPackageListCommand() {
+    let cmd = GoogleCloudPackage.listCommand(
+        projectID: "test-project",
+        location: "us-central1",
+        repositoryName: "npm-repo"
+    )
+    #expect(cmd.contains("gcloud artifacts packages list"))
+    #expect(cmd.contains("--repository=npm-repo"))
+}
+
+@Test func testPackageDeleteCommand() {
+    let pkg = GoogleCloudPackage(
+        name: "my-package",
+        repositoryName: "npm-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        format: .npm
+    )
+
+    let cmd = pkg.deleteCommand
+    #expect(cmd.contains("gcloud artifacts packages delete my-package"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testPackageDescribeCommand() {
+    let pkg = GoogleCloudPackage(
+        name: "my-package",
+        repositoryName: "npm-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        format: .npm
+    )
+
+    let cmd = pkg.describeCommand
+    #expect(cmd.contains("gcloud artifacts packages describe my-package"))
+}
+
+// MARK: Package Version Tests
+
+@Test func testGoogleCloudPackageVersion() {
+    let version = GoogleCloudPackageVersion(
+        version: "1.0.0",
+        packageName: "my-package",
+        repositoryName: "npm-repo",
+        projectID: "test-project",
+        location: "us-central1"
+    )
+
+    #expect(version.version == "1.0.0")
+    #expect(version.resourceName.contains("versions/1.0.0"))
+}
+
+@Test func testPackageVersionListCommand() {
+    let cmd = GoogleCloudPackageVersion.listCommand(
+        projectID: "test-project",
+        location: "us-central1",
+        repositoryName: "npm-repo",
+        packageName: "my-package"
+    )
+    #expect(cmd.contains("gcloud artifacts versions list"))
+    #expect(cmd.contains("--package=my-package"))
+}
+
+@Test func testPackageVersionDeleteCommand() {
+    let version = GoogleCloudPackageVersion(
+        version: "1.0.0",
+        packageName: "my-package",
+        repositoryName: "npm-repo",
+        projectID: "test-project",
+        location: "us-central1"
+    )
+
+    let cmd = version.deleteCommand
+    #expect(cmd.contains("gcloud artifacts versions delete 1.0.0"))
+    #expect(cmd.contains("--package=my-package"))
+    #expect(cmd.contains("--quiet"))
+}
+
+// MARK: Remote Repository Config Tests
+
+@Test func testRemoteRepositoryConfigDockerHub() {
+    let config = GoogleCloudRemoteRepositoryConfig(
+        upstream: .dockerHub(publicRepository: true),
+        description: "Docker Hub mirror"
+    )
+
+    #expect(config.upstream.uri == "https://registry-1.docker.io")
+}
+
+@Test func testRemoteRepositoryConfigMavenCentral() {
+    let config = GoogleCloudRemoteRepositoryConfig(upstream: .mavenCentral)
+    #expect(config.upstream.uri == "https://repo.maven.apache.org/maven2")
+}
+
+@Test func testRemoteRepositoryConfigNpmRegistry() {
+    let config = GoogleCloudRemoteRepositoryConfig(upstream: .npmRegistry)
+    #expect(config.upstream.uri == "https://registry.npmjs.org")
+}
+
+@Test func testRemoteRepositoryConfigPyPI() {
+    let config = GoogleCloudRemoteRepositoryConfig(upstream: .pypi)
+    #expect(config.upstream.uri == "https://pypi.org")
+}
+
+@Test func testRemoteRepositoryConfigCustom() {
+    let config = GoogleCloudRemoteRepositoryConfig(
+        upstream: .custom(uri: "https://custom.registry.example.com")
+    )
+    #expect(config.upstream.uri == "https://custom.registry.example.com")
+}
+
+// MARK: Virtual Repository Config Tests
+
+@Test func testVirtualRepositoryConfig() {
+    let config = GoogleCloudVirtualRepositoryConfig(
+        upstreamPolicies: [
+            .init(id: "policy1", repository: "primary-repo", priority: 100),
+            .init(id: "policy2", repository: "secondary-repo", priority: 50)
+        ]
+    )
+
+    #expect(config.upstreamPolicies.count == 2)
+    #expect(config.upstreamPolicies[0].priority == 100)
+    #expect(config.upstreamPolicies[1].priority == 50)
+}
+
+// MARK: Artifact Registry Roles Tests
+
+@Test func testArtifactRegistryRoles() {
+    #expect(ArtifactRegistryRole.admin.rawValue == "roles/artifactregistry.admin")
+    #expect(ArtifactRegistryRole.writer.rawValue == "roles/artifactregistry.writer")
+    #expect(ArtifactRegistryRole.reader.rawValue == "roles/artifactregistry.reader")
+    #expect(ArtifactRegistryRole.repoAdmin.rawValue == "roles/artifactregistry.repoAdmin")
+    #expect(ArtifactRegistryRole.createOnPushWriter.rawValue == "roles/artifactregistry.createOnPushWriter")
+}
+
+// MARK: Docker Auth Configuration Tests
+
+@Test func testArtifactRegistryDockerAuth() {
+    let auth = ArtifactRegistryDockerAuth(location: "us-central1")
+
+    #expect(auth.host == "us-central1-docker.pkg.dev")
+    #expect(auth.configureDockerCommand == "gcloud auth configure-docker us-central1-docker.pkg.dev")
+}
+
+@Test func testDockerAuthPrintAccessTokenCommand() {
+    let auth = ArtifactRegistryDockerAuth(location: "us-central1")
+    #expect(auth.printAccessTokenCommand == "gcloud auth print-access-token")
+}
+
+@Test func testDockerAuthLoginCommand() {
+    let auth = ArtifactRegistryDockerAuth(location: "us-west1")
+    let cmd = auth.dockerLoginCommand
+    #expect(cmd.contains("gcloud auth print-access-token"))
+    #expect(cmd.contains("docker login"))
+    #expect(cmd.contains("https://us-west1-docker.pkg.dev"))
+}
+
+@Test func testDockerAuthCredentialHelperConfig() {
+    let auth = ArtifactRegistryDockerAuth(location: "europe-west1")
+    let config = auth.credentialHelperConfig
+    #expect(config.contains("credHelpers"))
+    #expect(config.contains("europe-west1-docker.pkg.dev"))
+    #expect(config.contains("gcloud"))
+}
+
+// MARK: npm Configuration Tests
+
+@Test func testArtifactRegistryNpmConfig() {
+    let config = ArtifactRegistryNpmConfig(
+        projectID: "test-project",
+        location: "us-central1",
+        repositoryName: "npm-repo"
+    )
+
+    #expect(config.registryURL == "https://us-central1-npm.pkg.dev/test-project/npm-repo/")
+}
+
+@Test func testNpmConfigWithScope() {
+    let config = ArtifactRegistryNpmConfig(
+        projectID: "test-project",
+        location: "us-central1",
+        repositoryName: "npm-repo",
+        scope: "@myorg"
+    )
+
+    let cmd = config.printCredentialsCommand
+    #expect(cmd.contains("--scope=@myorg"))
+}
+
+@Test func testNpmConfigPrintCredentialsCommand() {
+    let config = ArtifactRegistryNpmConfig(
+        projectID: "test-project",
+        location: "us-central1",
+        repositoryName: "npm-repo"
+    )
+
+    let cmd = config.printCredentialsCommand
+    #expect(cmd.contains("gcloud artifacts print-settings npm"))
+    #expect(cmd.contains("--repository=npm-repo"))
+}
+
+@Test func testNpmConfigNpmrcConfig() {
+    let config = ArtifactRegistryNpmConfig(
+        projectID: "test-project",
+        location: "us-central1",
+        repositoryName: "npm-repo"
+    )
+
+    let npmrc = config.npmrcConfig
+    #expect(npmrc.contains("registry="))
+    #expect(npmrc.contains("us-central1-npm.pkg.dev"))
+    #expect(npmrc.contains("always-auth=true"))
+}
+
+// MARK: Maven Configuration Tests
+
+@Test func testArtifactRegistryMavenConfig() {
+    let config = ArtifactRegistryMavenConfig(
+        projectID: "test-project",
+        location: "us-central1",
+        repositoryName: "maven-repo"
+    )
+
+    #expect(config.repositoryURL == "https://us-central1-maven.pkg.dev/test-project/maven-repo")
+}
+
+@Test func testMavenConfigPrintSettingsCommand() {
+    let config = ArtifactRegistryMavenConfig(
+        projectID: "test-project",
+        location: "us-central1",
+        repositoryName: "maven-repo"
+    )
+
+    let cmd = config.printSettingsCommand
+    #expect(cmd.contains("gcloud artifacts print-settings mvn"))
+    #expect(cmd.contains("--repository=maven-repo"))
+}
+
+@Test func testMavenConfigPomRepositoryConfig() {
+    let config = ArtifactRegistryMavenConfig(
+        projectID: "test-project",
+        location: "us-central1",
+        repositoryName: "maven-repo"
+    )
+
+    let pom = config.pomRepositoryConfig
+    #expect(pom.contains("<repository>"))
+    #expect(pom.contains("<id>artifact-registry</id>"))
+    #expect(pom.contains("artifactregistry://"))
+}
+
+@Test func testMavenConfigPomDistributionConfig() {
+    let config = ArtifactRegistryMavenConfig(
+        projectID: "test-project",
+        location: "us-central1",
+        repositoryName: "maven-repo"
+    )
+
+    let pom = config.pomDistributionConfig
+    #expect(pom.contains("<distributionManagement>"))
+    #expect(pom.contains("<snapshotRepository>"))
+}
+
+// MARK: Python Configuration Tests
+
+@Test func testArtifactRegistryPythonConfig() {
+    let config = ArtifactRegistryPythonConfig(
+        projectID: "test-project",
+        location: "us-central1",
+        repositoryName: "python-repo"
+    )
+
+    #expect(config.repositoryURL == "https://us-central1-python.pkg.dev/test-project/python-repo/simple/")
+}
+
+@Test func testPythonConfigPrintSettingsCommand() {
+    let config = ArtifactRegistryPythonConfig(
+        projectID: "test-project",
+        location: "us-central1",
+        repositoryName: "python-repo"
+    )
+
+    let cmd = config.printSettingsCommand
+    #expect(cmd.contains("gcloud artifacts print-settings python"))
+    #expect(cmd.contains("--repository=python-repo"))
+}
+
+@Test func testPythonConfigPipInstallCommand() {
+    let config = ArtifactRegistryPythonConfig(
+        projectID: "test-project",
+        location: "us-central1",
+        repositoryName: "python-repo"
+    )
+
+    let cmd = config.pipInstallCommand(package: "my-package")
+    #expect(cmd.contains("pip install"))
+    #expect(cmd.contains("--index-url"))
+    #expect(cmd.contains("my-package"))
+}
+
+@Test func testPythonConfigPipConfig() {
+    let config = ArtifactRegistryPythonConfig(
+        projectID: "test-project",
+        location: "us-central1",
+        repositoryName: "python-repo"
+    )
+
+    let pipconf = config.pipConfig
+    #expect(pipconf.contains("[global]"))
+    #expect(pipconf.contains("index-url"))
+}
+
+@Test func testPythonConfigTwineUploadCommand() {
+    let config = ArtifactRegistryPythonConfig(
+        projectID: "test-project",
+        location: "us-central1",
+        repositoryName: "python-repo"
+    )
+
+    let cmd = config.twineUploadCommand()
+    #expect(cmd.contains("twine upload"))
+    #expect(cmd.contains("--repository-url"))
+    #expect(cmd.contains("dist/*"))
+}
+
+// MARK: Vulnerability Scanning Tests
+
+@Test func testGoogleCloudVulnerabilityScan() {
+    let scan = GoogleCloudVulnerabilityScan(
+        imageURL: "us-central1-docker.pkg.dev/test-project/repo/image:latest",
+        projectID: "test-project"
+    )
+
+    let scanCmd = scan.scanCommand
+    #expect(scanCmd.contains("gcloud artifacts docker images scan"))
+    #expect(scanCmd.contains("image:latest"))
+}
+
+@Test func testVulnerabilityScanListCommand() {
+    let scan = GoogleCloudVulnerabilityScan(
+        imageURL: "us-central1-docker.pkg.dev/test-project/repo/image:latest",
+        projectID: "test-project"
+    )
+
+    let cmd = scan.listVulnerabilitiesCommand
+    #expect(cmd.contains("gcloud artifacts docker images list-vulnerabilities"))
+}
+
+@Test func testVulnerabilityScanGetStatusCommand() {
+    let cmd = GoogleCloudVulnerabilityScan.getScanStatusCommand(
+        operationID: "operation-123",
+        location: "us-central1"
+    )
+    #expect(cmd.contains("gcloud artifacts operations describe operation-123"))
+    #expect(cmd.contains("--location=us-central1"))
+}
+
+// MARK: Operations Tests
+
+@Test func testArtifactRegistryOperationsListLocations() {
+    let cmd = ArtifactRegistryOperations.listLocationsCommand(projectID: "test-project")
+    #expect(cmd.contains("gcloud artifacts locations list"))
+    #expect(cmd.contains("--project=test-project"))
+}
+
+@Test func testArtifactRegistryOperationsListRepositories() {
+    let cmd = ArtifactRegistryOperations.listRepositoriesCommand(projectID: "test-project", location: "us-central1")
+    #expect(cmd.contains("gcloud artifacts repositories list"))
+    #expect(cmd.contains("--location=us-central1"))
+}
+
+@Test func testArtifactRegistryOperationsEnableAPI() {
+    let cmd = ArtifactRegistryOperations.enableAPICommand(projectID: "test-project")
+    #expect(cmd.contains("gcloud services enable artifactregistry.googleapis.com"))
+}
+
+@Test func testArtifactRegistryOperationsSetDefaultRepo() {
+    let cmd = ArtifactRegistryOperations.setDefaultRepoCommand(
+        projectID: "test-project",
+        location: "us-central1",
+        repositoryName: "my-repo"
+    )
+    #expect(cmd.contains("gcloud config set artifacts/repository my-repo"))
+    #expect(cmd.contains("gcloud config set artifacts/location us-central1"))
+}
+
+// MARK: DAIS Artifact Registry Template Tests
+
+@Test func testDAISArtifactRegistryTemplateDockerRepository() {
+    let repo = DAISArtifactRegistryTemplate.dockerRepository(
+        projectID: "test-project",
+        location: "us-central1",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(repo.name == "dais-prod-docker")
+    #expect(repo.format == .docker)
+    #expect(repo.labels["app"] == "dais")
+    #expect(repo.labels["deployment"] == "dais-prod")
+    #expect(repo.cleanupPolicies.count == 2)
+    #expect(repo.vulnerabilityScanningConfig?.enablementConfig == .automatic)
+}
+
+@Test func testDAISArtifactRegistryTemplateNpmRepository() {
+    let repo = DAISArtifactRegistryTemplate.npmRepository(
+        projectID: "test-project",
+        location: "us-central1",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(repo.name == "dais-prod-npm")
+    #expect(repo.format == .npm)
+}
+
+@Test func testDAISArtifactRegistryTemplatePythonRepository() {
+    let repo = DAISArtifactRegistryTemplate.pythonRepository(
+        projectID: "test-project",
+        location: "us-central1",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(repo.name == "dais-prod-python")
+    #expect(repo.format == .python)
+}
+
+@Test func testDAISArtifactRegistryTemplateDockerImage() {
+    let image = DAISArtifactRegistryTemplate.dockerImage(
+        projectID: "test-project",
+        location: "us-central1",
+        deploymentName: "dais-prod",
+        imageName: "my-service",
+        tag: "v1.0.0"
+    )
+
+    #expect(image.name == "my-service")
+    #expect(image.repositoryName == "dais-prod-docker")
+    #expect(image.tag == "v1.0.0")
+}
+
+@Test func testDAISArtifactRegistryTemplateAPIServiceImage() {
+    let image = DAISArtifactRegistryTemplate.apiServiceImage(
+        projectID: "test-project",
+        location: "us-central1",
+        deploymentName: "dais-prod",
+        tag: "v2.0.0"
+    )
+
+    #expect(image.name == "api-service")
+    #expect(image.tag == "v2.0.0")
+}
+
+@Test func testDAISArtifactRegistryTemplateGRPCServiceImage() {
+    let image = DAISArtifactRegistryTemplate.grpcServiceImage(
+        projectID: "test-project",
+        location: "us-central1",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(image.name == "grpc-service")
+    #expect(image.tag == "latest")
+}
+
+@Test func testDAISArtifactRegistryTemplateWorkerServiceImage() {
+    let image = DAISArtifactRegistryTemplate.workerServiceImage(
+        projectID: "test-project",
+        location: "us-central1",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(image.name == "worker")
+}
+
+@Test func testDAISArtifactRegistryTemplateDockerAuth() {
+    let auth = DAISArtifactRegistryTemplate.dockerAuth(location: "us-central1")
+    #expect(auth.host == "us-central1-docker.pkg.dev")
+}
+
+@Test func testDAISArtifactRegistryTemplateSwiftDockerfile() {
+    let dockerfile = DAISArtifactRegistryTemplate.swiftDockerfile(
+        executableName: "dais-server",
+        port: 8080
+    )
+
+    #expect(dockerfile.contains("FROM swift:5.10-jammy"))
+    #expect(dockerfile.contains("swift build -c release"))
+    #expect(dockerfile.contains("dais-server"))
+    #expect(dockerfile.contains("EXPOSE 8080"))
+}
+
+@Test func testDAISArtifactRegistryTemplateCloudbuildConfig() {
+    let config = DAISArtifactRegistryTemplate.cloudbuildConfig(
+        projectID: "test-project",
+        location: "us-central1",
+        deploymentName: "dais-prod",
+        serviceName: "api-service",
+        cloudRunRegion: "us-central1"
+    )
+
+    #expect(config.contains("steps:"))
+    #expect(config.contains("gcr.io/cloud-builders/docker"))
+    #expect(config.contains("dais-prod-docker"))
+    #expect(config.contains("api-service"))
+    #expect(config.contains("$COMMIT_SHA"))
+    #expect(config.contains("gcloud"))
+    #expect(config.contains("run"))
+    #expect(config.contains("deploy"))
+}
+
+@Test func testDAISArtifactRegistryTemplateSetupScript() {
+    let script = DAISArtifactRegistryTemplate.setupScript(
+        projectID: "test-project",
+        location: "us-central1",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("gcloud services enable artifactregistry.googleapis.com"))
+    #expect(script.contains("gcloud artifacts repositories create dais-prod-docker"))
+    #expect(script.contains("gcloud auth configure-docker"))
+    #expect(script.contains("Artifact Registry Setup Complete!"))
+}
+
+@Test func testDAISArtifactRegistryTemplateTeardownScript() {
+    let script = DAISArtifactRegistryTemplate.teardownScript(
+        projectID: "test-project",
+        location: "us-central1",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(script.contains("#!/bin/bash"))
+    #expect(script.contains("gcloud artifacts repositories delete dais-prod-docker"))
+    #expect(script.contains("teardown complete"))
+}
+
+@Test func testDAISArtifactRegistryTemplateCICDSetupScript() {
+    let script = DAISArtifactRegistryTemplate.cicdSetupScript(
+        projectID: "test-project",
+        location: "us-central1",
+        deploymentName: "dais-prod",
+        repoOwner: "myorg",
+        repoName: "my-repo"
+    )
+
+    #expect(script.contains("gcloud services enable cloudbuild.googleapis.com"))
+    #expect(script.contains("gcloud builds triggers create github"))
+    #expect(script.contains("--repo-owner=myorg"))
+    #expect(script.contains("--repo-name=my-repo"))
+    #expect(script.contains("--branch-pattern"))
+}
+
+// MARK: Artifact Registry Codable Tests
+
+@Test func testRepositoryCodable() throws {
+    let repo = GoogleCloudArtifactRegistryRepository(
+        name: "test-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        format: .docker
+    )
+    let data = try JSONEncoder().encode(repo)
+    let decoded = try JSONDecoder().decode(GoogleCloudArtifactRegistryRepository.self, from: data)
+
+    #expect(decoded.name == repo.name)
+    #expect(decoded.format == .docker)
+    #expect(decoded.location == "us-central1")
+}
+
+@Test func testDockerImageCodable() throws {
+    let image = GoogleCloudDockerImage(
+        name: "test-image",
+        repositoryName: "test-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        tag: "latest"
+    )
+    let data = try JSONEncoder().encode(image)
+    let decoded = try JSONDecoder().decode(GoogleCloudDockerImage.self, from: data)
+
+    #expect(decoded.name == image.name)
+    #expect(decoded.tag == "latest")
+}
+
+@Test func testPackageCodable() throws {
+    let pkg = GoogleCloudPackage(
+        name: "test-package",
+        repositoryName: "npm-repo",
+        projectID: "test-project",
+        location: "us-central1",
+        format: .npm
+    )
+    let data = try JSONEncoder().encode(pkg)
+    let decoded = try JSONDecoder().decode(GoogleCloudPackage.self, from: data)
+
+    #expect(decoded.name == pkg.name)
+    #expect(decoded.format == .npm)
+}
+
+@Test func testPackageVersionCodable() throws {
+    let version = GoogleCloudPackageVersion(
+        version: "1.0.0",
+        packageName: "test-package",
+        repositoryName: "npm-repo",
+        projectID: "test-project",
+        location: "us-central1"
+    )
+    let data = try JSONEncoder().encode(version)
+    let decoded = try JSONDecoder().decode(GoogleCloudPackageVersion.self, from: data)
+
+    #expect(decoded.version == "1.0.0")
+    #expect(decoded.packageName == "test-package")
+}
+
+@Test func testNpmConfigCodable() throws {
+    let config = ArtifactRegistryNpmConfig(
+        projectID: "test-project",
+        location: "us-central1",
+        repositoryName: "npm-repo",
+        scope: "@myorg"
+    )
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(ArtifactRegistryNpmConfig.self, from: data)
+
+    #expect(decoded.scope == "@myorg")
+    #expect(decoded.repositoryName == "npm-repo")
+}
+
+@Test func testMavenConfigCodable() throws {
+    let config = ArtifactRegistryMavenConfig(
+        projectID: "test-project",
+        location: "us-central1",
+        repositoryName: "maven-repo"
+    )
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(ArtifactRegistryMavenConfig.self, from: data)
+
+    #expect(decoded.repositoryName == "maven-repo")
+}
+
+@Test func testPythonConfigCodable() throws {
+    let config = ArtifactRegistryPythonConfig(
+        projectID: "test-project",
+        location: "us-central1",
+        repositoryName: "python-repo"
+    )
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(ArtifactRegistryPythonConfig.self, from: data)
+
+    #expect(decoded.repositoryName == "python-repo")
+}

@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 19 Google Cloud services:
+GoogleCloudSwift provides models for 20 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -104,6 +104,7 @@ GoogleCloudSwift provides models for 19 Google Cloud services:
 | **VPC Networks** | Virtual Private Cloud networking | `GoogleCloudVPCNetwork`, `GoogleCloudSubnet`, `GoogleCloudFirewallRule` |
 | **Cloud DNS** | Domain name system management | `GoogleCloudManagedZone`, `GoogleCloudDNSRecord`, `GoogleCloudDNSPolicy` |
 | **Cloud Load Balancing** | Global and regional load balancing | `GoogleCloudHealthCheck`, `GoogleCloudBackendService`, `GoogleCloudURLMap` |
+| **Artifact Registry** | Container and package management | `GoogleCloudArtifactRegistryRepository`, `GoogleCloudDockerImage` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -2172,6 +2173,328 @@ let teardownScript = DAISLoadBalancingTemplate.teardownScript(
 | `internet` | External FQDN endpoints |
 | `privateServiceConnect` | PSC endpoints |
 
+### GoogleCloudArtifactRegistryRepository (Artifact Registry API)
+
+Artifact Registry provides secure, private container image and package management:
+
+```swift
+// Create a Docker repository
+let dockerRepo = GoogleCloudArtifactRegistryRepository(
+    name: "my-docker-repo",
+    projectID: "my-project",
+    location: "us-central1",
+    format: .docker,
+    description: "Docker images for production",
+    labels: ["env": "production"]
+)
+print(dockerRepo.createCommand)
+print(dockerRepo.dockerHost)        // us-central1-docker.pkg.dev
+print(dockerRepo.dockerImagePrefix) // us-central1-docker.pkg.dev/my-project/my-docker-repo
+
+// Create npm, Maven, Python repositories
+let npmRepo = GoogleCloudArtifactRegistryRepository(
+    name: "npm-packages",
+    projectID: "my-project",
+    location: "us-central1",
+    format: .npm
+)
+print(npmRepo.npmRegistryURL)
+
+let mavenRepo = GoogleCloudArtifactRegistryRepository(
+    name: "maven-artifacts",
+    projectID: "my-project",
+    location: "us-central1",
+    format: .maven
+)
+print(mavenRepo.mavenRepositoryURL)
+
+let pythonRepo = GoogleCloudArtifactRegistryRepository(
+    name: "python-packages",
+    projectID: "my-project",
+    location: "us-central1",
+    format: .python
+)
+print(pythonRepo.pythonRepositoryURL)
+```
+
+**Repository with Cleanup Policies:**
+
+```swift
+// Repository with automatic cleanup policies
+let repo = GoogleCloudArtifactRegistryRepository(
+    name: "docker-repo",
+    projectID: "my-project",
+    location: "us-central1",
+    format: .docker,
+    cleanupPolicies: [
+        .init(
+            id: "delete-untagged",
+            action: .delete,
+            condition: .init(tagState: .untagged, olderThan: "604800s") // 7 days
+        ),
+        .init(
+            id: "keep-recent",
+            action: .keep,
+            mostRecentVersions: .init(keepCount: 10)
+        )
+    ],
+    vulnerabilityScanningConfig: .init(enablementConfig: .automatic)
+)
+```
+
+**Virtual and Remote Repositories:**
+
+```swift
+// Virtual repository (aggregates multiple repos)
+let virtualRepo = GoogleCloudArtifactRegistryRepository(
+    name: "virtual-docker",
+    projectID: "my-project",
+    location: "us-central1",
+    format: .docker,
+    mode: .virtualRepository
+)
+
+// Remote repository (caches from upstream)
+let remoteRepo = GoogleCloudArtifactRegistryRepository(
+    name: "dockerhub-cache",
+    projectID: "my-project",
+    location: "us-central1",
+    format: .docker,
+    mode: .remoteRepository
+)
+```
+
+**Docker Image Management:**
+
+```swift
+// Reference a Docker image
+let image = GoogleCloudDockerImage(
+    name: "api-service",
+    repositoryName: "docker-repo",
+    projectID: "my-project",
+    location: "us-central1",
+    tag: "v1.0.0"
+)
+print(image.imageURL)  // us-central1-docker.pkg.dev/my-project/docker-repo/api-service:v1.0.0
+print(image.dockerPullCommand)
+print(image.dockerPushCommand)
+
+// Tag and push workflow
+print(image.dockerTagCommand(sourceImage: "local-build:latest"))
+print(image.listTagsCommand)
+print(image.addTagCommand(sourceTag: "v1.0.0", newTag: "latest"))
+print(image.describeCommand)
+```
+
+**Package Management:**
+
+```swift
+// npm package
+let npmPackage = GoogleCloudPackage(
+    name: "@myorg/shared-utils",
+    repositoryName: "npm-repo",
+    projectID: "my-project",
+    location: "us-central1",
+    format: .npm
+)
+print(npmPackage.resourceName)
+print(GoogleCloudPackage.listCommand(projectID: "my-project", location: "us-central1", repositoryName: "npm-repo"))
+
+// Package versions
+let version = GoogleCloudPackageVersion(
+    version: "1.2.3",
+    packageName: "@myorg/shared-utils",
+    repositoryName: "npm-repo",
+    projectID: "my-project",
+    location: "us-central1"
+)
+print(GoogleCloudPackageVersion.listCommand(
+    projectID: "my-project",
+    location: "us-central1",
+    repositoryName: "npm-repo",
+    packageName: "@myorg/shared-utils"
+))
+```
+
+**Docker Authentication:**
+
+```swift
+// Configure Docker authentication
+let auth = ArtifactRegistryDockerAuth(location: "us-central1")
+print(auth.configureDockerCommand)  // gcloud auth configure-docker us-central1-docker.pkg.dev
+print(auth.dockerLoginCommand)
+print(auth.credentialHelperConfig)  // Docker config.json content
+```
+
+**npm Configuration:**
+
+```swift
+// Configure npm for Artifact Registry
+let npmConfig = ArtifactRegistryNpmConfig(
+    projectID: "my-project",
+    location: "us-central1",
+    repositoryName: "npm-repo",
+    scope: "@myorg"
+)
+print(npmConfig.registryURL)
+print(npmConfig.printCredentialsCommand)
+print(npmConfig.npmrcConfig)  // .npmrc content
+```
+
+**Maven Configuration:**
+
+```swift
+// Configure Maven for Artifact Registry
+let mavenConfig = ArtifactRegistryMavenConfig(
+    projectID: "my-project",
+    location: "us-central1",
+    repositoryName: "maven-repo"
+)
+print(mavenConfig.repositoryURL)
+print(mavenConfig.printSettingsCommand)
+print(mavenConfig.pomRepositoryConfig)      // pom.xml repository section
+print(mavenConfig.pomDistributionConfig)    // pom.xml distributionManagement section
+```
+
+**Python/pip Configuration:**
+
+```swift
+// Configure pip for Artifact Registry
+let pythonConfig = ArtifactRegistryPythonConfig(
+    projectID: "my-project",
+    location: "us-central1",
+    repositoryName: "python-repo"
+)
+print(pythonConfig.repositoryURL)
+print(pythonConfig.pipInstallCommand(package: "my-package"))
+print(pythonConfig.pipConfig)  // pip.conf content
+print(pythonConfig.twineUploadCommand())
+```
+
+**Vulnerability Scanning:**
+
+```swift
+// Scan Docker images for vulnerabilities
+let scan = GoogleCloudVulnerabilityScan(
+    imageURL: "us-central1-docker.pkg.dev/my-project/repo/image:latest",
+    projectID: "my-project"
+)
+print(scan.scanCommand)
+print(scan.listVulnerabilitiesCommand)
+```
+
+**IAM and Permissions:**
+
+```swift
+// Grant repository access
+let repo = GoogleCloudArtifactRegistryRepository(
+    name: "docker-repo",
+    projectID: "my-project",
+    location: "us-central1",
+    format: .docker
+)
+print(repo.addIAMBindingCommand(
+    member: "serviceAccount:my-sa@my-project.iam.gserviceaccount.com",
+    role: ArtifactRegistryRole.reader.rawValue
+))
+print(repo.getIAMPolicyCommand)
+
+// Available roles
+print(ArtifactRegistryRole.admin.rawValue)    // roles/artifactregistry.admin
+print(ArtifactRegistryRole.writer.rawValue)   // roles/artifactregistry.writer
+print(ArtifactRegistryRole.reader.rawValue)   // roles/artifactregistry.reader
+```
+
+**DAIS Artifact Registry Templates:**
+
+```swift
+// Docker repository with DAIS best practices
+let repo = DAISArtifactRegistryTemplate.dockerRepository(
+    projectID: "my-project",
+    location: "us-central1",
+    deploymentName: "dais-prod"
+)
+// Includes cleanup policies and vulnerability scanning
+
+// Pre-configured service images
+let apiImage = DAISArtifactRegistryTemplate.apiServiceImage(
+    projectID: "my-project",
+    location: "us-central1",
+    deploymentName: "dais-prod",
+    tag: "v1.0.0"
+)
+
+let grpcImage = DAISArtifactRegistryTemplate.grpcServiceImage(
+    projectID: "my-project",
+    location: "us-central1",
+    deploymentName: "dais-prod"
+)
+
+let workerImage = DAISArtifactRegistryTemplate.workerServiceImage(
+    projectID: "my-project",
+    location: "us-central1",
+    deploymentName: "dais-prod"
+)
+
+// Generate Swift Dockerfile
+let dockerfile = DAISArtifactRegistryTemplate.swiftDockerfile(
+    executableName: "dais-server",
+    port: 8080
+)
+
+// Cloud Build configuration for CI/CD
+let cloudbuildConfig = DAISArtifactRegistryTemplate.cloudbuildConfig(
+    projectID: "my-project",
+    location: "us-central1",
+    deploymentName: "dais-prod",
+    serviceName: "api-service",
+    cloudRunRegion: "us-central1"
+)
+
+// Complete setup and teardown scripts
+let setupScript = DAISArtifactRegistryTemplate.setupScript(
+    projectID: "my-project",
+    location: "us-central1",
+    deploymentName: "dais-prod"
+)
+
+let cicdScript = DAISArtifactRegistryTemplate.cicdSetupScript(
+    projectID: "my-project",
+    location: "us-central1",
+    deploymentName: "dais-prod",
+    repoOwner: "myorg",
+    repoName: "my-repo"
+)
+```
+
+**Repository Formats:**
+
+| Format | Use Case |
+|--------|----------|
+| `docker` | Container images |
+| `maven` | Java/Kotlin packages |
+| `npm` | JavaScript/TypeScript packages |
+| `python` | Python packages (pip) |
+| `apt` | Debian packages |
+| `yum` | RPM packages |
+| `go` | Go modules |
+| `generic` | Arbitrary files |
+
+**Repository Modes:**
+
+| Mode | Description |
+|------|-------------|
+| `standardRepository` | Store and serve artifacts directly |
+| `virtualRepository` | Aggregate multiple repositories |
+| `remoteRepository` | Cache artifacts from upstream sources |
+
+**Cleanup Policy Actions:**
+
+| Action | Description |
+|--------|-------------|
+| `delete` | Delete matching artifacts |
+| `keep` | Keep matching artifacts (exclude from deletion) |
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -2770,6 +3093,12 @@ MIT License
 - [Serverless NEGs](https://cloud.google.com/load-balancing/docs/negs/serverless-neg-concepts)
 - [SSL Certificates](https://cloud.google.com/load-balancing/docs/ssl-certificates)
 - [SSL Policies](https://cloud.google.com/load-balancing/docs/ssl-policies-concepts)
+- [Artifact Registry Documentation](https://cloud.google.com/artifact-registry/docs)
+- [Docker Repository Quickstart](https://cloud.google.com/artifact-registry/docs/docker/quickstart)
+- [npm Repository Setup](https://cloud.google.com/artifact-registry/docs/nodejs)
+- [Python Repository Setup](https://cloud.google.com/artifact-registry/docs/python)
+- [Maven Repository Setup](https://cloud.google.com/artifact-registry/docs/java)
+- [Vulnerability Scanning](https://cloud.google.com/artifact-registry/docs/analysis)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
