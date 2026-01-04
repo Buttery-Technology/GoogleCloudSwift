@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 32 Google Cloud services:
+GoogleCloudSwift provides models for 33 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -117,6 +117,7 @@ GoogleCloudSwift provides models for 32 Google Cloud services:
 | **Cloud VPN** | Secure network connectivity | `GoogleCloudVPNGateway`, `GoogleCloudVPNTunnel`, `GoogleCloudExternalVPNGateway` |
 | **BigQuery** | Data warehouse and analytics | `GoogleCloudBigQueryDataset`, `GoogleCloudBigQueryTable`, `GoogleCloudBigQueryJob`, `GoogleCloudBigQueryView` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
+| **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -4157,6 +4158,144 @@ let script = DAISDataflowTemplate.setupScript(
 | `draining` | Streaming job is draining |
 | `drained` | Streaming job has drained |
 
+### GoogleCloudDeliveryPipeline (Cloud Deploy API)
+
+Cloud Deploy provides continuous delivery to GKE and Cloud Run:
+
+```swift
+// Create a delivery pipeline
+let pipeline = GoogleCloudDeliveryPipeline(
+    name: "app-pipeline",
+    projectID: "my-project",
+    location: "us-central1",
+    description: "Application delivery pipeline",
+    serialPipeline: GoogleCloudDeliveryPipeline.SerialPipeline(
+        stages: [
+            GoogleCloudDeliveryPipeline.SerialPipeline.Stage(
+                targetId: "dev",
+                profiles: ["dev"]
+            ),
+            GoogleCloudDeliveryPipeline.SerialPipeline.Stage(
+                targetId: "staging",
+                profiles: ["staging"]
+            ),
+            GoogleCloudDeliveryPipeline.SerialPipeline.Stage(
+                targetId: "prod",
+                profiles: ["prod"]
+            )
+        ]
+    )
+)
+
+print(pipeline.createCommand)
+print(pipeline.resourceName)
+```
+
+**Deployment Targets:**
+
+```swift
+// Cloud Run target
+let cloudRunTarget = GoogleCloudDeployTarget(
+    name: "prod-run",
+    projectID: "my-project",
+    location: "us-central1",
+    targetType: .cloudRun(location: "us-central1"),
+    requireApproval: true
+)
+
+// GKE target
+let gkeTarget = GoogleCloudDeployTarget(
+    name: "prod-gke",
+    projectID: "my-project",
+    location: "us-central1",
+    targetType: .gke(
+        cluster: "projects/my-project/locations/us-central1/clusters/main",
+        internalIP: false
+    ),
+    requireApproval: true
+)
+
+print(cloudRunTarget.createCommand)
+print(gkeTarget.createCommand)
+```
+
+**Creating and Promoting Releases:**
+
+```swift
+// Create a release
+let release = GoogleCloudDeployRelease(
+    name: "v1.0.0",
+    projectID: "my-project",
+    location: "us-central1",
+    pipelineName: "app-pipeline",
+    buildArtifacts: [
+        GoogleCloudDeployRelease.BuildArtifact(
+            image: "app",
+            tag: "gcr.io/my-project/app:v1.0.0"
+        )
+    ],
+    skaffoldConfigUri: "gs://my-bucket/skaffold.yaml"
+)
+
+print(release.createCommand)
+print(release.promoteCommand(toTarget: "staging"))
+```
+
+**Managing Rollouts:**
+
+```swift
+let rollout = GoogleCloudDeployRollout(
+    name: "rollout-001",
+    projectID: "my-project",
+    location: "us-central1",
+    pipelineName: "app-pipeline",
+    releaseName: "v1.0.0",
+    targetId: "prod",
+    state: .pendingApproval
+)
+
+print(rollout.approveCommand)  // Approve the rollout
+print(rollout.rejectCommand)   // Reject the rollout
+print(rollout.cancelCommand)   // Cancel in-progress rollout
+```
+
+**DAIS Cloud Deploy Templates:**
+
+```swift
+// Create a multi-stage pipeline
+let pipeline = DAISCloudDeployTemplate.cloudRunPipeline(
+    projectID: "my-project",
+    location: "us-central1",
+    deploymentName: "dais-prod",
+    stages: [
+        (name: "dev", runLocation: "us-central1", requireApproval: false),
+        (name: "staging", runLocation: "us-central1", requireApproval: false),
+        (name: "prod", runLocation: "us-central1", requireApproval: true)
+    ]
+)
+
+// Generate setup script
+let script = DAISCloudDeployTemplate.setupScript(
+    projectID: "my-project",
+    location: "us-central1",
+    deploymentName: "dais-prod",
+    environments: [
+        (name: "dev", runLocation: "us-central1", requireApproval: false),
+        (name: "prod", runLocation: "us-central1", requireApproval: true)
+    ]
+)
+```
+
+**Rollout States:**
+
+| State | Description |
+|-------|-------------|
+| `pendingApproval` | Waiting for manual approval |
+| `inProgress` | Deployment in progress |
+| `succeeded` | Deployment completed successfully |
+| `failed` | Deployment failed |
+| `cancelled` | Deployment was cancelled |
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -4826,6 +4965,16 @@ MIT License
 - [Streaming Engine](https://cloud.google.com/dataflow/docs/streaming-engine)
 - [Dataflow SQL](https://cloud.google.com/dataflow/docs/guides/sql/dataflow-sql-intro)
 - [Job Snapshots](https://cloud.google.com/dataflow/docs/guides/snapshots)
+
+### Cloud Deploy
+- [Cloud Deploy Documentation](https://cloud.google.com/deploy/docs)
+- [Delivery Pipelines](https://cloud.google.com/deploy/docs/create-pipeline-targets)
+- [Deploy Targets](https://cloud.google.com/deploy/docs/deploy-app-targets)
+- [Releases and Rollouts](https://cloud.google.com/deploy/docs/deploying-application)
+- [Deployment Strategies](https://cloud.google.com/deploy/docs/deployment-strategies)
+- [Canary Deployments](https://cloud.google.com/deploy/docs/deployment-strategies/canary)
+- [Rollout Approvals](https://cloud.google.com/deploy/docs/promote-release)
+- [Skaffold Configuration](https://cloud.google.com/deploy/docs/using-skaffold)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
