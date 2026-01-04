@@ -27352,3 +27352,439 @@ import Testing
     #expect(decoded.name == "test-keyset")
     #expect(decoded.publicKeys?.first?.id == "key-1")
 }
+
+// MARK: - Anthos Tests
+
+@Test func testAnthosMembershipBasic() {
+    let membership = GoogleCloudAnthosMembership(
+        name: "my-cluster",
+        projectID: "my-project",
+        description: "Production cluster"
+    )
+
+    #expect(membership.name == "my-cluster")
+    #expect(membership.projectID == "my-project")
+    #expect(membership.location == "global")
+    #expect(membership.resourceName == "projects/my-project/locations/global/memberships/my-cluster")
+}
+
+@Test func testAnthosMembershipCommands() {
+    let membership = GoogleCloudAnthosMembership(
+        name: "gke-cluster",
+        projectID: "my-project"
+    )
+
+    #expect(membership.registerCommand.contains("memberships register gke-cluster"))
+    #expect(membership.describeCommand.contains("memberships describe gke-cluster"))
+    #expect(membership.unregisterCommand.contains("memberships unregister gke-cluster"))
+}
+
+@Test func testAnthosMembershipGKEEndpoint() {
+    let membership = GoogleCloudAnthosMembership(
+        name: "gke-membership",
+        projectID: "my-project",
+        endpoint: .init(
+            gkeCluster: .init(
+                resourceLink: "//container.googleapis.com/projects/my-project/locations/us-central1/clusters/my-cluster"
+            )
+        )
+    )
+
+    #expect(membership.endpoint?.gkeCluster?.resourceLink.contains("my-cluster") == true)
+}
+
+@Test func testAnthosMembershipOnPremEndpoint() {
+    let membership = GoogleCloudAnthosMembership(
+        name: "on-prem",
+        projectID: "my-project",
+        endpoint: .init(
+            onPremCluster: .init(clusterType: .user)
+        )
+    )
+
+    #expect(membership.endpoint?.onPremCluster?.clusterType == .user)
+}
+
+@Test func testAnthosMembershipStateValues() {
+    #expect(GoogleCloudAnthosMembership.State.Code.creating.rawValue == "CREATING")
+    #expect(GoogleCloudAnthosMembership.State.Code.ready.rawValue == "READY")
+    #expect(GoogleCloudAnthosMembership.State.Code.deleting.rawValue == "DELETING")
+    #expect(GoogleCloudAnthosMembership.State.Code.updating.rawValue == "UPDATING")
+}
+
+@Test func testAnthosFeatureBasic() {
+    let feature = GoogleCloudAnthosFeature(
+        name: "config-mgmt",
+        projectID: "my-project",
+        featureType: .configManagement
+    )
+
+    #expect(feature.name == "config-mgmt")
+    #expect(feature.featureType == .configManagement)
+    #expect(feature.resourceName.contains("configmanagement"))
+}
+
+@Test func testAnthosFeatureCommands() {
+    let feature = GoogleCloudAnthosFeature(
+        name: "servicemesh",
+        projectID: "my-project",
+        featureType: .serviceMesh
+    )
+
+    #expect(feature.enableCommand.contains("features enable servicemesh"))
+    #expect(feature.describeCommand.contains("features describe servicemesh"))
+    #expect(feature.disableCommand.contains("features disable servicemesh"))
+}
+
+@Test func testAnthosFeatureTypes() {
+    #expect(GoogleCloudAnthosFeature.FeatureType.configManagement.rawValue == "configmanagement")
+    #expect(GoogleCloudAnthosFeature.FeatureType.serviceMesh.rawValue == "servicemesh")
+    #expect(GoogleCloudAnthosFeature.FeatureType.identityService.rawValue == "identityservice")
+    #expect(GoogleCloudAnthosFeature.FeatureType.multiClusterIngress.rawValue == "multiclusteringress")
+    #expect(GoogleCloudAnthosFeature.FeatureType.policyController.rawValue == "policycontroller")
+}
+
+@Test func testAnthosConfigManagementBasic() {
+    let acm = GoogleCloudAnthosConfigManagement(
+        membership: "my-cluster",
+        projectID: "my-project"
+    )
+
+    #expect(acm.membership == "my-cluster")
+    #expect(acm.projectID == "my-project")
+}
+
+@Test func testAnthosConfigManagementCommands() {
+    let acm = GoogleCloudAnthosConfigManagement(
+        membership: "my-cluster",
+        projectID: "my-project"
+    )
+
+    #expect(acm.applyCommand.contains("config-management apply"))
+    #expect(acm.applyCommand.contains("--membership=my-cluster"))
+    #expect(acm.statusCommand.contains("config-management status"))
+}
+
+@Test func testAnthosConfigManagementConfigSync() {
+    let acm = GoogleCloudAnthosConfigManagement(
+        membership: "my-cluster",
+        projectID: "my-project",
+        configSync: .init(
+            enabled: true,
+            sourceFormat: .unstructured,
+            git: .init(
+                syncRepo: "https://github.com/example/config",
+                syncBranch: "main",
+                policyDir: "/policies",
+                secretType: .none
+            ),
+            preventDrift: true
+        )
+    )
+
+    #expect(acm.configSync?.enabled == true)
+    #expect(acm.configSync?.sourceFormat == .unstructured)
+    #expect(acm.configSync?.git?.syncRepo.contains("github.com") == true)
+    #expect(acm.configSync?.git?.syncBranch == "main")
+    #expect(acm.configSync?.preventDrift == true)
+}
+
+@Test func testAnthosConfigManagementPolicyController() {
+    let acm = GoogleCloudAnthosConfigManagement(
+        membership: "my-cluster",
+        projectID: "my-project",
+        policyController: .init(
+            enabled: true,
+            templateLibraryInstalled: true,
+            referentialRulesEnabled: true,
+            logDeniesEnabled: true,
+            auditIntervalSeconds: 60
+        )
+    )
+
+    #expect(acm.policyController?.enabled == true)
+    #expect(acm.policyController?.templateLibraryInstalled == true)
+    #expect(acm.policyController?.auditIntervalSeconds == 60)
+}
+
+@Test func testAnthosConfigManagementSecretTypes() {
+    #expect(GoogleCloudAnthosConfigManagement.ConfigSync.GitConfig.SecretType.none.rawValue == "none")
+    #expect(GoogleCloudAnthosConfigManagement.ConfigSync.GitConfig.SecretType.ssh.rawValue == "ssh")
+    #expect(GoogleCloudAnthosConfigManagement.ConfigSync.GitConfig.SecretType.token.rawValue == "token")
+    #expect(GoogleCloudAnthosConfigManagement.ConfigSync.GitConfig.SecretType.gcpServiceAccount.rawValue == "gcpserviceaccount")
+}
+
+@Test func testAnthosServiceMeshBasic() {
+    let asm = GoogleCloudAnthosServiceMesh(
+        membership: "my-cluster",
+        projectID: "my-project"
+    )
+
+    #expect(asm.membership == "my-cluster")
+    #expect(asm.projectID == "my-project")
+}
+
+@Test func testAnthosServiceMeshCommands() {
+    let asm = GoogleCloudAnthosServiceMesh(
+        membership: "my-cluster",
+        projectID: "my-project"
+    )
+
+    #expect(asm.applyCommand.contains("mesh update"))
+    #expect(asm.describeCommand.contains("mesh describe"))
+    #expect(asm.describeCommand.contains("--membership=my-cluster"))
+}
+
+@Test func testAnthosServiceMeshControlPlane() {
+    let asm = GoogleCloudAnthosServiceMesh(
+        membership: "my-cluster",
+        projectID: "my-project",
+        controlPlane: .init(management: .automatic),
+        dataPlane: .init(management: .automatic)
+    )
+
+    #expect(asm.controlPlane?.management == .automatic)
+    #expect(asm.dataPlane?.management == .automatic)
+}
+
+@Test func testAnthosServiceMeshMeshConfig() {
+    let asm = GoogleCloudAnthosServiceMesh(
+        membership: "my-cluster",
+        projectID: "my-project",
+        meshConfig: .init(
+            accessLogging: .init(enabled: true),
+            enableAutoMtls: true
+        )
+    )
+
+    #expect(asm.meshConfig?.accessLogging?.enabled == true)
+    #expect(asm.meshConfig?.enableAutoMtls == true)
+}
+
+@Test func testAnthosFleetBasic() {
+    let fleet = GoogleCloudAnthosFleet(
+        projectID: "my-project",
+        displayName: "Production Fleet"
+    )
+
+    #expect(fleet.projectID == "my-project")
+    #expect(fleet.displayName == "Production Fleet")
+    #expect(fleet.resourceName.contains("fleets"))
+}
+
+@Test func testAnthosFleetCommands() {
+    let fleet = GoogleCloudAnthosFleet(
+        projectID: "my-project"
+    )
+
+    #expect(fleet.createCommand.contains("fleets create"))
+    #expect(fleet.describeCommand.contains("fleets describe"))
+}
+
+@Test func testAnthosFleetSecurityPosture() {
+    let fleet = GoogleCloudAnthosFleet(
+        projectID: "my-project",
+        defaultClusterConfig: .init(
+            securityPostureConfig: .init(
+                mode: .basic,
+                vulnerabilityMode: .vulnerabilityBasic
+            )
+        )
+    )
+
+    #expect(fleet.defaultClusterConfig?.securityPostureConfig?.mode == .basic)
+    #expect(fleet.defaultClusterConfig?.securityPostureConfig?.vulnerabilityMode == .vulnerabilityBasic)
+}
+
+@Test func testAnthosFleetSecurityModes() {
+    #expect(GoogleCloudAnthosFleet.DefaultClusterConfig.SecurityPostureConfig.Mode.disabled.rawValue == "DISABLED")
+    #expect(GoogleCloudAnthosFleet.DefaultClusterConfig.SecurityPostureConfig.Mode.basic.rawValue == "BASIC")
+    #expect(GoogleCloudAnthosFleet.DefaultClusterConfig.SecurityPostureConfig.Mode.enterprise.rawValue == "ENTERPRISE")
+}
+
+@Test func testAnthosOperationsEnableAPI() {
+    let ops = AnthosOperations(projectID: "my-project")
+
+    #expect(ops.enableAPICommand.contains("gkehub.googleapis.com"))
+    #expect(ops.enableAPICommand.contains("anthos.googleapis.com"))
+    #expect(ops.enableAPICommand.contains("mesh.googleapis.com"))
+}
+
+@Test func testAnthosOperationsListCommands() {
+    let ops = AnthosOperations(projectID: "my-project")
+
+    #expect(ops.listMembershipsCommand.contains("memberships list"))
+    #expect(ops.listFeaturesCommand.contains("features list"))
+}
+
+@Test func testAnthosOperationsRegisterGKE() {
+    let ops = AnthosOperations(projectID: "my-project")
+    let cmd = ops.registerGKEClusterCommand(
+        membershipName: "gke-membership",
+        clusterName: "prod-cluster",
+        location: "us-central1"
+    )
+
+    #expect(cmd.contains("memberships register gke-membership"))
+    #expect(cmd.contains("--gke-cluster=us-central1/prod-cluster"))
+    #expect(cmd.contains("--enable-workload-identity"))
+}
+
+@Test func testAnthosOperationsRegisterExternal() {
+    let ops = AnthosOperations(projectID: "my-project")
+    let cmd = ops.registerExternalClusterCommand(
+        membershipName: "eks-cluster",
+        kubeconfigPath: "/path/to/kubeconfig",
+        context: "eks-context"
+    )
+
+    #expect(cmd.contains("memberships register eks-cluster"))
+    #expect(cmd.contains("--kubeconfig=/path/to/kubeconfig"))
+    #expect(cmd.contains("--context=eks-context"))
+}
+
+@Test func testAnthosOperationsIAMRoles() {
+    #expect(AnthosOperations.AnthosRole.gkehubAdmin.rawValue == "roles/gkehub.admin")
+    #expect(AnthosOperations.AnthosRole.gkehubEditor.rawValue == "roles/gkehub.editor")
+    #expect(AnthosOperations.AnthosRole.anthosServiceMeshAdmin.rawValue == "roles/anthosservicemesh.admin")
+    #expect(AnthosOperations.AnthosRole.anthosConfigManagementAdmin.rawValue == "roles/anthosconfigmanagement.admin")
+}
+
+@Test func testDAISAnthosTemplateGKEMembership() {
+    let template = DAISAnthosTemplate(projectID: "my-project")
+    let membership = template.gkeMembership(
+        name: "gke-prod",
+        clusterResourceLink: "//container.googleapis.com/projects/my-project/locations/us-central1/clusters/prod"
+    )
+
+    #expect(membership.name == "gke-prod")
+    #expect(membership.endpoint?.gkeCluster?.resourceLink.contains("prod") == true)
+}
+
+@Test func testDAISAnthosTemplateOnPremMembership() {
+    let template = DAISAnthosTemplate(projectID: "my-project")
+    let membership = template.onPremMembership(
+        name: "on-prem-cluster",
+        clusterType: .user
+    )
+
+    #expect(membership.name == "on-prem-cluster")
+    #expect(membership.endpoint?.onPremCluster?.clusterType == .user)
+}
+
+@Test func testDAISAnthosTemplateConfigManagementWithGit() {
+    let template = DAISAnthosTemplate(projectID: "my-project")
+    let acm = template.configManagementWithGit(
+        membership: "my-cluster",
+        gitRepo: "https://github.com/org/config-repo",
+        branch: "production",
+        policyDir: "/kubernetes"
+    )
+
+    #expect(acm.configSync?.git?.syncRepo == "https://github.com/org/config-repo")
+    #expect(acm.configSync?.git?.syncBranch == "production")
+    #expect(acm.configSync?.git?.policyDir == "/kubernetes")
+    #expect(acm.policyController?.enabled == true)
+}
+
+@Test func testDAISAnthosTemplateServiceMeshAutomatic() {
+    let template = DAISAnthosTemplate(projectID: "my-project")
+    let asm = template.serviceMeshAutomatic(membership: "my-cluster")
+
+    #expect(asm.controlPlane?.management == .automatic)
+    #expect(asm.dataPlane?.management == .automatic)
+    #expect(asm.meshConfig?.enableAutoMtls == true)
+}
+
+@Test func testDAISAnthosTemplateSecureFleet() {
+    let template = DAISAnthosTemplate(projectID: "my-project")
+    let fleet = template.secureFleet(displayName: "Secure Fleet")
+
+    #expect(fleet.displayName == "Secure Fleet")
+    #expect(fleet.defaultClusterConfig?.securityPostureConfig?.mode == .basic)
+}
+
+@Test func testDAISAnthosTemplateFleetSetupScript() {
+    let template = DAISAnthosTemplate(projectID: "my-project")
+    let script = template.fleetSetupScript(
+        fleetName: "prod-fleet",
+        clusterNames: ["cluster-a", "cluster-b"],
+        region: "us-central1"
+    )
+
+    #expect(script.contains("gkehub.googleapis.com"))
+    #expect(script.contains("fleets create"))
+    #expect(script.contains("memberships register cluster-a"))
+    #expect(script.contains("memberships register cluster-b"))
+    #expect(script.contains("features enable configmanagement"))
+    #expect(script.contains("features enable mesh"))
+}
+
+@Test func testDAISAnthosTemplateConfigManagementYAML() {
+    let template = DAISAnthosTemplate(projectID: "my-project")
+    let yaml = template.configManagementYAML(
+        gitRepo: "https://github.com/example/config",
+        branch: "main",
+        policyDir: "/policies"
+    )
+
+    #expect(yaml.contains("syncRepo: https://github.com/example/config"))
+    #expect(yaml.contains("syncBranch: main"))
+    #expect(yaml.contains("policyDir: /policies"))
+    #expect(yaml.contains("policyController:"))
+    #expect(yaml.contains("enabled: true"))
+}
+
+@Test func testDAISAnthosTemplateMultiClusterIngressScript() {
+    let template = DAISAnthosTemplate(projectID: "my-project")
+    let script = template.multiClusterIngressSetupScript(
+        configCluster: "config-cluster",
+        region: "us-central1"
+    )
+
+    #expect(script.contains("multiclusteringress"))
+    #expect(script.contains("--config-membership=$CONFIG_CLUSTER"))
+    #expect(script.contains("multiclusterservicediscovery"))
+}
+
+@Test func testAnthosMembershipCodable() throws {
+    let membership = GoogleCloudAnthosMembership(
+        name: "test-membership",
+        projectID: "my-project",
+        description: "Test"
+    )
+
+    let data = try JSONEncoder().encode(membership)
+    let decoded = try JSONDecoder().decode(GoogleCloudAnthosMembership.self, from: data)
+
+    #expect(decoded.name == "test-membership")
+    #expect(decoded.description == "Test")
+}
+
+@Test func testAnthosFeatureCodable() throws {
+    let feature = GoogleCloudAnthosFeature(
+        name: "test-feature",
+        projectID: "my-project",
+        featureType: .serviceMesh
+    )
+
+    let data = try JSONEncoder().encode(feature)
+    let decoded = try JSONDecoder().decode(GoogleCloudAnthosFeature.self, from: data)
+
+    #expect(decoded.name == "test-feature")
+    #expect(decoded.featureType == .serviceMesh)
+}
+
+@Test func testAnthosConfigManagementCodable() throws {
+    let acm = GoogleCloudAnthosConfigManagement(
+        membership: "test-cluster",
+        projectID: "my-project",
+        configSync: .init(enabled: true)
+    )
+
+    let data = try JSONEncoder().encode(acm)
+    let decoded = try JSONDecoder().decode(GoogleCloudAnthosConfigManagement.self, from: data)
+
+    #expect(decoded.membership == "test-cluster")
+    #expect(decoded.configSync?.enabled == true)
+}
