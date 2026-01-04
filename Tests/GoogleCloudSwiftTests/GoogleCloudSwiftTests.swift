@@ -12216,3 +12216,371 @@ import Testing
     #expect(decoded.path == "/images/*")
     #expect(decoded.host == "cdn.example.com")
 }
+
+// MARK: - Cloud Tasks Tests
+
+@Test func testTaskQueueBasicInit() {
+    let queue = GoogleCloudTaskQueue(
+        name: "my-queue",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(queue.name == "my-queue")
+    #expect(queue.projectID == "my-project")
+    #expect(queue.location == "us-central1")
+}
+
+@Test func testTaskQueueResourceName() {
+    let queue = GoogleCloudTaskQueue(
+        name: "my-queue",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(queue.resourceName == "projects/my-project/locations/us-central1/queues/my-queue")
+}
+
+@Test func testTaskQueueCreateCommand() {
+    let queue = GoogleCloudTaskQueue(
+        name: "my-queue",
+        projectID: "my-project",
+        location: "us-central1",
+        rateLimits: GoogleCloudTaskQueue.RateLimits(
+            maxDispatchesPerSecond: 100,
+            maxConcurrentDispatches: 10
+        ),
+        retryConfig: GoogleCloudTaskQueue.RetryConfig(
+            maxAttempts: 5,
+            minBackoff: "1s",
+            maxBackoff: "60s"
+        )
+    )
+
+    let cmd = queue.createCommand
+    #expect(cmd.contains("tasks queues create my-queue"))
+    #expect(cmd.contains("--location=us-central1"))
+    #expect(cmd.contains("--max-dispatches-per-second=100"))
+    #expect(cmd.contains("--max-concurrent-dispatches=10"))
+    #expect(cmd.contains("--max-attempts=5"))
+    #expect(cmd.contains("--min-backoff=1s"))
+    #expect(cmd.contains("--max-backoff=60s"))
+}
+
+@Test func testTaskQueueDeleteCommand() {
+    let queue = GoogleCloudTaskQueue(
+        name: "my-queue",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(queue.deleteCommand.contains("tasks queues delete my-queue"))
+    #expect(queue.deleteCommand.contains("--quiet"))
+}
+
+@Test func testTaskQueuePauseResumeCommands() {
+    let queue = GoogleCloudTaskQueue(
+        name: "my-queue",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(queue.pauseCommand.contains("tasks queues pause my-queue"))
+    #expect(queue.resumeCommand.contains("tasks queues resume my-queue"))
+}
+
+@Test func testTaskQueuePurgeCommand() {
+    let queue = GoogleCloudTaskQueue(
+        name: "my-queue",
+        projectID: "my-project",
+        location: "us-central1"
+    )
+
+    #expect(queue.purgeCommand.contains("tasks queues purge my-queue"))
+    #expect(queue.purgeCommand.contains("--quiet"))
+}
+
+@Test func testTaskQueueListCommand() {
+    let cmd = GoogleCloudTaskQueue.listCommand(projectID: "my-project", location: "us-central1")
+    #expect(cmd.contains("tasks queues list"))
+    #expect(cmd.contains("--location=us-central1"))
+}
+
+@Test func testHTTPTaskCreateCommand() {
+    let task = GoogleCloudHTTPTask(
+        queueName: "my-queue",
+        projectID: "my-project",
+        location: "us-central1",
+        url: "https://example.com/endpoint",
+        httpMethod: .post,
+        headers: ["Content-Type": "application/json"],
+        body: "{\"key\": \"value\"}"
+    )
+
+    let cmd = task.createCommand
+    #expect(cmd.contains("tasks create-http-task"))
+    #expect(cmd.contains("--queue=my-queue"))
+    #expect(cmd.contains("--url=\"https://example.com/endpoint\""))
+    #expect(cmd.contains("--method=POST"))
+}
+
+@Test func testHTTPTaskWithOIDCToken() {
+    let task = GoogleCloudHTTPTask(
+        queueName: "my-queue",
+        projectID: "my-project",
+        location: "us-central1",
+        url: "https://my-service.run.app/endpoint",
+        oidcToken: GoogleCloudHTTPTask.OIDCToken(
+            serviceAccountEmail: "sa@project.iam.gserviceaccount.com",
+            audience: "https://my-service.run.app"
+        )
+    )
+
+    let cmd = task.createCommand
+    #expect(cmd.contains("--oidc-service-account-email=sa@project.iam.gserviceaccount.com"))
+    #expect(cmd.contains("--oidc-token-audience=https://my-service.run.app"))
+}
+
+@Test func testHTTPTaskWithOAuthToken() {
+    let task = GoogleCloudHTTPTask(
+        queueName: "my-queue",
+        projectID: "my-project",
+        location: "us-central1",
+        url: "https://api.example.com/endpoint",
+        oauthToken: GoogleCloudHTTPTask.OAuthToken(
+            serviceAccountEmail: "sa@project.iam.gserviceaccount.com",
+            scope: "https://www.googleapis.com/auth/cloud-platform"
+        )
+    )
+
+    let cmd = task.createCommand
+    #expect(cmd.contains("--oauth-service-account-email=sa@project.iam.gserviceaccount.com"))
+    #expect(cmd.contains("--oauth-token-scope="))
+}
+
+@Test func testHTTPTaskWithTaskID() {
+    let task = GoogleCloudHTTPTask(
+        queueName: "my-queue",
+        projectID: "my-project",
+        location: "us-central1",
+        url: "https://example.com/endpoint",
+        taskID: "my-task-123"
+    )
+
+    let cmd = task.createCommand
+    #expect(cmd.contains("create-http-task my-task-123"))
+}
+
+@Test func testHTTPMethodValues() {
+    #expect(GoogleCloudHTTPTask.HTTPMethod.get.rawValue == "GET")
+    #expect(GoogleCloudHTTPTask.HTTPMethod.post.rawValue == "POST")
+    #expect(GoogleCloudHTTPTask.HTTPMethod.put.rawValue == "PUT")
+    #expect(GoogleCloudHTTPTask.HTTPMethod.delete.rawValue == "DELETE")
+    #expect(GoogleCloudHTTPTask.HTTPMethod.patch.rawValue == "PATCH")
+}
+
+@Test func testAppEngineTaskCreateCommand() {
+    let task = GoogleCloudAppEngineTask(
+        queueName: "my-queue",
+        projectID: "my-project",
+        location: "us-central1",
+        relativeUri: "/process",
+        httpMethod: .post,
+        body: "{\"data\": \"test\"}"
+    )
+
+    let cmd = task.createCommand
+    #expect(cmd.contains("tasks create-app-engine-task"))
+    #expect(cmd.contains("--relative-uri=\"/process\""))
+    #expect(cmd.contains("--method=POST"))
+}
+
+@Test func testAppEngineTaskWithRouting() {
+    let task = GoogleCloudAppEngineTask(
+        queueName: "my-queue",
+        projectID: "my-project",
+        location: "us-central1",
+        relativeUri: "/process",
+        appEngineRouting: GoogleCloudAppEngineTask.AppEngineRouting(
+            service: "worker",
+            version: "v1"
+        )
+    )
+
+    let cmd = task.createCommand
+    #expect(cmd.contains("--routing=\"service:worker\""))
+}
+
+@Test func testTaskOperationsDescribeTask() {
+    let cmd = TaskOperations.describeTask(
+        taskID: "task-123",
+        queueName: "my-queue",
+        location: "us-central1",
+        projectID: "my-project"
+    )
+
+    #expect(cmd.contains("tasks describe task-123"))
+    #expect(cmd.contains("--queue=my-queue"))
+}
+
+@Test func testTaskOperationsDeleteTask() {
+    let cmd = TaskOperations.deleteTask(
+        taskID: "task-123",
+        queueName: "my-queue",
+        location: "us-central1",
+        projectID: "my-project"
+    )
+
+    #expect(cmd.contains("tasks delete task-123"))
+    #expect(cmd.contains("--quiet"))
+}
+
+@Test func testTaskOperationsRunTask() {
+    let cmd = TaskOperations.runTask(
+        taskID: "task-123",
+        queueName: "my-queue",
+        location: "us-central1",
+        projectID: "my-project"
+    )
+
+    #expect(cmd.contains("tasks run task-123"))
+}
+
+@Test func testTaskOperationsListTasks() {
+    let cmd = TaskOperations.listTasks(
+        queueName: "my-queue",
+        location: "us-central1",
+        projectID: "my-project"
+    )
+
+    #expect(cmd.contains("tasks list"))
+    #expect(cmd.contains("--queue=my-queue"))
+}
+
+@Test func testTaskOperationsAddIAMBinding() {
+    let cmd = TaskOperations.addIAMBinding(
+        queueName: "my-queue",
+        location: "us-central1",
+        projectID: "my-project",
+        member: "serviceAccount:sa@project.iam.gserviceaccount.com",
+        role: "roles/cloudtasks.enqueuer"
+    )
+
+    #expect(cmd.contains("add-iam-policy-binding"))
+    #expect(cmd.contains("--role=\"roles/cloudtasks.enqueuer\""))
+}
+
+@Test func testTaskQueueRoleValues() {
+    #expect(TaskQueueRole.admin.rawValue == "roles/cloudtasks.admin")
+    #expect(TaskQueueRole.enqueuer.rawValue == "roles/cloudtasks.enqueuer")
+    #expect(TaskQueueRole.taskDeleter.rawValue == "roles/cloudtasks.taskDeleter")
+    #expect(TaskQueueRole.viewer.rawValue == "roles/cloudtasks.viewer")
+}
+
+@Test func testTaskQueueRoleDescriptions() {
+    #expect(TaskQueueRole.admin.description.contains("Full control"))
+    #expect(TaskQueueRole.enqueuer.description.contains("create tasks"))
+}
+
+@Test func testDAISTasksTemplateAPIProcessingQueue() {
+    let queue = DAISTasksTemplate.apiProcessingQueue(
+        projectID: "my-project",
+        location: "us-central1",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(queue.name == "dais-prod-api-processing")
+    #expect(queue.rateLimits?.maxDispatchesPerSecond == 500)
+    #expect(queue.retryConfig?.maxAttempts == 5)
+}
+
+@Test func testDAISTasksTemplateBackgroundJobsQueue() {
+    let queue = DAISTasksTemplate.backgroundJobsQueue(
+        projectID: "my-project",
+        location: "us-central1",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(queue.name == "dais-prod-background-jobs")
+    #expect(queue.rateLimits?.maxDispatchesPerSecond == 100)
+    #expect(queue.retryConfig?.maxAttempts == 10)
+}
+
+@Test func testDAISTasksTemplateHighPriorityQueue() {
+    let queue = DAISTasksTemplate.highPriorityQueue(
+        projectID: "my-project",
+        location: "us-central1",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(queue.name == "dais-prod-high-priority")
+    #expect(queue.rateLimits?.maxDispatchesPerSecond == 1000)
+}
+
+@Test func testDAISTasksTemplateCloudRunTask() {
+    let task = DAISTasksTemplate.cloudRunTask(
+        queueName: "my-queue",
+        projectID: "my-project",
+        location: "us-central1",
+        cloudRunURL: "https://my-service.run.app",
+        endpoint: "/process",
+        payload: "{\"data\": \"test\"}",
+        serviceAccountEmail: "sa@project.iam.gserviceaccount.com"
+    )
+
+    #expect(task.url == "https://my-service.run.app/process")
+    #expect(task.oidcToken?.serviceAccountEmail == "sa@project.iam.gserviceaccount.com")
+}
+
+@Test func testDAISTasksTemplateSetupScript() {
+    let script = DAISTasksTemplate.setupScript(
+        projectID: "my-project",
+        location: "us-central1",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(script.contains("cloudtasks.googleapis.com"))
+    #expect(script.contains("tasks queues create"))
+    #expect(script.contains("api-processing"))
+}
+
+@Test func testDAISTasksTemplateTeardownScript() {
+    let script = DAISTasksTemplate.teardownScript(
+        projectID: "my-project",
+        location: "us-central1",
+        deploymentName: "dais-prod"
+    )
+
+    #expect(script.contains("tasks queues delete"))
+}
+
+@Test func testTaskQueueCodable() throws {
+    let queue = GoogleCloudTaskQueue(
+        name: "my-queue",
+        projectID: "my-project",
+        location: "us-central1",
+        rateLimits: GoogleCloudTaskQueue.RateLimits(maxDispatchesPerSecond: 100)
+    )
+
+    let data = try JSONEncoder().encode(queue)
+    let decoded = try JSONDecoder().decode(GoogleCloudTaskQueue.self, from: data)
+
+    #expect(decoded.name == "my-queue")
+    #expect(decoded.rateLimits?.maxDispatchesPerSecond == 100)
+}
+
+@Test func testHTTPTaskCodable() throws {
+    let task = GoogleCloudHTTPTask(
+        queueName: "my-queue",
+        projectID: "my-project",
+        location: "us-central1",
+        url: "https://example.com/endpoint",
+        httpMethod: .post
+    )
+
+    let data = try JSONEncoder().encode(task)
+    let decoded = try JSONDecoder().decode(GoogleCloudHTTPTask.self, from: data)
+
+    #expect(decoded.url == "https://example.com/endpoint")
+    #expect(decoded.httpMethod == .post)
+}

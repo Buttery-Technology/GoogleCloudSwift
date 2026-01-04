@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 23 Google Cloud services:
+GoogleCloudSwift provides models for 24 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -108,6 +108,7 @@ GoogleCloudSwift provides models for 23 Google Cloud services:
 | **Cloud Build** | CI/CD pipelines | `GoogleCloudBuild`, `GoogleCloudBuildTrigger`, `GoogleCloudBuildWorkerPool` |
 | **Cloud Armor** | WAF & DDoS protection | `GoogleCloudSecurityPolicy`, `SecurityPolicyRule`, `WAFRule` |
 | **Cloud CDN** | Content delivery network | `CDNCachePolicy`, `CDNBackendBucket`, `CDNCacheInvalidation` |
+| **Cloud Tasks** | Distributed task queues | `GoogleCloudTaskQueue`, `GoogleCloudHTTPTask`, `GoogleCloudAppEngineTask` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -3044,6 +3045,135 @@ let edgePolicy = DAISCDNTemplate.edgeSecurityPolicy(
 | `forceCacheAll` | Cache all responses regardless of headers |
 | `cacheAllStatic` | Automatically cache static content types |
 
+### GoogleCloudTaskQueue (Cloud Tasks)
+
+Manage distributed task queues for async processing:
+
+```swift
+// Create a task queue with rate limiting
+let queue = GoogleCloudTaskQueue(
+    name: "my-processing-queue",
+    projectID: "my-project",
+    location: "us-central1",
+    rateLimits: GoogleCloudTaskQueue.RateLimits(
+        maxDispatchesPerSecond: 500,
+        maxConcurrentDispatches: 100
+    ),
+    retryConfig: GoogleCloudTaskQueue.RetryConfig(
+        maxAttempts: 5,
+        minBackoff: "1s",
+        maxBackoff: "60s",
+        maxDoublings: 4
+    )
+)
+
+print(queue.createCommand)
+// Output: gcloud tasks queues create my-processing-queue --location=us-central1 ...
+
+// Queue management
+print(queue.pauseCommand)   // Pause queue
+print(queue.resumeCommand)  // Resume queue
+print(queue.purgeCommand)   // Clear all tasks
+```
+
+**HTTP Tasks:**
+
+```swift
+// Create HTTP task for Cloud Run
+let task = GoogleCloudHTTPTask(
+    queueName: "my-queue",
+    projectID: "my-project",
+    location: "us-central1",
+    url: "https://my-service.run.app/process",
+    httpMethod: .post,
+    headers: ["Content-Type": "application/json"],
+    body: "{\"data\": \"payload\"}",
+    oidcToken: GoogleCloudHTTPTask.OIDCToken(
+        serviceAccountEmail: "sa@project.iam.gserviceaccount.com",
+        audience: "https://my-service.run.app"
+    )
+)
+
+print(task.createCommand)
+```
+
+**App Engine Tasks:**
+
+```swift
+// Create App Engine task
+let appTask = GoogleCloudAppEngineTask(
+    queueName: "my-queue",
+    projectID: "my-project",
+    location: "us-central1",
+    relativeUri: "/worker/process",
+    httpMethod: .post,
+    appEngineRouting: GoogleCloudAppEngineTask.AppEngineRouting(
+        service: "worker",
+        version: "v1"
+    )
+)
+
+print(appTask.createCommand)
+```
+
+**Task Operations:**
+
+```swift
+// List tasks in queue
+let listCmd = TaskOperations.listTasks(
+    queueName: "my-queue",
+    location: "us-central1",
+    projectID: "my-project"
+)
+
+// Run a task immediately
+let runCmd = TaskOperations.runTask(
+    taskID: "task-123",
+    queueName: "my-queue",
+    location: "us-central1",
+    projectID: "my-project"
+)
+```
+
+**DAIS Templates:**
+
+```swift
+// API processing queue (high throughput)
+let apiQueue = DAISTasksTemplate.apiProcessingQueue(
+    projectID: "my-project",
+    location: "us-central1",
+    deploymentName: "dais-prod"
+)
+
+// Background jobs queue (with retries)
+let bgQueue = DAISTasksTemplate.backgroundJobsQueue(
+    projectID: "my-project",
+    location: "us-central1",
+    deploymentName: "dais-prod"
+)
+
+// Create Cloud Run task
+let cloudRunTask = DAISTasksTemplate.cloudRunTask(
+    queueName: "dais-prod-api-processing",
+    projectID: "my-project",
+    location: "us-central1",
+    cloudRunURL: "https://my-service.run.app",
+    endpoint: "/process",
+    payload: "{\"job\": \"data\"}",
+    serviceAccountEmail: "sa@project.iam.gserviceaccount.com"
+)
+```
+
+**Queue Roles:**
+
+| Role | Description |
+|------|-------------|
+| `admin` | Full control of Cloud Tasks resources |
+| `enqueuer` | Can create tasks |
+| `taskDeleter` | Can delete tasks |
+| `taskRunner` | Can run tasks |
+| `viewer` | Read-only access |
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -3662,6 +3792,9 @@ MIT License
 - [Cloud CDN Caching](https://cloud.google.com/cdn/docs/caching)
 - [Cloud CDN Signed URLs](https://cloud.google.com/cdn/docs/signed-urls)
 - [Cloud CDN Cache Invalidation](https://cloud.google.com/cdn/docs/invalidating-cached-content)
+- [Cloud Tasks Documentation](https://cloud.google.com/tasks/docs)
+- [Cloud Tasks Queues](https://cloud.google.com/tasks/docs/creating-queues)
+- [Cloud Tasks HTTP Targets](https://cloud.google.com/tasks/docs/creating-http-target-tasks)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
