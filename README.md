@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 58 Google Cloud services:
+GoogleCloudSwift provides models for 59 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -138,6 +138,7 @@ GoogleCloudSwift provides models for 58 Google Cloud services:
 | **Cloud Interconnect** | Dedicated and partner network connections | `GoogleCloudInterconnect`, `GoogleCloudInterconnectAttachment`, `GoogleCloudRouterForInterconnect`, `DAISInterconnectTemplate` |
 | **Cloud Healthcare API** | Healthcare data storage (FHIR, HL7v2, DICOM) | `GoogleCloudHealthcareDataset`, `GoogleCloudFHIRStore`, `GoogleCloudDICOMStore`, `DAISHealthcareTemplate` |
 | **Retail API** | Product catalog and recommendations | `GoogleCloudRetailCatalog`, `GoogleCloudRetailProduct`, `GoogleCloudRetailUserEvent`, `DAISRetailTemplate` |
+| **Media CDN** | Content delivery for streaming media | `GoogleCloudEdgeCacheService`, `GoogleCloudEdgeCacheOrigin`, `GoogleCloudEdgeCacheKeyset`, `DAISMediaCDNTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -7887,6 +7888,185 @@ print(template.userEventsImportScript(gcsUri: "gs://my-bucket/events/*.json"))
 | Purchase | `.purchaseComplete` | Order completed |
 | Shopping Cart | `.shoppingCartPageView` | User views cart |
 
+### GoogleCloudEdgeCacheService (Media CDN)
+
+Media CDN provides high-performance content delivery optimized for streaming media:
+
+```swift
+// Create an edge cache origin for GCS
+let origin = GoogleCloudEdgeCacheOrigin(
+    name: "video-origin",
+    projectID: "my-project",
+    originAddress: "my-video-bucket.storage.googleapis.com",
+    networkProtocol: .http2,
+    retryConditions: [.connectFailure, .http5xx, .gatewayError],
+    maxAttempts: 3,
+    timeout: .init(
+        connectTimeout: "5s",
+        responseTimeout: "30s"
+    )
+)
+
+print(origin.createCommand)
+print(origin.resourceName)
+```
+
+**Edge Cache Service with Routing:**
+
+```swift
+// Create an edge cache service with routing rules
+let service = GoogleCloudEdgeCacheService(
+    name: "video-cdn",
+    projectID: "my-project",
+    description: "Video streaming CDN",
+    routing: .init(
+        hostRules: [
+            .init(hosts: ["cdn.example.com", "*.cdn.example.com"], pathMatcher: "main")
+        ],
+        pathMatchers: [
+            .init(name: "main", routeRules: [
+                .init(
+                    priority: 1,
+                    matchRules: [.init(prefixMatch: "/")],
+                    origin: "video-origin",
+                    routeAction: .init(
+                        cdnPolicy: .init(
+                            cacheMode: .cacheAllStatic,
+                            defaultTtl: "86400s",
+                            maxTtl: "604800s"
+                        )
+                    )
+                )
+            ])
+        ]
+    ),
+    requireTls: true,
+    logConfig: .init(enable: true, sampleRate: 1.0)
+)
+
+print(service.createCommand)
+print(service.resourceName)
+```
+
+**Signed URL Authentication:**
+
+```swift
+// Create a keyset for signed URLs
+let keyset = GoogleCloudEdgeCacheKeyset(
+    name: "signing-keys",
+    projectID: "my-project",
+    description: "Ed25519 keys for signed URLs",
+    publicKeys: [
+        .init(id: "key-v1", value: "base64EncodedEd25519PublicKey")
+    ]
+)
+
+print(keyset.createCommand)
+```
+
+**Media CDN Operations:**
+
+```swift
+let ops = MediaCDNOperations(projectID: "my-project")
+
+// Enable API
+print(ops.enableAPICommand)
+
+// List resources
+print(ops.listServicesCommand)
+print(ops.listOriginsCommand)
+print(ops.listKeysetsCommand)
+
+// Invalidate cache
+print(ops.invalidateCacheCommand(
+    serviceName: "video-cdn",
+    urlPath: "/videos/*",
+    host: "cdn.example.com"
+))
+
+// Export/import service config
+print(ops.exportServiceCommand(serviceName: "video-cdn", destination: "config.yaml"))
+print(ops.importServiceCommand(serviceName: "video-cdn", source: "config.yaml"))
+
+// Add IAM binding
+print(ops.addIAMBindingCommand(
+    member: "user:admin@example.com",
+    role: .networkServicesAdmin
+))
+```
+
+**DAIS Media CDN Template:**
+
+```swift
+let template = DAISMediaCDNTemplate(projectID: "my-project")
+
+// Create GCS origin
+let gcsOrigin = template.gcsOrigin(
+    name: "gcs-videos",
+    bucketName: "my-video-bucket"
+)
+
+// Create S3 origin with authentication
+let s3Origin = template.s3Origin(
+    name: "s3-backup",
+    bucketName: "my-s3-bucket",
+    region: "us-west-2",
+    accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+    secretAccessKeySecretVersion: "projects/my-project/secrets/aws-key/versions/1"
+)
+
+// Create video streaming service
+let videoService = template.videoStreamingService(
+    name: "video-cdn",
+    hosts: ["cdn.example.com"],
+    originName: "gcs-videos",
+    defaultTtl: "86400s"
+)
+
+// Create video streaming service with signed URLs
+let protectedService = template.videoStreamingService(
+    name: "premium-cdn",
+    hosts: ["premium.example.com"],
+    originName: "gcs-videos",
+    requireSignedURLs: true,
+    keysetName: "signing-keys"
+)
+
+// Create live streaming service (optimized for HLS/DASH)
+let liveService = template.liveStreamingService(
+    name: "live-cdn",
+    hosts: ["live.example.com"],
+    originName: "live-origin"
+)
+
+// Create signed URL keyset
+let keyset = template.signedURLKeyset(
+    name: "url-signing",
+    publicKeyId: "key-001",
+    publicKeyValue: "base64PublicKey"
+)
+
+// Generate setup script
+print(template.videoStreamingSetupScript(
+    serviceName: "video-cdn",
+    originName: "gcs-origin",
+    bucketName: "my-video-bucket",
+    domains: ["cdn.example.com"]
+))
+
+// Generate cache invalidation script
+print(template.cacheInvalidationScript(serviceName: "video-cdn"))
+```
+
+**Cache Modes:**
+
+| Mode | Constant | Description |
+|------|----------|-------------|
+| Cache All Static | `.cacheAllStatic` | Caches all static content |
+| Use Origin Headers | `.useOriginHeaders` | Respects Cache-Control headers |
+| Force Cache All | `.forceCacheAll` | Caches everything regardless of headers |
+| Bypass Cache | `.bypassCache` | No caching, always fetch from origin |
+
 ### GoogleCloudDataflowJob (Dataflow API)
 
 Dataflow is a fully managed service for batch and streaming data processing:
@@ -9521,6 +9701,16 @@ MIT License
 - [Retail Search](https://cloud.google.com/retail/docs/retail-search)
 - [Serving Configs](https://cloud.google.com/retail/docs/serving-config)
 - [Model Training](https://cloud.google.com/retail/docs/train-model)
+
+### Media CDN
+- [Media CDN Documentation](https://cloud.google.com/media-cdn/docs)
+- [Edge Cache Services](https://cloud.google.com/media-cdn/docs/create-service)
+- [Edge Cache Origins](https://cloud.google.com/media-cdn/docs/origins)
+- [Caching and TTL](https://cloud.google.com/media-cdn/docs/caching)
+- [Signed URLs](https://cloud.google.com/media-cdn/docs/signed-urls)
+- [Token Authentication](https://cloud.google.com/media-cdn/docs/token-authentication)
+- [Live Streaming](https://cloud.google.com/media-cdn/docs/live-streaming)
+- [Cache Invalidation](https://cloud.google.com/media-cdn/docs/invalidating-cache)
 
 ### Dataflow
 - [Dataflow Documentation](https://cloud.google.com/dataflow/docs)
