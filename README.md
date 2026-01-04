@@ -87,7 +87,7 @@ chmod +x setup-dais.sh
 
 ## Models Overview
 
-GoogleCloudSwift provides models for 34 Google Cloud services:
+GoogleCloudSwift provides models for 35 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
@@ -119,6 +119,7 @@ GoogleCloudSwift provides models for 34 Google Cloud services:
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
+| **API Gateway** | Serverless API management | `GoogleCloudAPIGatewayAPI`, `GoogleCloudAPIGatewayConfig`, `GoogleCloudAPIGatewayGateway`, `OpenAPISpecBuilder` |
 | **Service Usage** | API management | `GoogleCloudService`, `GoogleCloudAPI` |
 | **Cloud IAM** | Identity & access | `GoogleCloudServiceAccount`, `GoogleCloudIAMBinding` |
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
@@ -4426,6 +4427,150 @@ print(WorkflowOperations.enableAPICommand)
 | `cancelled` | Execution was cancelled |
 | `queued` | Execution is queued to run |
 
+### GoogleCloudAPIGatewayAPI (API Gateway)
+
+Create serverless API management with API Gateway:
+
+```swift
+// Create an API definition
+let api = GoogleCloudAPIGatewayAPI(
+    name: "my-api",
+    projectID: "my-project",
+    displayName: "My Application API",
+    labels: ["app": "myapp"]
+)
+
+print(api.createCommand)
+print(api.resourceName)
+```
+
+**API Configurations:**
+
+```swift
+// Create an API config from OpenAPI spec
+let config = GoogleCloudAPIGatewayConfig(
+    name: "my-api-config-v1",
+    apiName: "my-api",
+    projectID: "my-project",
+    displayName: "API Config v1",
+    gatewayServiceAccount: "api-sa@my-project.iam.gserviceaccount.com"
+)
+
+print(config.createCommand(openAPISpec: "openapi.yaml"))
+print(config.resourceName)
+```
+
+**Creating Gateways:**
+
+```swift
+// Create a gateway
+let gateway = GoogleCloudAPIGatewayGateway(
+    name: "my-gateway",
+    projectID: "my-project",
+    location: "us-central1",
+    apiConfig: "projects/my-project/locations/global/apis/my-api/configs/my-api-config-v1",
+    displayName: "My API Gateway"
+)
+
+print(gateway.createCommand)
+print(gateway.publicURL)
+
+// Update to new config version
+print(gateway.updateCommand(newApiConfig: "my-api-config-v2"))
+```
+
+**Building OpenAPI Specs:**
+
+```swift
+// Use the OpenAPI spec builder
+var builder = OpenAPISpecBuilder(
+    title: "My API",
+    description: "API for my application",
+    version: "1.0.0"
+)
+
+// Add authentication
+builder.addJWTAuth(
+    name: "firebase",
+    issuer: "https://securetoken.google.com/my-project",
+    jwksURI: "https://www.googleapis.com/service_accounts/v1/metadata/x509/securetoken@system.gserviceaccount.com",
+    audiences: ["my-project"]
+)
+
+// Or API key auth
+builder.addAPIKeyAuth(name: "api_key", header: "x-api-key")
+
+// Add endpoints
+builder.addPath("/users", method: "GET", operation: OpenAPISpecBuilder.Operation(
+    operationId: "listUsers",
+    summary: "List all users",
+    security: [["firebase": []]],
+    backendAddress: "https://my-backend.run.app/users"
+))
+
+builder.addPath("/users/{id}", method: "GET", operation: OpenAPISpecBuilder.Operation(
+    operationId: "getUser",
+    parameters: [
+        OpenAPISpecBuilder.Parameter(name: "id", in: .path, required: true, type: "string")
+    ],
+    security: [["firebase": []]],
+    backendAddress: "https://my-backend.run.app/users/{id}"
+))
+
+let spec = builder.build()
+```
+
+**DAIS API Gateway Templates:**
+
+```swift
+// Create DAIS API Gateway template
+let template = DAISAPIGatewayTemplate(
+    projectID: "my-project",
+    location: "us-central1",
+    apiName: "dais-api",
+    serviceAccountEmail: "api-sa@my-project.iam.gserviceaccount.com",
+    backendURL: "https://dais-backend.run.app"
+)
+
+// Get resources
+let api = template.api
+let config = template.config(version: "v1")
+let gateway = template.gateway()
+
+// Get OpenAPI specs
+let jwtSpec = template.openAPISpec           // JWT auth
+let apiKeySpec = template.openAPISpecWithAPIKey  // API key auth
+
+// Deploy everything
+print(template.setupScript)
+```
+
+**API Gateway Operations:**
+
+```swift
+// List APIs
+print(APIGatewayOperations.listAPIsCommand(projectID: "my-project"))
+
+// List gateways
+print(APIGatewayOperations.listGatewaysCommand(projectID: "my-project", location: "us-central1"))
+
+// View logs
+print(APIGatewayOperations.viewLogsCommand(gateway: "my-gateway", projectID: "my-project"))
+
+// Enable APIs
+print(APIGatewayOperations.enableAPIsCommand)
+```
+
+**Gateway States:**
+
+| State | Description |
+|-------|-------------|
+| `creating` | Gateway is being created |
+| `active` | Gateway is active and serving traffic |
+| `updating` | Gateway configuration is being updated |
+| `failed` | Gateway creation or update failed |
+| `deleting` | Gateway is being deleted |
+
 ### GoogleCloudService (Service Usage API)
 
 Enable and manage Google Cloud APIs:
@@ -5114,6 +5259,15 @@ MIT License
 - [Parallel Execution](https://cloud.google.com/workflows/docs/execute-parallel-steps)
 - [Error Handling](https://cloud.google.com/workflows/docs/reference/syntax/catching-errors)
 - [Callbacks](https://cloud.google.com/workflows/docs/creating-callback-endpoints)
+
+### API Gateway
+- [API Gateway Documentation](https://cloud.google.com/api-gateway/docs)
+- [OpenAPI Specification](https://cloud.google.com/api-gateway/docs/openapi-overview)
+- [Authentication](https://cloud.google.com/api-gateway/docs/authenticate-service-account)
+- [API Keys](https://cloud.google.com/api-gateway/docs/using-api-keys)
+- [JWT Validation](https://cloud.google.com/api-gateway/docs/authenticating-users-jwt)
+- [Backend Configuration](https://cloud.google.com/api-gateway/docs/backends)
+- [Monitoring and Logging](https://cloud.google.com/api-gateway/docs/monitoring)
 
 ### Management APIs
 - [Service Usage API Documentation](https://cloud.google.com/service-usage/docs)
