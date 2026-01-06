@@ -122,8 +122,11 @@ struct TokenResponse: Codable {
 struct JWTHeader: Codable {
     let alg: String
     let typ: String
+    let kid: String?
 
-    static let rs256 = JWTHeader(alg: "RS256", typ: "JWT")
+    static func rs256(keyId: String? = nil) -> JWTHeader {
+        JWTHeader(alg: "RS256", typ: "JWT", kid: keyId)
+    }
 }
 
 struct JWTClaims: Codable {
@@ -226,7 +229,7 @@ public actor GoogleCloudAuthClient {
     private func createSignedJWT() throws -> String {
         let now = Int(Date().timeIntervalSince1970)
 
-        let header = JWTHeader.rs256
+        let header = JWTHeader.rs256(keyId: credentials.privateKeyId)
         let claims = JWTClaims(
             iss: credentials.clientEmail,
             scope: scopes.joined(separator: " "),

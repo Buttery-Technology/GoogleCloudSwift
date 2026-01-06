@@ -205,7 +205,7 @@ public actor GoogleCloudHTTPClient {
 
         if let body = body {
             let encoder = JSONEncoder()
-            encoder.keyEncodingStrategy = .convertToSnakeCase
+            // Google Cloud APIs use camelCase natively - no conversion needed
             do {
                 let bodyData = try encoder.encode(body)
                 request.body = .bytes(ByteBuffer(data: bodyData))
@@ -243,7 +243,7 @@ public actor GoogleCloudHTTPClient {
         }
 
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        // Google Cloud APIs use camelCase natively - no conversion needed
         decoder.dateDecodingStrategy = .iso8601
 
         do {
