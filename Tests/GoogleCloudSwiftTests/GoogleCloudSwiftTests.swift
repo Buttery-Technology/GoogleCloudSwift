@@ -28027,7 +28027,6 @@ import Testing
     """
 
     let decoder = JSONDecoder()
-    decoder.keyDecodingStrategy = .convertFromSnakeCase
     let instance = try decoder.decode(ComputeInstance.self, from: json.data(using: .utf8)!)
 
     #expect(instance.id == "123456789")
@@ -28054,7 +28053,6 @@ import Testing
     """
 
     let decoder = JSONDecoder()
-    decoder.keyDecodingStrategy = .convertFromSnakeCase
     let machineType = try decoder.decode(MachineType.self, from: json.data(using: .utf8)!)
 
     #expect(machineType.name == "e2-medium")
@@ -28076,7 +28074,6 @@ import Testing
     """
 
     let decoder = JSONDecoder()
-    decoder.keyDecodingStrategy = .convertFromSnakeCase
     let zone = try decoder.decode(Zone.self, from: json.data(using: .utf8)!)
 
     #expect(zone.name == "us-central1-a")
@@ -28098,7 +28095,6 @@ import Testing
     """
 
     let decoder = JSONDecoder()
-    decoder.keyDecodingStrategy = .convertFromSnakeCase
     let network = try decoder.decode(Network.self, from: json.data(using: .utf8)!)
 
     #expect(network.name == "default")
@@ -28128,7 +28124,6 @@ import Testing
     """
 
     let decoder = JSONDecoder()
-    decoder.keyDecodingStrategy = .convertFromSnakeCase
     let firewall = try decoder.decode(Firewall.self, from: json.data(using: .utf8)!)
 
     #expect(firewall.name == "allow-ssh")
@@ -28216,7 +28211,6 @@ import Testing
     """
 
     let decoder = JSONDecoder()
-    decoder.keyDecodingStrategy = .convertFromSnakeCase
     let response = try decoder.decode(GoogleCloudListResponse<ComputeInstance>.self, from: json.data(using: .utf8)!)
 
     #expect(response.items?.count == 2)
@@ -28239,7 +28233,6 @@ import Testing
     """
 
     let decoder = JSONDecoder()
-    decoder.keyDecodingStrategy = .convertFromSnakeCase
     let disk = try decoder.decode(Disk.self, from: json.data(using: .utf8)!)
 
     #expect(disk.name == "boot-disk")
@@ -28264,7 +28257,6 @@ import Testing
     """
 
     let decoder = JSONDecoder()
-    decoder.keyDecodingStrategy = .convertFromSnakeCase
     let region = try decoder.decode(Region.self, from: json.data(using: .utf8)!)
 
     #expect(region.name == "us-central1")
