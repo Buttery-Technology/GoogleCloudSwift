@@ -27788,3 +27788,486 @@ import Testing
     #expect(decoded.membership == "test-cluster")
     #expect(decoded.configSync?.enabled == true)
 }
+
+// MARK: - Google Cloud Auth Tests
+
+@Test func testServiceAccountCredentialsDecoding() throws {
+    let json = """
+    {
+        "type": "service_account",
+        "project_id": "test-project",
+        "private_key_id": "key-id-123",
+        "private_key": "-----BEGIN PRIVATE KEY-----\\nMIIE...\\n-----END PRIVATE KEY-----\\n",
+        "client_email": "test@test-project.iam.gserviceaccount.com",
+        "client_id": "123456789",
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/test",
+        "universe_domain": "googleapis.com"
+    }
+    """
+
+    let credentials = try GoogleCloudServiceAccountCredentials.load(from: json.data(using: .utf8)!)
+
+    #expect(credentials.type == "service_account")
+    #expect(credentials.projectId == "test-project")
+    #expect(credentials.privateKeyId == "key-id-123")
+    #expect(credentials.clientEmail == "test@test-project.iam.gserviceaccount.com")
+    #expect(credentials.clientId == "123456789")
+    #expect(credentials.authUri == "https://accounts.google.com/o/oauth2/auth")
+    #expect(credentials.tokenUri == "https://oauth2.googleapis.com/token")
+    #expect(credentials.universeDomain == "googleapis.com")
+}
+
+@Test func testServiceAccountCredentialsFromString() throws {
+    let json = """
+    {
+        "type": "service_account",
+        "project_id": "my-project",
+        "private_key_id": "abc123",
+        "private_key": "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----\\n",
+        "client_email": "sa@my-project.iam.gserviceaccount.com",
+        "client_id": "999",
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/sa"
+    }
+    """
+
+    let credentials = try GoogleCloudServiceAccountCredentials.loadFromString(json)
+
+    #expect(credentials.projectId == "my-project")
+    #expect(credentials.clientEmail == "sa@my-project.iam.gserviceaccount.com")
+}
+
+@Test func testGoogleCloudAuthErrorDescriptions() {
+    let invalidCredentials = GoogleCloudAuthError.invalidCredentials("Bad JSON")
+    #expect(invalidCredentials.description.contains("Invalid credentials"))
+    #expect(invalidCredentials.description.contains("Bad JSON"))
+
+    let invalidKey = GoogleCloudAuthError.invalidPrivateKey("Invalid format")
+    #expect(invalidKey.description.contains("Invalid private key"))
+
+    let tokenFailed = GoogleCloudAuthError.tokenRequestFailed("Network error")
+    #expect(tokenFailed.description.contains("Token request failed"))
+
+    let httpError = GoogleCloudAuthError.httpError(401, "Unauthorized")
+    #expect(httpError.description.contains("HTTP error 401"))
+    #expect(httpError.description.contains("Unauthorized"))
+}
+
+@Test func testGoogleCloudAccessTokenExpiration() {
+    let futureToken = GoogleCloudAccessToken(
+        token: "test-token",
+        tokenType: "Bearer",
+        expiresAt: Date().addingTimeInterval(3600)
+    )
+    #expect(!futureToken.isExpired)
+
+    let expiredToken = GoogleCloudAccessToken(
+        token: "test-token",
+        tokenType: "Bearer",
+        expiresAt: Date().addingTimeInterval(-100)
+    )
+    #expect(expiredToken.isExpired)
+
+    let almostExpiredToken = GoogleCloudAccessToken(
+        token: "test-token",
+        tokenType: "Bearer",
+        expiresAt: Date().addingTimeInterval(30)
+    )
+    #expect(almostExpiredToken.isExpired)  // Within 60 second buffer
+}
+
+@Test func testGoogleCloudAuthClientScopes() {
+    #expect(GoogleCloudAuthClient.defaultScopes.contains("https://www.googleapis.com/auth/cloud-platform"))
+    #expect(GoogleCloudAuthClient.computeScopes.contains("https://www.googleapis.com/auth/compute"))
+    #expect(GoogleCloudAuthClient.storageScopes.contains("https://www.googleapis.com/auth/devstorage.full_control"))
+}
+
+// MARK: - Google Cloud HTTP Client Tests
+
+@Test func testGoogleCloudAPIErrorDescriptions() {
+    let requestFailed = GoogleCloudAPIError.requestFailed("Connection refused")
+    #expect(requestFailed.description.contains("Request failed"))
+    #expect(requestFailed.description.contains("Connection refused"))
+
+    let invalidResponse = GoogleCloudAPIError.invalidResponse("Empty body")
+    #expect(invalidResponse.description.contains("Invalid response"))
+
+    let httpError = GoogleCloudAPIError.httpError(404, nil)
+    #expect(httpError.description.contains("HTTP error 404"))
+
+    let decodingError = GoogleCloudAPIError.decodingError("Missing field")
+    #expect(decodingError.description.contains("Decoding error"))
+
+    let encodingError = GoogleCloudAPIError.encodingError("Invalid type")
+    #expect(encodingError.description.contains("Encoding error"))
+
+    let networkError = GoogleCloudAPIError.networkError("Timeout")
+    #expect(networkError.description.contains("Network error"))
+    #expect(networkError.description.contains("Timeout"))
+}
+
+@Test func testGoogleCloudAPIErrorWithErrorResponse() {
+    let errorDetails = GoogleCloudErrorDetails(
+        code: 403,
+        message: "Access denied",
+        status: "PERMISSION_DENIED",
+        errors: nil
+    )
+    let errorResponse = GoogleCloudErrorResponse(error: errorDetails)
+    let apiError = GoogleCloudAPIError.httpError(403, errorResponse)
+
+    #expect(apiError.description.contains("403"))
+    #expect(apiError.description.contains("Access denied"))
+}
+
+@Test func testGoogleCloudOperationStatus() {
+    let pendingOperation = GoogleCloudOperation(
+        id: "op-123",
+        name: "operation-123",
+        operationType: "insert",
+        status: "PENDING",
+        targetLink: nil,
+        targetId: nil,
+        user: "test@example.com",
+        progress: 0,
+        insertTime: nil,
+        startTime: nil,
+        endTime: nil,
+        selfLink: nil,
+        zone: "us-central1-a",
+        region: nil,
+        error: nil
+    )
+    #expect(!pendingOperation.isDone)
+    #expect(!pendingOperation.hasError)
+
+    let doneOperation = GoogleCloudOperation(
+        id: "op-456",
+        name: "operation-456",
+        operationType: "delete",
+        status: "DONE",
+        targetLink: nil,
+        targetId: nil,
+        user: "test@example.com",
+        progress: 100,
+        insertTime: nil,
+        startTime: nil,
+        endTime: nil,
+        selfLink: nil,
+        zone: nil,
+        region: "us-central1",
+        error: nil
+    )
+    #expect(doneOperation.isDone)
+    #expect(!doneOperation.hasError)
+
+    let errorOperation = GoogleCloudOperation(
+        id: "op-789",
+        name: "operation-789",
+        operationType: "insert",
+        status: "DONE",
+        targetLink: nil,
+        targetId: nil,
+        user: nil,
+        progress: nil,
+        insertTime: nil,
+        startTime: nil,
+        endTime: nil,
+        selfLink: nil,
+        zone: nil,
+        region: nil,
+        error: OperationError(errors: [OperationErrorItem(code: "QUOTA_EXCEEDED", message: "Quota exceeded", location: nil)])
+    )
+    #expect(errorOperation.isDone)
+    #expect(errorOperation.hasError)
+}
+
+@Test func testEmptyResponse() {
+    let response = EmptyResponse()
+    #expect(true)  // Just verify it can be instantiated
+}
+
+// MARK: - Compute Engine API Tests
+
+@Test func testComputeInstanceResponseDecoding() throws {
+    let json = """
+    {
+        "id": "123456789",
+        "name": "test-instance",
+        "zone": "projects/test-project/zones/us-central1-a",
+        "machineType": "projects/test-project/zones/us-central1-a/machineTypes/e2-medium",
+        "status": "RUNNING",
+        "selfLink": "https://compute.googleapis.com/compute/v1/projects/test-project/zones/us-central1-a/instances/test-instance",
+        "networkInterfaces": [
+            {
+                "name": "nic0",
+                "network": "projects/test-project/global/networks/default",
+                "networkIP": "10.128.0.2",
+                "accessConfigs": [
+                    {
+                        "type": "ONE_TO_ONE_NAT",
+                        "name": "External NAT",
+                        "natIP": "35.192.0.1",
+                        "networkTier": "PREMIUM"
+                    }
+                ]
+            }
+        ],
+        "labels": {
+            "env": "test",
+            "app": "dais"
+        },
+        "deletionProtection": false
+    }
+    """
+
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    let instance = try decoder.decode(ComputeInstance.self, from: json.data(using: .utf8)!)
+
+    #expect(instance.id == "123456789")
+    #expect(instance.name == "test-instance")
+    #expect(instance.status == "RUNNING")
+    #expect(instance.networkInterfaces?.count == 1)
+    #expect(instance.networkInterfaces?[0].networkIP == "10.128.0.2")
+    #expect(instance.networkInterfaces?[0].accessConfigs?[0].natIP == "35.192.0.1")
+    #expect(instance.labels?["env"] == "test")
+    #expect(instance.deletionProtection == false)
+}
+
+@Test func testMachineTypeResponseDecoding() throws {
+    let json = """
+    {
+        "id": "1000",
+        "name": "e2-medium",
+        "description": "2 vCPUs, 4 GB RAM",
+        "guestCpus": 2,
+        "memoryMb": 4096,
+        "zone": "projects/test-project/zones/us-central1-a",
+        "isSharedCpu": true
+    }
+    """
+
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    let machineType = try decoder.decode(MachineType.self, from: json.data(using: .utf8)!)
+
+    #expect(machineType.name == "e2-medium")
+    #expect(machineType.guestCpus == 2)
+    #expect(machineType.memoryMb == 4096)
+    #expect(machineType.isSharedCpu == true)
+}
+
+@Test func testZoneResponseDecoding() throws {
+    let json = """
+    {
+        "id": "2000",
+        "name": "us-central1-a",
+        "description": "us-central1-a",
+        "status": "UP",
+        "region": "https://compute.googleapis.com/compute/v1/projects/test-project/regions/us-central1",
+        "availableCpuPlatforms": ["Intel Broadwell", "Intel Haswell", "Intel Skylake"]
+    }
+    """
+
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    let zone = try decoder.decode(Zone.self, from: json.data(using: .utf8)!)
+
+    #expect(zone.name == "us-central1-a")
+    #expect(zone.status == "UP")
+    #expect(zone.availableCpuPlatforms?.contains("Intel Skylake") == true)
+}
+
+@Test func testNetworkResponseDecoding() throws {
+    let json = """
+    {
+        "id": "3000",
+        "name": "default",
+        "autoCreateSubnetworks": true,
+        "routingConfig": {
+            "routingMode": "REGIONAL"
+        },
+        "mtu": 1460
+    }
+    """
+
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    let network = try decoder.decode(Network.self, from: json.data(using: .utf8)!)
+
+    #expect(network.name == "default")
+    #expect(network.autoCreateSubnetworks == true)
+    #expect(network.routingConfig?.routingMode == "REGIONAL")
+    #expect(network.mtu == 1460)
+}
+
+@Test func testFirewallResponseDecoding() throws {
+    let json = """
+    {
+        "id": "4000",
+        "name": "allow-ssh",
+        "network": "projects/test-project/global/networks/default",
+        "priority": 1000,
+        "direction": "INGRESS",
+        "sourceRanges": ["0.0.0.0/0"],
+        "targetTags": ["ssh-enabled"],
+        "allowed": [
+            {
+                "IPProtocol": "tcp",
+                "ports": ["22"]
+            }
+        ],
+        "disabled": false
+    }
+    """
+
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    let firewall = try decoder.decode(Firewall.self, from: json.data(using: .utf8)!)
+
+    #expect(firewall.name == "allow-ssh")
+    #expect(firewall.priority == 1000)
+    #expect(firewall.direction == "INGRESS")
+    #expect(firewall.sourceRanges?.contains("0.0.0.0/0") == true)
+    #expect(firewall.targetTags?.contains("ssh-enabled") == true)
+    #expect(firewall.allowed?[0].ipProtocol == "tcp")
+    #expect(firewall.allowed?[0].ports?.contains("22") == true)
+}
+
+@Test func testComputeInstanceInsertFromConfig() {
+    let config = GoogleCloudComputeInstance(
+        name: "test-vm",
+        machineType: .e2Medium,
+        zone: "us-west1-a",
+        bootDisk: .init(
+            image: .ubuntuLTS,
+            sizeGB: 30,
+            diskType: .pdSSD
+        ),
+        network: .init(
+            network: "default",
+            assignExternalIP: true,
+            networkTier: .premium
+        ),
+        networkTags: ["web-server", "allow-ssh"],
+        labels: ["env": "dev", "team": "platform"],
+        startupScript: "#!/bin/bash\necho 'Hello'",
+        deletionProtection: false,
+        scheduling: .init(spot: true)
+    )
+
+    let insert = ComputeInstanceInsert(from: config, projectId: "test-project")
+
+    #expect(insert.name == "test-vm")
+    #expect(insert.machineType == "zones/us-west1-a/machineTypes/e2-medium")
+    #expect(insert.disks.count == 1)
+    #expect(insert.disks[0].boot == true)
+    #expect(insert.disks[0].initializeParams?.sourceImage == "projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts")
+    #expect(insert.disks[0].initializeParams?.diskSizeGb == "30")
+    #expect(insert.networkInterfaces.count == 1)
+    #expect(insert.networkInterfaces[0].accessConfigs?.count == 1)
+    #expect(insert.tags?.items?.contains("web-server") == true)
+    #expect(insert.labels?["env"] == "dev")
+    #expect(insert.metadata?.items?.first?.key == "startup-script")
+    #expect(insert.scheduling?.provisioningModel == "SPOT")
+}
+
+@Test func testFirewallInsertEncoding() throws {
+    let firewall = FirewallInsert(
+        name: "allow-https",
+        network: "global/networks/default",
+        description: "Allow HTTPS traffic",
+        priority: 1000,
+        direction: "INGRESS",
+        sourceRanges: ["0.0.0.0/0"],
+        targetTags: ["https-server"],
+        allowed: [
+            FirewallAllowedInsert(ipProtocol: "tcp", ports: ["443"])
+        ]
+    )
+
+    let encoder = JSONEncoder()
+    let data = try encoder.encode(firewall)
+    let json = String(data: data, encoding: .utf8)!
+
+    #expect(json.contains("\"name\":\"allow-https\""))
+    #expect(json.contains("global"))
+    #expect(json.contains("networks"))
+    #expect(json.contains("\"IPProtocol\":\"tcp\""))  // Should use custom CodingKey
+    #expect(json.contains("\"ports\":[\"443\"]"))
+}
+
+@Test func testListResponseDecoding() throws {
+    let json = """
+    {
+        "items": [
+            {"id": "1", "name": "instance-1", "status": "RUNNING"},
+            {"id": "2", "name": "instance-2", "status": "STOPPED"}
+        ],
+        "nextPageToken": "token123",
+        "selfLink": "https://compute.googleapis.com/compute/v1/projects/test/zones/us-central1-a/instances"
+    }
+    """
+
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    let response = try decoder.decode(GoogleCloudListResponse<ComputeInstance>.self, from: json.data(using: .utf8)!)
+
+    #expect(response.items?.count == 2)
+    #expect(response.items?[0].name == "instance-1")
+    #expect(response.items?[1].status == "STOPPED")
+    #expect(response.nextPageToken == "token123")
+}
+
+@Test func testDiskResponseDecoding() throws {
+    let json = """
+    {
+        "id": "5000",
+        "name": "boot-disk",
+        "sizeGb": "50",
+        "zone": "projects/test/zones/us-central1-a",
+        "status": "READY",
+        "type": "projects/test/zones/us-central1-a/diskTypes/pd-ssd",
+        "users": ["projects/test/zones/us-central1-a/instances/my-instance"]
+    }
+    """
+
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    let disk = try decoder.decode(Disk.self, from: json.data(using: .utf8)!)
+
+    #expect(disk.name == "boot-disk")
+    #expect(disk.sizeGb == "50")
+    #expect(disk.status == "READY")
+    #expect(disk.users?.count == 1)
+}
+
+@Test func testRegionResponseDecoding() throws {
+    let json = """
+    {
+        "id": "6000",
+        "name": "us-central1",
+        "description": "us-central1",
+        "status": "UP",
+        "zones": [
+            "https://compute.googleapis.com/compute/v1/projects/test/zones/us-central1-a",
+            "https://compute.googleapis.com/compute/v1/projects/test/zones/us-central1-b",
+            "https://compute.googleapis.com/compute/v1/projects/test/zones/us-central1-c"
+        ]
+    }
+    """
+
+    let decoder = JSONDecoder()
+    decoder.keyDecodingStrategy = .convertFromSnakeCase
+    let region = try decoder.decode(Region.self, from: json.data(using: .utf8)!)
+
+    #expect(region.name == "us-central1")
+    #expect(region.status == "UP")
+    #expect(region.zones?.count == 3)
+}
