@@ -263,11 +263,15 @@ public actor GoogleCloudHTTPClient {
         var urlString = "\(baseURL)\(path.hasPrefix("/") ? path : "/\(path)")"
 
         if let params = queryParameters, !params.isEmpty {
+            // Use a character set that excludes & and = to properly encode query values
+            var queryValueAllowed = CharacterSet.urlQueryAllowed
+            queryValueAllowed.remove(charactersIn: "&=+")
+
             let queryString = params
                 .sorted { $0.key < $1.key }
                 .map { key, value in
-                    let encodedKey = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? key
-                    let encodedValue = value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? value
+                    let encodedKey = key.addingPercentEncoding(withAllowedCharacters: queryValueAllowed) ?? key
+                    let encodedValue = value.addingPercentEncoding(withAllowedCharacters: queryValueAllowed) ?? value
                     return "\(encodedKey)=\(encodedValue)"
                 }
                 .joined(separator: "&")
