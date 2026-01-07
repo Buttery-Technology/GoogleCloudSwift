@@ -299,10 +299,13 @@ public struct GoogleCloudListResponse<T: Decodable & Sendable>: Decodable, Senda
 
 /// Represents a long-running operation in Google Cloud.
 public struct GoogleCloudOperation: Codable, Sendable {
+    public let kind: String?
     public let id: String?
     public let name: String?
+    public let description: String?
     public let operationType: String?
     public let status: String?
+    public let statusMessage: String?
     public let targetLink: String?
     public let targetId: String?
     public let user: String?
@@ -313,15 +316,37 @@ public struct GoogleCloudOperation: Codable, Sendable {
     public let selfLink: String?
     public let zone: String?
     public let region: String?
+    public let httpErrorStatusCode: Int?
+    public let httpErrorMessage: String?
     public let error: OperationError?
+    public let warnings: [OperationWarning]?
 
     public var isDone: Bool {
         status == "DONE"
     }
 
     public var hasError: Bool {
-        error != nil
+        error != nil || httpErrorStatusCode != nil
     }
+
+    /// Get a descriptive error message from the operation.
+    public var errorMessage: String? {
+        if let httpError = httpErrorMessage {
+            return httpError
+        }
+        return error?.errors?.first?.message
+    }
+}
+
+public struct OperationWarning: Codable, Sendable {
+    public let code: String?
+    public let message: String?
+    public let data: [OperationWarningData]?
+}
+
+public struct OperationWarningData: Codable, Sendable {
+    public let key: String?
+    public let value: String?
 }
 
 public struct OperationError: Codable, Sendable {

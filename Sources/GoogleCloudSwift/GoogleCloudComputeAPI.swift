@@ -236,8 +236,7 @@ public actor GoogleCloudComputeAPI {
 
             if operation.isDone {
                 if operation.hasError {
-                    let errorMessage = operation.error?.errors?.first?.message ?? "Unknown error"
-                    throw GoogleCloudAPIError.requestFailed("Operation failed: \(errorMessage)")
+                    throw GoogleCloudAPIError.requestFailed("Operation failed: \(operation.errorMessage ?? "Unknown error")")
                 }
                 return operation
             }
