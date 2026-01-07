@@ -28263,3 +28263,75 @@ import Testing
     #expect(region.status == "UP")
     #expect(region.zones?.count == 3)
 }
+
+@Test func testComputeInstanceInsertJSONKeys() throws {
+    // Verify the JSON output uses correct camelCase keys for Google Cloud API
+    let config = GoogleCloudComputeInstance(
+        name: "test-vm",
+        machineType: .e2Medium,
+        zone: "us-central1-a",
+        bootDisk: .init(image: .ubuntuLTS, sizeGB: 20, diskType: .pdSSD),
+        network: .init(assignExternalIP: true, networkTier: .premium),
+        networkTags: ["http-server"],
+        labels: ["env": "test"],
+        startupScript: "#!/bin/bash\necho hello",
+        scheduling: .init(automaticRestart: true, onHostMaintenance: .migrate)
+    )
+
+    let insert = ComputeInstanceInsert(from: config, projectId: "test-project")
+    let encoder = JSONEncoder()
+    let data = try encoder.encode(insert)
+    let json = String(data: data, encoding: .utf8)!
+
+    // Verify camelCase keys are used (not snake_case)
+    #expect(json.contains("\"machineType\""))
+    #expect(json.contains("\"networkInterfaces\""))
+    #expect(json.contains("\"accessConfigs\""))
+    #expect(json.contains("\"sourceImage\""))
+    #expect(json.contains("\"diskSizeGb\""))
+    #expect(json.contains("\"diskType\""))
+    #expect(json.contains("\"networkTier\""))
+    #expect(json.contains("\"onHostMaintenance\""))
+    #expect(json.contains("\"automaticRestart\""))
+    #expect(json.contains("\"initializeParams\""))
+    #expect(json.contains("\"deletionProtection\""))
+
+    // Verify snake_case keys are NOT used
+    #expect(!json.contains("\"machine_type\""))
+    #expect(!json.contains("\"network_interfaces\""))
+    #expect(!json.contains("\"access_configs\""))
+    #expect(!json.contains("\"source_image\""))
+    #expect(!json.contains("\"disk_size_gb\""))
+    #expect(!json.contains("\"disk_type\""))
+    #expect(!json.contains("\"network_tier\""))
+    #expect(!json.contains("\"on_host_maintenance\""))
+    #expect(!json.contains("\"automatic_restart\""))
+}
+
+@Test func testServiceAccountCredentialsCodingKeys() throws {
+    // Service account JSON uses snake_case (Google's format)
+    let json = """
+    {
+        "type": "service_account",
+        "project_id": "test-project",
+        "private_key_id": "key123",
+        "private_key": "-----BEGIN PRIVATE KEY-----\\ntest\\n-----END PRIVATE KEY-----",
+        "client_email": "sa@test.iam.gserviceaccount.com",
+        "client_id": "12345",
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/sa"
+    }
+    """
+
+    let credentials = try GoogleCloudServiceAccountCredentials.load(from: json.data(using: .utf8)!)
+
+    // Verify snake_case JSON is correctly decoded to camelCase properties
+    #expect(credentials.projectId == "test-project")
+    #expect(credentials.privateKeyId == "key123")
+    #expect(credentials.clientEmail == "sa@test.iam.gserviceaccount.com")
+    #expect(credentials.clientId == "12345")
+    #expect(credentials.authUri == "https://accounts.google.com/o/oauth2/auth")
+    #expect(credentials.tokenUri == "https://oauth2.googleapis.com/token")
+}
