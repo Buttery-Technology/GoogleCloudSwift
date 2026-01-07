@@ -27927,10 +27927,13 @@ import Testing
 
 @Test func testGoogleCloudOperationStatus() {
     let pendingOperation = GoogleCloudOperation(
+        kind: "compute#operation",
         id: "op-123",
         name: "operation-123",
+        description: nil,
         operationType: "insert",
         status: "PENDING",
+        statusMessage: nil,
         targetLink: nil,
         targetId: nil,
         user: "test@example.com",
@@ -27941,16 +27944,23 @@ import Testing
         selfLink: nil,
         zone: "us-central1-a",
         region: nil,
-        error: nil
+        httpErrorStatusCode: nil,
+        httpErrorMessage: nil,
+        error: nil,
+        warnings: nil
     )
     #expect(!pendingOperation.isDone)
     #expect(!pendingOperation.hasError)
+    #expect(pendingOperation.errorMessage == nil)
 
     let doneOperation = GoogleCloudOperation(
+        kind: "compute#operation",
         id: "op-456",
         name: "operation-456",
+        description: nil,
         operationType: "delete",
         status: "DONE",
+        statusMessage: nil,
         targetLink: nil,
         targetId: nil,
         user: "test@example.com",
@@ -27961,16 +27971,22 @@ import Testing
         selfLink: nil,
         zone: nil,
         region: "us-central1",
-        error: nil
+        httpErrorStatusCode: nil,
+        httpErrorMessage: nil,
+        error: nil,
+        warnings: nil
     )
     #expect(doneOperation.isDone)
     #expect(!doneOperation.hasError)
 
     let errorOperation = GoogleCloudOperation(
+        kind: "compute#operation",
         id: "op-789",
         name: "operation-789",
+        description: nil,
         operationType: "insert",
         status: "DONE",
+        statusMessage: nil,
         targetLink: nil,
         targetId: nil,
         user: nil,
@@ -27981,10 +27997,41 @@ import Testing
         selfLink: nil,
         zone: nil,
         region: nil,
-        error: OperationError(errors: [OperationErrorItem(code: "QUOTA_EXCEEDED", message: "Quota exceeded", location: nil)])
+        httpErrorStatusCode: nil,
+        httpErrorMessage: nil,
+        error: OperationError(errors: [OperationErrorItem(code: "QUOTA_EXCEEDED", message: "Quota exceeded", location: nil)]),
+        warnings: nil
     )
     #expect(errorOperation.isDone)
     #expect(errorOperation.hasError)
+    #expect(errorOperation.errorMessage == "Quota exceeded")
+
+    // Test HTTP error detection
+    let httpErrorOperation = GoogleCloudOperation(
+        kind: "compute#operation",
+        id: "op-999",
+        name: "operation-999",
+        description: nil,
+        operationType: "insert",
+        status: "DONE",
+        statusMessage: nil,
+        targetLink: nil,
+        targetId: nil,
+        user: nil,
+        progress: nil,
+        insertTime: nil,
+        startTime: nil,
+        endTime: nil,
+        selfLink: nil,
+        zone: nil,
+        region: nil,
+        httpErrorStatusCode: 404,
+        httpErrorMessage: "NOT FOUND",
+        error: nil,
+        warnings: nil
+    )
+    #expect(httpErrorOperation.hasError)
+    #expect(httpErrorOperation.errorMessage == "NOT FOUND")
 }
 
 @Test func testEmptyResponse() {
