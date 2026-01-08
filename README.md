@@ -37,6 +37,17 @@ Then add the dependency to your target:
 
 ### 1. Prerequisites
 
+GoogleCloudSwift supports two authentication methods:
+
+**Option A: Service Account JSON Key (Recommended for REST API)**
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com) > IAM & Admin > Service Accounts
+2. Create a service account or select an existing one
+3. Create a key (JSON format) and download it
+4. Store the path to your key file securely
+
+**Option B: gcloud CLI (for script generation)**
+
 ```bash
 # Install Google Cloud CLI
 brew install google-cloud-sdk
@@ -85,14 +96,151 @@ chmod +x setup-dais.sh
 ./setup-dais.sh
 ```
 
+## REST API Usage
+
+GoogleCloudSwift provides direct REST API access to Google Cloud services without requiring the gcloud CLI. This is ideal for server-side Swift applications.
+
+### Authentication
+
+Use a service account JSON key file to authenticate:
+
+```swift
+import GoogleCloudSwift
+import AsyncHTTPClient
+
+// Create an HTTP client
+let httpClient = HTTPClient(eventLoopGroupProvider: .singleton)
+defer { try? httpClient.syncShutdown() }
+
+// Initialize the auth client with your service account key
+let authClient = try GoogleCloudAuthClient(
+    credentialsPath: "/path/to/service-account.json",
+    httpClient: httpClient,
+    scopes: GoogleCloudAuthClient.computeScopes
+)
+
+// Get an access token (automatically cached and refreshed)
+let token = try await authClient.getAccessToken()
+print("Authenticated as: \(await authClient.serviceAccountEmail)")
+```
+
+### Compute Engine API
+
+Create and manage VM instances directly via the REST API:
+
+```swift
+// Create the Compute Engine API client
+let computeAPI = await GoogleCloudComputeAPI.create(
+    authClient: authClient,
+    httpClient: httpClient
+)
+
+// List instances in a zone
+let instances = try await computeAPI.listInstances(zone: "us-central1-a")
+for instance in instances.items ?? [] {
+    print("Instance: \(instance.name ?? "unknown") - \(instance.status ?? "unknown")")
+}
+
+// Create a new instance
+let newInstance = ComputeInstanceInsert(
+    name: "my-instance",
+    machineType: "e2-medium",
+    zone: "us-central1-a",
+    disks: [
+        DiskInsert(
+            boot: true,
+            autoDelete: true,
+            initializeParams: InitializeParamsInsert(
+                sourceImage: "projects/debian-cloud/global/images/family/debian-11",
+                diskSizeGb: "20",
+                diskType: "zones/us-central1-a/diskTypes/pd-balanced"
+            )
+        )
+    ],
+    networkInterfaces: [
+        NetworkInterfaceInsert(
+            network: "global/networks/default",
+            accessConfigs: [AccessConfigInsert(type: "ONE_TO_ONE_NAT", name: "External NAT")]
+        )
+    ]
+)
+
+let operation = try await computeAPI.createInstance(newInstance, zone: "us-central1-a")
+print("Creating instance, operation: \(operation.name ?? "")")
+
+// Wait for the operation to complete
+let completed = try await computeAPI.waitForZoneOperation(
+    operationName: operation.name!,
+    zone: "us-central1-a"
+)
+print("Instance created successfully!")
+
+// Other available operations
+let zones = try await computeAPI.listZones()
+let machineTypes = try await computeAPI.listMachineTypes(zone: "us-central1-a")
+let firewalls = try await computeAPI.listFirewalls()
+```
+
+### Creating Instances from Configuration Models
+
+You can also create instances using the high-level `GoogleCloudComputeInstance` configuration model:
+
+```swift
+let config = GoogleCloudComputeInstance(
+    name: "dais-node-1",
+    machineType: .e2Medium,
+    zone: "us-central1-a",
+    bootDisk: .init(
+        image: .ubuntuLTS,
+        sizeGB: 20,
+        diskType: .pdBalanced
+    ),
+    networkTags: ["dais-node", "allow-grpc"],
+    scheduling: .spot
+)
+
+// Create via REST API
+let operation = try await computeAPI.createInstance(from: config)
+```
+
+### Firewall Rules
+
+Create and manage firewall rules:
+
+```swift
+let firewall = FirewallInsert(
+    name: "allow-ssh",
+    network: "global/networks/default",
+    description: "Allow SSH access",
+    priority: 1000,
+    direction: "INGRESS",
+    sourceRanges: ["0.0.0.0/0"],
+    targetTags: ["allow-ssh"],
+    allowed: [
+        FirewallAllowedInsert(ipProtocol: "tcp", ports: ["22"])
+    ]
+)
+
+let operation = try await computeAPI.createFirewall(firewall)
+```
+
+### Available OAuth2 Scopes
+
+```swift
+GoogleCloudAuthClient.defaultScopes   // cloud-platform (full access)
+GoogleCloudAuthClient.computeScopes   // compute (Compute Engine only)
+GoogleCloudAuthClient.storageScopes   // storage (Cloud Storage only)
+```
+
 ## Models Overview
 
 GoogleCloudSwift provides models for 60 Google Cloud services:
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
+| **REST API Client** | Direct API access with JWT auth | `GoogleCloudAuthClient`, `GoogleCloudHTTPClient`, `GoogleCloudComputeAPI` |
 | **Provider** | Project & region configuration | `GoogleCloudProvider`, `GoogleCloudRegion` |
-| **Compute Engine** | VM instances | `GoogleCloudComputeInstance`, `GoogleCloudMachineType` |
+| **Compute Engine** | VM instances & REST API | `GoogleCloudComputeInstance`, `GoogleCloudMachineType`, `ComputeInstanceInsert` |
 | **Secret Manager** | Secure credentials | `GoogleCloudSecret`, `SecretManagerIAMBinding` |
 | **Cloud Storage** | Object storage | `GoogleCloudStorageBucket`, `LifecycleRule` |
 | **Cloud SQL** | Managed databases (PostgreSQL, MySQL, SQL Server) | `GoogleCloudSQLInstance`, `GoogleCloudSQLDatabase` |
