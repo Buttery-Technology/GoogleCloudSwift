@@ -70,8 +70,8 @@ public enum GoogleCloudAuthError: Error, Sendable {
     case networkError(String)
 }
 
-extension GoogleCloudAuthError: CustomStringConvertible {
-    public var description: String {
+extension GoogleCloudAuthError: LocalizedError {
+    public var errorDescription: String? {
         switch self {
         case .invalidCredentials(let message):
             return "Invalid credentials: \(message)"
@@ -86,6 +86,48 @@ extension GoogleCloudAuthError: CustomStringConvertible {
         case .networkError(let message):
             return "Network error: \(message)"
         }
+    }
+
+    public var failureReason: String? {
+        switch self {
+        case .invalidCredentials:
+            return "The service account credentials are malformed or invalid"
+        case .invalidPrivateKey:
+            return "The private key in the credentials file could not be parsed"
+        case .tokenRequestFailed:
+            return "Failed to obtain an access token from Google"
+        case .tokenParsingFailed:
+            return "The token response from Google was not in the expected format"
+        case .httpError(let code, _):
+            if code == 401 { return "The credentials were rejected by Google" }
+            if code >= 500 { return "Google's authentication service encountered an error" }
+            return nil
+        case .networkError:
+            return "Could not connect to Google's authentication service"
+        }
+    }
+
+    public var recoverySuggestion: String? {
+        switch self {
+        case .invalidCredentials:
+            return "Verify the credentials file path and ensure it's a valid service account JSON key"
+        case .invalidPrivateKey:
+            return "Re-download the service account JSON key from Google Cloud Console"
+        case .tokenRequestFailed, .tokenParsingFailed:
+            return "Check network connectivity and try again"
+        case .httpError(let code, _):
+            if code == 401 { return "Verify the service account is active and the key hasn't been revoked" }
+            if code >= 500 { return "Wait and retry the request" }
+            return nil
+        case .networkError:
+            return "Check your network connection and firewall settings"
+        }
+    }
+}
+
+extension GoogleCloudAuthError: CustomStringConvertible {
+    public var description: String {
+        errorDescription ?? "Unknown authentication error"
     }
 }
 
