@@ -39,16 +39,22 @@ public actor GoogleCloudComputeAPI {
     ///   - authClient: The authentication client for obtaining access tokens.
     ///   - httpClient: The underlying HTTP client.
     ///   - projectId: The Google Cloud project ID.
+    ///   - retryConfiguration: Configuration for retry behavior on transient failures.
+    ///   - requestTimeout: Timeout for individual HTTP requests in seconds (default: 60).
     public init(
         authClient: GoogleCloudAuthClient,
         httpClient: HTTPClient,
-        projectId: String
+        projectId: String,
+        retryConfiguration: RetryConfiguration = .default,
+        requestTimeout: TimeInterval = 60
     ) {
         self.projectId = projectId
         self.client = GoogleCloudHTTPClient(
             authClient: authClient,
             httpClient: httpClient,
-            baseURL: Self.baseURL
+            baseURL: Self.baseURL,
+            retryConfiguration: retryConfiguration,
+            requestTimeout: requestTimeout
         )
     }
 
@@ -56,16 +62,22 @@ public actor GoogleCloudComputeAPI {
     /// - Parameters:
     ///   - authClient: The authentication client for obtaining access tokens.
     ///   - httpClient: The underlying HTTP client.
+    ///   - retryConfiguration: Configuration for retry behavior on transient failures.
+    ///   - requestTimeout: Timeout for individual HTTP requests in seconds (default: 60).
     /// - Returns: A configured Compute Engine API client.
     public static func create(
         authClient: GoogleCloudAuthClient,
-        httpClient: HTTPClient
+        httpClient: HTTPClient,
+        retryConfiguration: RetryConfiguration = .default,
+        requestTimeout: TimeInterval = 60
     ) async -> GoogleCloudComputeAPI {
         let projectId = await authClient.projectId
         return GoogleCloudComputeAPI(
             authClient: authClient,
             httpClient: httpClient,
-            projectId: projectId
+            projectId: projectId,
+            retryConfiguration: retryConfiguration,
+            requestTimeout: requestTimeout
         )
     }
 
@@ -284,7 +296,101 @@ public actor GoogleCloudComputeAPI {
             try await self.listMachineTypes(
                 zone: zone,
                 filter: filter,
-                maxResults: maxResults
+                maxResults: maxResults,
+                pageToken: pageToken
+            )
+        }
+    }
+
+    /// Get a pagination helper for listing all zones.
+    /// - Parameters:
+    ///   - filter: Optional filter expression.
+    ///   - maxResults: Maximum number of results per page.
+    /// - Returns: A pagination helper that can be used to iterate through all pages.
+    public func listAllZones(
+        filter: String? = nil,
+        maxResults: Int? = nil
+    ) -> PaginationHelper<Zone> {
+        PaginationHelper { pageToken in
+            try await self.listZones(
+                filter: filter,
+                maxResults: maxResults,
+                pageToken: pageToken
+            )
+        }
+    }
+
+    /// Get a pagination helper for listing all regions.
+    /// - Parameters:
+    ///   - filter: Optional filter expression.
+    ///   - maxResults: Maximum number of results per page.
+    /// - Returns: A pagination helper that can be used to iterate through all pages.
+    public func listAllRegions(
+        filter: String? = nil,
+        maxResults: Int? = nil
+    ) -> PaginationHelper<Region> {
+        PaginationHelper { pageToken in
+            try await self.listRegions(
+                filter: filter,
+                maxResults: maxResults,
+                pageToken: pageToken
+            )
+        }
+    }
+
+    /// Get a pagination helper for listing all disks in a zone.
+    /// - Parameters:
+    ///   - zone: The zone to list disks from.
+    ///   - filter: Optional filter expression.
+    ///   - maxResults: Maximum number of results per page.
+    /// - Returns: A pagination helper that can be used to iterate through all pages.
+    public func listAllDisks(
+        zone: String,
+        filter: String? = nil,
+        maxResults: Int? = nil
+    ) -> PaginationHelper<Disk> {
+        PaginationHelper { pageToken in
+            try await self.listDisks(
+                zone: zone,
+                filter: filter,
+                maxResults: maxResults,
+                pageToken: pageToken
+            )
+        }
+    }
+
+    /// Get a pagination helper for listing all networks.
+    /// - Parameters:
+    ///   - filter: Optional filter expression.
+    ///   - maxResults: Maximum number of results per page.
+    /// - Returns: A pagination helper that can be used to iterate through all pages.
+    public func listAllNetworks(
+        filter: String? = nil,
+        maxResults: Int? = nil
+    ) -> PaginationHelper<Network> {
+        PaginationHelper { pageToken in
+            try await self.listNetworks(
+                filter: filter,
+                maxResults: maxResults,
+                pageToken: pageToken
+            )
+        }
+    }
+
+    /// Get a pagination helper for listing all firewall rules.
+    /// - Parameters:
+    ///   - filter: Optional filter expression.
+    ///   - maxResults: Maximum number of results per page.
+    /// - Returns: A pagination helper that can be used to iterate through all pages.
+    public func listAllFirewalls(
+        filter: String? = nil,
+        maxResults: Int? = nil
+    ) -> PaginationHelper<Firewall> {
+        PaginationHelper { pageToken in
+            try await self.listFirewalls(
+                filter: filter,
+                maxResults: maxResults,
+                pageToken: pageToken
             )
         }
     }
@@ -310,7 +416,7 @@ public actor GoogleCloudComputeAPI {
     ///   - timeout: Maximum time to wait in seconds.
     ///   - pollInterval: Interval between status checks in seconds.
     /// - Returns: The completed operation.
-    /// - Throws: `GoogleCloudAPIError.cancelled` if the task is cancelled.
+    /// - Throws: `GoogleCloudAPIError.cancelled` if the task is cancelled, `.timeout` if the operation exceeds the timeout.
     public func waitForZoneOperation(
         operationName: String,
         zone: String,
@@ -327,13 +433,13 @@ public actor GoogleCloudComputeAPI {
 
             if operation.isDone {
                 if operation.hasError {
-                    throw GoogleCloudAPIError.requestFailed("Operation failed: \(operation.errorMessage ?? "Unknown error")")
+                    throw GoogleCloudAPIError.operationFailed(operation.errorMessage ?? "Unknown error")
                 }
                 return operation
             }
 
             if Date().timeIntervalSince(startTime) > timeout {
-                throw GoogleCloudAPIError.requestFailed("Operation timed out after \(timeout) seconds")
+                throw GoogleCloudAPIError.timeout(timeout)
             }
 
             try await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
@@ -358,7 +464,7 @@ public actor GoogleCloudComputeAPI {
     ///   - timeout: Maximum time to wait in seconds.
     ///   - pollInterval: Interval between status checks in seconds.
     /// - Returns: The completed operation.
-    /// - Throws: `GoogleCloudAPIError.cancelled` if the task is cancelled.
+    /// - Throws: `GoogleCloudAPIError.cancelled` if the task is cancelled, `.timeout` if the operation exceeds the timeout.
     public func waitForGlobalOperation(
         operationName: String,
         timeout: TimeInterval = 300,
@@ -374,13 +480,13 @@ public actor GoogleCloudComputeAPI {
 
             if operation.isDone {
                 if operation.hasError {
-                    throw GoogleCloudAPIError.requestFailed("Operation failed: \(operation.errorMessage ?? "Unknown error")")
+                    throw GoogleCloudAPIError.operationFailed(operation.errorMessage ?? "Unknown error")
                 }
                 return operation
             }
 
             if Date().timeIntervalSince(startTime) > timeout {
-                throw GoogleCloudAPIError.requestFailed("Operation timed out after \(timeout) seconds")
+                throw GoogleCloudAPIError.timeout(timeout)
             }
 
             try await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
@@ -408,7 +514,7 @@ public actor GoogleCloudComputeAPI {
     ///   - timeout: Maximum time to wait in seconds.
     ///   - pollInterval: Interval between status checks in seconds.
     /// - Returns: The completed operation.
-    /// - Throws: `GoogleCloudAPIError.cancelled` if the task is cancelled.
+    /// - Throws: `GoogleCloudAPIError.cancelled` if the task is cancelled, `.timeout` if the operation exceeds the timeout.
     public func waitForRegionOperation(
         operationName: String,
         region: String,
@@ -425,13 +531,13 @@ public actor GoogleCloudComputeAPI {
 
             if operation.isDone {
                 if operation.hasError {
-                    throw GoogleCloudAPIError.requestFailed("Operation failed: \(operation.errorMessage ?? "Unknown error")")
+                    throw GoogleCloudAPIError.operationFailed(operation.errorMessage ?? "Unknown error")
                 }
                 return operation
             }
 
             if Date().timeIntervalSince(startTime) > timeout {
-                throw GoogleCloudAPIError.requestFailed("Operation timed out after \(timeout) seconds")
+                throw GoogleCloudAPIError.timeout(timeout)
             }
 
             try await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
@@ -490,15 +596,18 @@ public actor GoogleCloudComputeAPI {
     ///   - zone: The zone to list machine types for.
     ///   - filter: Optional filter expression.
     ///   - maxResults: Maximum number of results to return.
+    ///   - pageToken: Token for pagination.
     /// - Returns: A list of machine types.
     public func listMachineTypes(
         zone: String,
         filter: String? = nil,
-        maxResults: Int? = nil
+        maxResults: Int? = nil,
+        pageToken: String? = nil
     ) async throws -> GoogleCloudListResponse<MachineType> {
         var params: [String: String] = [:]
         if let filter = filter { params["filter"] = filter }
         if let maxResults = maxResults { params["maxResults"] = String(maxResults) }
+        if let pageToken = pageToken { params["pageToken"] = pageToken }
 
         let response: GoogleCloudAPIResponse<GoogleCloudListResponse<MachineType>> = try await client.get(
             path: "/compute/v1/projects/\(projectId)/zones/\(zone)/machineTypes",
@@ -522,10 +631,24 @@ public actor GoogleCloudComputeAPI {
     // MARK: - Zones
 
     /// List all zones in the project.
+    /// - Parameters:
+    ///   - filter: Optional filter expression.
+    ///   - maxResults: Maximum number of results to return.
+    ///   - pageToken: Token for pagination.
     /// - Returns: A list of zones.
-    public func listZones() async throws -> GoogleCloudListResponse<Zone> {
+    public func listZones(
+        filter: String? = nil,
+        maxResults: Int? = nil,
+        pageToken: String? = nil
+    ) async throws -> GoogleCloudListResponse<Zone> {
+        var params: [String: String] = [:]
+        if let filter = filter { params["filter"] = filter }
+        if let maxResults = maxResults { params["maxResults"] = String(maxResults) }
+        if let pageToken = pageToken { params["pageToken"] = pageToken }
+
         let response: GoogleCloudAPIResponse<GoogleCloudListResponse<Zone>> = try await client.get(
-            path: "/compute/v1/projects/\(projectId)/zones"
+            path: "/compute/v1/projects/\(projectId)/zones",
+            queryParameters: params.isEmpty ? nil : params
         )
         return response.data
     }
@@ -543,10 +666,24 @@ public actor GoogleCloudComputeAPI {
     // MARK: - Regions
 
     /// List all regions.
+    /// - Parameters:
+    ///   - filter: Optional filter expression.
+    ///   - maxResults: Maximum number of results to return.
+    ///   - pageToken: Token for pagination.
     /// - Returns: A list of regions.
-    public func listRegions() async throws -> GoogleCloudListResponse<Region> {
+    public func listRegions(
+        filter: String? = nil,
+        maxResults: Int? = nil,
+        pageToken: String? = nil
+    ) async throws -> GoogleCloudListResponse<Region> {
+        var params: [String: String] = [:]
+        if let filter = filter { params["filter"] = filter }
+        if let maxResults = maxResults { params["maxResults"] = String(maxResults) }
+        if let pageToken = pageToken { params["pageToken"] = pageToken }
+
         let response: GoogleCloudAPIResponse<GoogleCloudListResponse<Region>> = try await client.get(
-            path: "/compute/v1/projects/\(projectId)/regions"
+            path: "/compute/v1/projects/\(projectId)/regions",
+            queryParameters: params.isEmpty ? nil : params
         )
         return response.data
     }
@@ -567,10 +704,19 @@ public actor GoogleCloudComputeAPI {
     /// - Parameters:
     ///   - zone: The zone.
     ///   - filter: Optional filter expression.
+    ///   - maxResults: Maximum number of results to return.
+    ///   - pageToken: Token for pagination.
     /// - Returns: A list of disks.
-    public func listDisks(zone: String, filter: String? = nil) async throws -> GoogleCloudListResponse<Disk> {
+    public func listDisks(
+        zone: String,
+        filter: String? = nil,
+        maxResults: Int? = nil,
+        pageToken: String? = nil
+    ) async throws -> GoogleCloudListResponse<Disk> {
         var params: [String: String] = [:]
         if let filter = filter { params["filter"] = filter }
+        if let maxResults = maxResults { params["maxResults"] = String(maxResults) }
+        if let pageToken = pageToken { params["pageToken"] = pageToken }
 
         let response: GoogleCloudAPIResponse<GoogleCloudListResponse<Disk>> = try await client.get(
             path: "/compute/v1/projects/\(projectId)/zones/\(zone)/disks",
@@ -594,10 +740,24 @@ public actor GoogleCloudComputeAPI {
     // MARK: - Networks
 
     /// List VPC networks.
+    /// - Parameters:
+    ///   - filter: Optional filter expression.
+    ///   - maxResults: Maximum number of results to return.
+    ///   - pageToken: Token for pagination.
     /// - Returns: A list of networks.
-    public func listNetworks() async throws -> GoogleCloudListResponse<Network> {
+    public func listNetworks(
+        filter: String? = nil,
+        maxResults: Int? = nil,
+        pageToken: String? = nil
+    ) async throws -> GoogleCloudListResponse<Network> {
+        var params: [String: String] = [:]
+        if let filter = filter { params["filter"] = filter }
+        if let maxResults = maxResults { params["maxResults"] = String(maxResults) }
+        if let pageToken = pageToken { params["pageToken"] = pageToken }
+
         let response: GoogleCloudAPIResponse<GoogleCloudListResponse<Network>> = try await client.get(
-            path: "/compute/v1/projects/\(projectId)/global/networks"
+            path: "/compute/v1/projects/\(projectId)/global/networks",
+            queryParameters: params.isEmpty ? nil : params
         )
         return response.data
     }
@@ -615,10 +775,24 @@ public actor GoogleCloudComputeAPI {
     // MARK: - Firewalls
 
     /// List firewall rules.
+    /// - Parameters:
+    ///   - filter: Optional filter expression.
+    ///   - maxResults: Maximum number of results to return.
+    ///   - pageToken: Token for pagination.
     /// - Returns: A list of firewall rules.
-    public func listFirewalls() async throws -> GoogleCloudListResponse<Firewall> {
+    public func listFirewalls(
+        filter: String? = nil,
+        maxResults: Int? = nil,
+        pageToken: String? = nil
+    ) async throws -> GoogleCloudListResponse<Firewall> {
+        var params: [String: String] = [:]
+        if let filter = filter { params["filter"] = filter }
+        if let maxResults = maxResults { params["maxResults"] = String(maxResults) }
+        if let pageToken = pageToken { params["pageToken"] = pageToken }
+
         let response: GoogleCloudAPIResponse<GoogleCloudListResponse<Firewall>> = try await client.get(
-            path: "/compute/v1/projects/\(projectId)/global/firewalls"
+            path: "/compute/v1/projects/\(projectId)/global/firewalls",
+            queryParameters: params.isEmpty ? nil : params
         )
         return response.data
     }
@@ -667,7 +841,7 @@ public struct ComputeInstance: Codable, Sendable {
     public let status: String?
     public let statusMessage: String?
     public let selfLink: String?
-    public let creationTimestamp: String?
+    public let creationTimestamp: Date?
     public let networkInterfaces: [NetworkInterface]?
     public let disks: [AttachedDisk]?
     public let metadata: Metadata?
@@ -759,7 +933,7 @@ public struct MachineType: Codable, Sendable {
     public let zone: String?
     public let selfLink: String?
     public let isSharedCpu: Bool?
-    public let creationTimestamp: String?
+    public let creationTimestamp: Date?
 }
 
 /// Zone from the API.
@@ -771,7 +945,7 @@ public struct Zone: Codable, Sendable {
     public let region: String?
     public let selfLink: String?
     public let availableCpuPlatforms: [String]?
-    public let creationTimestamp: String?
+    public let creationTimestamp: Date?
 }
 
 /// Region from the API.
@@ -782,7 +956,7 @@ public struct Region: Codable, Sendable {
     public let status: String?
     public let zones: [String]?
     public let selfLink: String?
-    public let creationTimestamp: String?
+    public let creationTimestamp: Date?
 }
 
 /// Disk from the API.
@@ -798,7 +972,7 @@ public struct Disk: Codable, Sendable {
     public let selfLink: String?
     public let users: [String]?
     public let labels: [String: String]?
-    public let creationTimestamp: String?
+    public let creationTimestamp: Date?
 }
 
 /// Network from the API.
@@ -811,7 +985,7 @@ public struct Network: Codable, Sendable {
     public let subnetworks: [String]?
     public let routingConfig: RoutingConfig?
     public let mtu: Int?
-    public let creationTimestamp: String?
+    public let creationTimestamp: Date?
 }
 
 public struct RoutingConfig: Codable, Sendable {
@@ -834,7 +1008,7 @@ public struct Firewall: Codable, Sendable {
     public let denied: [FirewallDenied]?
     public let disabled: Bool?
     public let selfLink: String?
-    public let creationTimestamp: String?
+    public let creationTimestamp: Date?
 }
 
 public struct FirewallAllowed: Codable, Sendable {
