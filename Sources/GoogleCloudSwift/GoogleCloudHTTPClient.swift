@@ -14,6 +14,57 @@ public enum GoogleCloudAPIError: Error, Sendable {
     case decodingError(String)
     case encodingError(String)
     case networkError(String)
+    case cancelled
+    case maxRetriesExceeded(lastError: Error)
+}
+
+/// Configuration for retry behavior.
+public struct RetryConfiguration: Sendable {
+    /// Maximum number of retry attempts (0 means no retries).
+    public let maxRetries: Int
+    /// Base delay between retries in seconds.
+    public let baseDelay: TimeInterval
+    /// Maximum delay between retries in seconds.
+    public let maxDelay: TimeInterval
+    /// Jitter factor (0.0 to 1.0) to randomize retry delays.
+    public let jitterFactor: Double
+
+    /// Default retry configuration with exponential backoff.
+    public static let `default` = RetryConfiguration(
+        maxRetries: 3,
+        baseDelay: 1.0,
+        maxDelay: 30.0,
+        jitterFactor: 0.2
+    )
+
+    /// No retries.
+    public static let none = RetryConfiguration(
+        maxRetries: 0,
+        baseDelay: 0,
+        maxDelay: 0,
+        jitterFactor: 0
+    )
+
+    public init(maxRetries: Int, baseDelay: TimeInterval, maxDelay: TimeInterval, jitterFactor: Double) {
+        self.maxRetries = maxRetries
+        self.baseDelay = baseDelay
+        self.maxDelay = maxDelay
+        self.jitterFactor = jitterFactor
+    }
+
+    /// Calculate delay for a given retry attempt using exponential backoff with jitter.
+    func delay(for attempt: Int) -> TimeInterval {
+        let exponentialDelay = baseDelay * pow(2.0, Double(attempt))
+        let cappedDelay = min(exponentialDelay, maxDelay)
+        let jitter = cappedDelay * jitterFactor * Double.random(in: -1...1)
+        return max(0, cappedDelay + jitter)
+    }
+
+    /// Check if a status code is retryable.
+    func isRetryable(statusCode: Int) -> Bool {
+        // Retry on 429 (Too Many Requests), 500, 502, 503, 504
+        return statusCode == 429 || (statusCode >= 500 && statusCode <= 504)
+    }
 }
 
 extension GoogleCloudAPIError: CustomStringConvertible {
@@ -34,6 +85,10 @@ extension GoogleCloudAPIError: CustomStringConvertible {
             return "Encoding error: \(message)"
         case .networkError(let message):
             return "Network error: \(message)"
+        case .cancelled:
+            return "Operation was cancelled"
+        case .maxRetriesExceeded(let lastError):
+            return "Max retries exceeded, last error: \(lastError)"
         }
     }
 }
@@ -84,20 +139,24 @@ public actor GoogleCloudHTTPClient {
     private let authClient: GoogleCloudAuthClient
     private let httpClient: HTTPClient
     private let baseURL: String
+    private let retryConfiguration: RetryConfiguration
 
     /// Initialize the HTTP client.
     /// - Parameters:
     ///   - authClient: The authentication client for obtaining access tokens.
     ///   - httpClient: The underlying HTTP client.
     ///   - baseURL: The base URL for API requests (e.g., "https://compute.googleapis.com").
+    ///   - retryConfiguration: Configuration for retry behavior on transient failures.
     public init(
         authClient: GoogleCloudAuthClient,
         httpClient: HTTPClient,
-        baseURL: String
+        baseURL: String,
+        retryConfiguration: RetryConfiguration = .default
     ) {
         self.authClient = authClient
         self.httpClient = httpClient
         self.baseURL = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
+        self.retryConfiguration = retryConfiguration
     }
 
     /// Perform a GET request.
@@ -192,6 +251,58 @@ public actor GoogleCloudHTTPClient {
         body: B?,
         queryParameters: [String: String]? = nil,
         allowEmptyResponse: Bool = false
+    ) async throws -> GoogleCloudAPIResponse<T> {
+        var lastError: Error?
+
+        for attempt in 0...retryConfiguration.maxRetries {
+            // Check for cancellation before each attempt
+            try Task.checkCancellation()
+
+            do {
+                return try await executeRequest(
+                    method: method,
+                    path: path,
+                    body: body,
+                    queryParameters: queryParameters,
+                    allowEmptyResponse: allowEmptyResponse
+                )
+            } catch let error as GoogleCloudAPIError {
+                lastError = error
+
+                // Check if this error is retryable
+                if case .httpError(let statusCode, _) = error,
+                   retryConfiguration.isRetryable(statusCode: statusCode),
+                   attempt < retryConfiguration.maxRetries {
+                    let delay = retryConfiguration.delay(for: attempt)
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    continue
+                }
+
+                // Also retry on network errors
+                if case .networkError = error, attempt < retryConfiguration.maxRetries {
+                    let delay = retryConfiguration.delay(for: attempt)
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    continue
+                }
+
+                throw error
+            } catch is CancellationError {
+                throw GoogleCloudAPIError.cancelled
+            } catch {
+                lastError = error
+                throw error
+            }
+        }
+
+        throw GoogleCloudAPIError.maxRetriesExceeded(lastError: lastError ?? GoogleCloudAPIError.requestFailed("Unknown error"))
+    }
+
+    private func executeRequest<T: Decodable & Sendable, B: Encodable & Sendable>(
+        method: GoogleCloudHTTPMethod,
+        path: String,
+        body: B?,
+        queryParameters: [String: String]?,
+        allowEmptyResponse: Bool
     ) async throws -> GoogleCloudAPIResponse<T> {
         let token = try await authClient.getAccessToken()
 
@@ -297,6 +408,74 @@ public struct GoogleCloudListResponse<T: Decodable & Sendable>: Decodable, Senda
     public let items: [T]?
     public let nextPageToken: String?
     public let selfLink: String?
+
+    /// Returns true if there are more pages of results.
+    public var hasMorePages: Bool {
+        nextPageToken != nil && !nextPageToken!.isEmpty
+    }
+
+    /// Returns the items or an empty array if nil.
+    public var itemsOrEmpty: [T] {
+        items ?? []
+    }
+}
+
+// MARK: - Pagination Helper
+
+/// A helper for fetching all pages of a paginated API.
+public struct PaginationHelper<T: Decodable & Sendable>: AsyncSequence {
+    public typealias Element = [T]
+
+    private let fetchPage: (String?) async throws -> GoogleCloudListResponse<T>
+
+    /// Create a pagination helper.
+    /// - Parameter fetchPage: A closure that fetches a page given an optional page token.
+    public init(fetchPage: @escaping (String?) async throws -> GoogleCloudListResponse<T>) {
+        self.fetchPage = fetchPage
+    }
+
+    public func makeAsyncIterator() -> AsyncIterator {
+        AsyncIterator(fetchPage: fetchPage)
+    }
+
+    public struct AsyncIterator: AsyncIteratorProtocol {
+        private let fetchPage: (String?) async throws -> GoogleCloudListResponse<T>
+        private var nextPageToken: String?
+        private var hasStarted = false
+        private var isDone = false
+
+        init(fetchPage: @escaping (String?) async throws -> GoogleCloudListResponse<T>) {
+            self.fetchPage = fetchPage
+        }
+
+        public mutating func next() async throws -> [T]? {
+            guard !isDone else { return nil }
+
+            // Check for cancellation
+            try Task.checkCancellation()
+
+            let response = try await fetchPage(hasStarted ? nextPageToken : nil)
+            hasStarted = true
+
+            nextPageToken = response.nextPageToken
+            if nextPageToken == nil || nextPageToken!.isEmpty {
+                isDone = true
+            }
+
+            let items = response.items ?? []
+            return items.isEmpty && isDone ? nil : items
+        }
+    }
+
+    /// Collect all items from all pages into a single array.
+    public func collectAll() async throws -> [T] {
+        var allItems: [T] = []
+        for try await items in self {
+            try Task.checkCancellation()
+            allItems.append(contentsOf: items)
+        }
+        return allItems
+    }
 }
 
 // MARK: - Operation Response
