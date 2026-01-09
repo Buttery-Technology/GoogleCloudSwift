@@ -30,7 +30,10 @@ import AsyncHTTPClient
 /// ```
 public actor GoogleCloudComputeAPI {
     private let client: GoogleCloudHTTPClient
-    private let projectId: String
+    private let _projectId: String
+
+    /// The Google Cloud project ID this client operates on.
+    public var projectId: String { _projectId }
 
     private static let baseURL = "https://compute.googleapis.com"
 
@@ -48,7 +51,7 @@ public actor GoogleCloudComputeAPI {
         retryConfiguration: RetryConfiguration = .default,
         requestTimeout: TimeInterval = 60
     ) {
-        self.projectId = projectId
+        self._projectId = projectId
         self.client = GoogleCloudHTTPClient(
             authClient: authClient,
             httpClient: httpClient,

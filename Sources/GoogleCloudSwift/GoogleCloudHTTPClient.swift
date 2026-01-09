@@ -309,6 +309,7 @@ public actor GoogleCloudHTTPClient {
         allowEmptyResponse: Bool = false
     ) async throws -> GoogleCloudAPIResponse<T> {
         var lastError: Error?
+        var hasRefreshedToken = false
 
         for attempt in 0...retryConfiguration.maxRetries {
             // Check for cancellation before each attempt
@@ -325,7 +326,16 @@ public actor GoogleCloudHTTPClient {
             } catch let error as GoogleCloudAPIError {
                 lastError = error
 
-                // Check if this error is retryable
+                // Handle 401 Unauthorized - refresh token and retry once
+                if case .httpError(let statusCode, _) = error,
+                   statusCode == 401,
+                   !hasRefreshedToken {
+                    hasRefreshedToken = true
+                    _ = try? await authClient.refreshToken()
+                    continue
+                }
+
+                // Check if this error is retryable (429, 5xx)
                 if case .httpError(let statusCode, _) = error,
                    retryConfiguration.isRetryable(statusCode: statusCode),
                    attempt < retryConfiguration.maxRetries {
