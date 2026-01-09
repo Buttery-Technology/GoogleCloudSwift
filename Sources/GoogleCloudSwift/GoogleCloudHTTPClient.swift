@@ -16,6 +16,8 @@ public enum GoogleCloudAPIError: Error, Sendable {
     case networkError(String)
     case cancelled
     case maxRetriesExceeded(lastError: Error)
+    case timeout(TimeInterval)
+    case operationFailed(String)
 }
 
 /// Configuration for retry behavior.
@@ -89,6 +91,10 @@ extension GoogleCloudAPIError: CustomStringConvertible {
             return "Operation was cancelled"
         case .maxRetriesExceeded(let lastError):
             return "Max retries exceeded, last error: \(lastError)"
+        case .timeout(let seconds):
+            return "Operation timed out after \(seconds) seconds"
+        case .operationFailed(let message):
+            return "Operation failed: \(message)"
         }
     }
 }
@@ -140,6 +146,7 @@ public actor GoogleCloudHTTPClient {
     private let httpClient: HTTPClient
     private let baseURL: String
     private let retryConfiguration: RetryConfiguration
+    private let requestTimeout: TimeInterval
 
     /// Initialize the HTTP client.
     /// - Parameters:
@@ -147,16 +154,19 @@ public actor GoogleCloudHTTPClient {
     ///   - httpClient: The underlying HTTP client.
     ///   - baseURL: The base URL for API requests (e.g., "https://compute.googleapis.com").
     ///   - retryConfiguration: Configuration for retry behavior on transient failures.
+    ///   - requestTimeout: Timeout for individual HTTP requests in seconds (default: 60).
     public init(
         authClient: GoogleCloudAuthClient,
         httpClient: HTTPClient,
         baseURL: String,
-        retryConfiguration: RetryConfiguration = .default
+        retryConfiguration: RetryConfiguration = .default,
+        requestTimeout: TimeInterval = 60
     ) {
         self.authClient = authClient
         self.httpClient = httpClient
         self.baseURL = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
         self.retryConfiguration = retryConfiguration
+        self.requestTimeout = requestTimeout
     }
 
     /// Perform a GET request.
@@ -327,7 +337,7 @@ public actor GoogleCloudHTTPClient {
 
         let response: HTTPClientResponse
         do {
-            response = try await httpClient.execute(request, timeout: .seconds(60))
+            response = try await httpClient.execute(request, timeout: .seconds(Int64(requestTimeout)))
         } catch {
             throw GoogleCloudAPIError.networkError("Request failed: \(error)")
         }
@@ -493,9 +503,9 @@ public struct GoogleCloudOperation: Codable, Sendable {
     public let targetId: String?
     public let user: String?
     public let progress: Int?
-    public let insertTime: String?
-    public let startTime: String?
-    public let endTime: String?
+    public let insertTime: Date?
+    public let startTime: Date?
+    public let endTime: Date?
     public let selfLink: String?
     public let zone: String?
     public let region: String?
