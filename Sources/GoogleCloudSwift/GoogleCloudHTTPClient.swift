@@ -69,8 +69,8 @@ public struct RetryConfiguration: Sendable {
     }
 }
 
-extension GoogleCloudAPIError: CustomStringConvertible {
-    public var description: String {
+extension GoogleCloudAPIError: LocalizedError {
+    public var errorDescription: String? {
         switch self {
         case .requestFailed(let message):
             return "Request failed: \(message)"
@@ -96,6 +96,52 @@ extension GoogleCloudAPIError: CustomStringConvertible {
         case .operationFailed(let message):
             return "Operation failed: \(message)"
         }
+    }
+
+    public var failureReason: String? {
+        switch self {
+        case .httpError(let code, _):
+            if code == 401 { return "Authentication failed or token expired" }
+            if code == 403 { return "Permission denied" }
+            if code == 404 { return "Resource not found" }
+            if code == 429 { return "Rate limit exceeded" }
+            if code >= 500 { return "Google Cloud service error" }
+            return nil
+        case .networkError:
+            return "Network connectivity issue"
+        case .timeout:
+            return "The operation took too long to complete"
+        case .cancelled:
+            return "The operation was explicitly cancelled"
+        default:
+            return nil
+        }
+    }
+
+    public var recoverySuggestion: String? {
+        switch self {
+        case .httpError(let code, _):
+            if code == 401 { return "Check your credentials or refresh the auth token" }
+            if code == 403 { return "Verify the service account has the required permissions" }
+            if code == 404 { return "Verify the resource exists and the name is correct" }
+            if code == 429 { return "Wait and retry the request, or reduce request frequency" }
+            if code >= 500 { return "Retry the request after a short delay" }
+            return nil
+        case .networkError:
+            return "Check your network connection and try again"
+        case .timeout:
+            return "Try increasing the timeout or check if the operation is still running"
+        case .decodingError:
+            return "This may indicate an API change; check for library updates"
+        default:
+            return nil
+        }
+    }
+}
+
+extension GoogleCloudAPIError: CustomStringConvertible {
+    public var description: String {
+        errorDescription ?? "Unknown Google Cloud API error"
     }
 }
 
@@ -550,4 +596,69 @@ public struct OperationErrorItem: Codable, Sendable {
     public let code: String?
     public let message: String?
     public let location: String?
+}
+
+// MARK: - HTTPClient Factory
+
+/// Factory for creating and managing HTTPClient instances.
+///
+/// This helper simplifies HTTPClient lifecycle management for Google Cloud API usage.
+///
+/// ## Example Usage
+/// ```swift
+/// // Option 1: Use withHTTPClient for automatic cleanup
+/// try await GoogleCloudHTTPClientFactory.withHTTPClient { httpClient in
+///     let authClient = try GoogleCloudAuthClient(
+///         credentialsPath: "/path/to/credentials.json",
+///         httpClient: httpClient
+///     )
+///     let computeAPI = await GoogleCloudComputeAPI.create(
+///         authClient: authClient,
+///         httpClient: httpClient
+///     )
+///     // Use the API...
+/// }
+/// // HTTPClient is automatically shut down when the closure returns
+///
+/// // Option 2: Create a shared client for long-lived applications
+/// let httpClient = GoogleCloudHTTPClientFactory.makeHTTPClient()
+/// defer { GoogleCloudHTTPClientFactory.shutdown(httpClient) }
+/// ```
+public enum GoogleCloudHTTPClientFactory {
+    /// Create a new HTTPClient configured for Google Cloud API usage.
+    ///
+    /// - Important: You are responsible for calling `shutdown(_:)` when done.
+    /// - Returns: A configured HTTPClient instance.
+    public static func makeHTTPClient() -> HTTPClient {
+        HTTPClient(eventLoopGroupProvider: .singleton)
+    }
+
+    /// Shut down an HTTPClient gracefully.
+    ///
+    /// Call this when you're done using the HTTPClient to release resources.
+    /// - Parameter client: The HTTPClient to shut down.
+    public static func shutdown(_ client: HTTPClient) {
+        try? client.syncShutdown()
+    }
+
+    /// Execute a closure with a managed HTTPClient that is automatically shut down.
+    ///
+    /// This is the recommended approach for scripts and short-lived operations.
+    ///
+    /// - Parameter operation: An async closure that receives the HTTPClient.
+    /// - Returns: The result of the operation.
+    /// - Throws: Any error thrown by the operation.
+    public static func withHTTPClient<T: Sendable>(
+        _ operation: @Sendable (HTTPClient) async throws -> T
+    ) async throws -> T {
+        let client = makeHTTPClient()
+        do {
+            let result = try await operation(client)
+            try? await client.shutdown()
+            return result
+        } catch {
+            try? await client.shutdown()
+            throw error
+        }
+    }
 }
