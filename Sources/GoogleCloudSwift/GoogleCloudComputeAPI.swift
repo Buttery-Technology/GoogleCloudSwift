@@ -202,7 +202,94 @@ public actor GoogleCloudComputeAPI {
         return response.data
     }
 
-    // MARK: - Operations
+    /// Set metadata on an instance.
+    /// - Parameters:
+    ///   - name: The instance name.
+    ///   - zone: The zone where the instance is located.
+    ///   - items: The metadata items to set.
+    ///   - fingerprint: The current metadata fingerprint (from getInstance).
+    /// - Returns: The operation for tracking the update.
+    public func setMetadata(
+        name: String,
+        zone: String,
+        items: [MetadataItemInsert],
+        fingerprint: String
+    ) async throws -> GoogleCloudOperation {
+        let body = SetMetadataRequest(items: items, fingerprint: fingerprint)
+        let response: GoogleCloudAPIResponse<GoogleCloudOperation> = try await client.post(
+            path: "/compute/v1/projects/\(projectId)/zones/\(zone)/instances/\(name)/setMetadata",
+            body: body
+        )
+        return response.data
+    }
+
+    /// Get the serial port output from an instance.
+    /// - Parameters:
+    ///   - name: The instance name.
+    ///   - zone: The zone where the instance is located.
+    ///   - port: The port number (1-4, defaults to 1).
+    ///   - start: The byte position to start reading from. Use -1 to get only new output since last call.
+    /// - Returns: The serial port output.
+    public func getSerialPortOutput(
+        name: String,
+        zone: String,
+        port: Int = 1,
+        start: Int64? = nil
+    ) async throws -> SerialPortOutput {
+        var params: [String: String] = ["port": String(port)]
+        if let start = start { params["start"] = String(start) }
+
+        let response: GoogleCloudAPIResponse<SerialPortOutput> = try await client.get(
+            path: "/compute/v1/projects/\(projectId)/zones/\(zone)/instances/\(name)/serialPort",
+            queryParameters: params
+        )
+        return response.data
+    }
+
+    // MARK: - Pagination Helpers
+
+    /// Get a pagination helper for listing all instances in a zone.
+    /// - Parameters:
+    ///   - zone: The zone to list instances from.
+    ///   - filter: Optional filter expression.
+    ///   - maxResults: Maximum number of results per page.
+    /// - Returns: A pagination helper that can be used to iterate through all pages.
+    public func listAllInstances(
+        zone: String,
+        filter: String? = nil,
+        maxResults: Int? = nil
+    ) -> PaginationHelper<ComputeInstance> {
+        PaginationHelper { pageToken in
+            try await self.listInstances(
+                zone: zone,
+                filter: filter,
+                maxResults: maxResults,
+                pageToken: pageToken
+            )
+        }
+    }
+
+    /// Get a pagination helper for listing all machine types in a zone.
+    /// - Parameters:
+    ///   - zone: The zone to list machine types for.
+    ///   - filter: Optional filter expression.
+    ///   - maxResults: Maximum number of results per page.
+    /// - Returns: A pagination helper that can be used to iterate through all pages.
+    public func listAllMachineTypes(
+        zone: String,
+        filter: String? = nil,
+        maxResults: Int? = nil
+    ) -> PaginationHelper<MachineType> {
+        PaginationHelper { pageToken in
+            try await self.listMachineTypes(
+                zone: zone,
+                filter: filter,
+                maxResults: maxResults
+            )
+        }
+    }
+
+    // MARK: - Zone Operations
 
     /// Get the status of a zone operation.
     /// - Parameters:
@@ -223,6 +310,7 @@ public actor GoogleCloudComputeAPI {
     ///   - timeout: Maximum time to wait in seconds.
     ///   - pollInterval: Interval between status checks in seconds.
     /// - Returns: The completed operation.
+    /// - Throws: `GoogleCloudAPIError.cancelled` if the task is cancelled.
     public func waitForZoneOperation(
         operationName: String,
         zone: String,
@@ -232,6 +320,9 @@ public actor GoogleCloudComputeAPI {
         let startTime = Date()
 
         while true {
+            // Check for task cancellation
+            try Task.checkCancellation()
+
             let operation = try await getZoneOperation(operationName: operationName, zone: zone)
 
             if operation.isDone {
@@ -246,6 +337,149 @@ public actor GoogleCloudComputeAPI {
             }
 
             try await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
+        }
+    }
+
+    // MARK: - Global Operations
+
+    /// Get the status of a global operation.
+    /// - Parameter operationName: The operation name.
+    /// - Returns: The operation status.
+    public func getGlobalOperation(operationName: String) async throws -> GoogleCloudOperation {
+        let response: GoogleCloudAPIResponse<GoogleCloudOperation> = try await client.get(
+            path: "/compute/v1/projects/\(projectId)/global/operations/\(operationName)"
+        )
+        return response.data
+    }
+
+    /// Wait for a global operation to complete.
+    /// - Parameters:
+    ///   - operationName: The operation name.
+    ///   - timeout: Maximum time to wait in seconds.
+    ///   - pollInterval: Interval between status checks in seconds.
+    /// - Returns: The completed operation.
+    /// - Throws: `GoogleCloudAPIError.cancelled` if the task is cancelled.
+    public func waitForGlobalOperation(
+        operationName: String,
+        timeout: TimeInterval = 300,
+        pollInterval: TimeInterval = 5
+    ) async throws -> GoogleCloudOperation {
+        let startTime = Date()
+
+        while true {
+            // Check for task cancellation
+            try Task.checkCancellation()
+
+            let operation = try await getGlobalOperation(operationName: operationName)
+
+            if operation.isDone {
+                if operation.hasError {
+                    throw GoogleCloudAPIError.requestFailed("Operation failed: \(operation.errorMessage ?? "Unknown error")")
+                }
+                return operation
+            }
+
+            if Date().timeIntervalSince(startTime) > timeout {
+                throw GoogleCloudAPIError.requestFailed("Operation timed out after \(timeout) seconds")
+            }
+
+            try await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
+        }
+    }
+
+    // MARK: - Regional Operations
+
+    /// Get the status of a regional operation.
+    /// - Parameters:
+    ///   - operationName: The operation name.
+    ///   - region: The region where the operation is running.
+    /// - Returns: The operation status.
+    public func getRegionOperation(operationName: String, region: String) async throws -> GoogleCloudOperation {
+        let response: GoogleCloudAPIResponse<GoogleCloudOperation> = try await client.get(
+            path: "/compute/v1/projects/\(projectId)/regions/\(region)/operations/\(operationName)"
+        )
+        return response.data
+    }
+
+    /// Wait for a regional operation to complete.
+    /// - Parameters:
+    ///   - operationName: The operation name.
+    ///   - region: The region where the operation is running.
+    ///   - timeout: Maximum time to wait in seconds.
+    ///   - pollInterval: Interval between status checks in seconds.
+    /// - Returns: The completed operation.
+    /// - Throws: `GoogleCloudAPIError.cancelled` if the task is cancelled.
+    public func waitForRegionOperation(
+        operationName: String,
+        region: String,
+        timeout: TimeInterval = 300,
+        pollInterval: TimeInterval = 5
+    ) async throws -> GoogleCloudOperation {
+        let startTime = Date()
+
+        while true {
+            // Check for task cancellation
+            try Task.checkCancellation()
+
+            let operation = try await getRegionOperation(operationName: operationName, region: region)
+
+            if operation.isDone {
+                if operation.hasError {
+                    throw GoogleCloudAPIError.requestFailed("Operation failed: \(operation.errorMessage ?? "Unknown error")")
+                }
+                return operation
+            }
+
+            if Date().timeIntervalSince(startTime) > timeout {
+                throw GoogleCloudAPIError.requestFailed("Operation timed out after \(timeout) seconds")
+            }
+
+            try await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
+        }
+    }
+
+    /// Wait for an operation to complete, automatically detecting whether it's zonal, regional, or global.
+    /// - Parameters:
+    ///   - operation: The operation to wait for.
+    ///   - timeout: Maximum time to wait in seconds.
+    ///   - pollInterval: Interval between status checks in seconds.
+    /// - Returns: The completed operation.
+    /// - Throws: `GoogleCloudAPIError.cancelled` if the task is cancelled.
+    public func waitForOperation(
+        _ operation: GoogleCloudOperation,
+        timeout: TimeInterval = 300,
+        pollInterval: TimeInterval = 5
+    ) async throws -> GoogleCloudOperation {
+        guard let name = operation.name else {
+            throw GoogleCloudAPIError.requestFailed("Operation has no name")
+        }
+
+        // Determine operation scope from the selfLink or zone/region fields
+        if let zone = operation.zone {
+            // Extract zone name from URL if needed
+            let zoneName = zone.components(separatedBy: "/").last ?? zone
+            return try await waitForZoneOperation(
+                operationName: name,
+                zone: zoneName,
+                timeout: timeout,
+                pollInterval: pollInterval
+            )
+        } else if let region = operation.region {
+            // Extract region name from URL if needed
+            let regionName = region.components(separatedBy: "/").last ?? region
+            return try await waitForRegionOperation(
+                operationName: name,
+                region: regionName,
+                timeout: timeout,
+                pollInterval: pollInterval
+            )
+        } else {
+            // Global operation
+            return try await waitForGlobalOperation(
+                operationName: name,
+                timeout: timeout,
+                pollInterval: pollInterval
+            )
         }
     }
 
@@ -884,4 +1118,21 @@ public struct FirewallAllowedInsert: Encodable, Sendable {
 struct SetLabelsRequest: Encodable, Sendable {
     let labels: [String: String]
     let labelFingerprint: String
+}
+
+struct SetMetadataRequest: Encodable, Sendable {
+    let items: [MetadataItemInsert]
+    let fingerprint: String
+}
+
+/// Serial port output from an instance.
+public struct SerialPortOutput: Codable, Sendable {
+    /// The content of the serial port output.
+    public let contents: String?
+    /// The byte position of the next output.
+    public let next: Int64?
+    /// The byte position of the start of this output.
+    public let start: Int64?
+    /// The instance selfLink.
+    public let selfLink: String?
 }
