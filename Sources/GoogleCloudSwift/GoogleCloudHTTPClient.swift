@@ -454,7 +454,7 @@ public actor GoogleCloudHTTPClient {
 
         let decoder = JSONDecoder()
         // Google Cloud APIs use camelCase natively - no conversion needed
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = GoogleCloudDateDecoding.strategy
 
         do {
             let data = try decoder.decode(T.self, from: responseData)
@@ -595,7 +595,7 @@ public actor GoogleCloudHTTPClient {
                 }
 
                 let decoder = JSONDecoder()
-                decoder.dateDecodingStrategy = .iso8601
+                decoder.dateDecodingStrategy = GoogleCloudDateDecoding.strategy
 
                 do {
                     let decodedData = try decoder.decode(T.self, from: responseData)
@@ -673,6 +673,36 @@ public actor GoogleCloudHTTPClient {
 /// An empty body for POST/PUT requests that don't require a body.
 public struct EmptyBody: Encodable, Sendable {
     public init() {}
+}
+
+// MARK: - Date Decoding
+
+/// Custom date decoding strategy for Google Cloud APIs.
+/// Handles RFC 3339 timestamps with or without fractional seconds.
+enum GoogleCloudDateDecoding {
+    static let strategy: JSONDecoder.DateDecodingStrategy = .custom { decoder in
+        let container = try decoder.singleValueContainer()
+        let string = try container.decode(String.self)
+
+        // Try with fractional seconds first (more common in GCP responses)
+        let formatterWithFractional = ISO8601DateFormatter()
+        formatterWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatterWithFractional.date(from: string) {
+            return date
+        }
+
+        // Fall back to without fractional seconds
+        let formatterWithoutFractional = ISO8601DateFormatter()
+        formatterWithoutFractional.formatOptions = [.withInternetDateTime]
+        if let date = formatterWithoutFractional.date(from: string) {
+            return date
+        }
+
+        throw DecodingError.dataCorruptedError(
+            in: container,
+            debugDescription: "Cannot decode date: \(string)"
+        )
+    }
 }
 
 public struct EmptyResponse: Decodable, Sendable {
