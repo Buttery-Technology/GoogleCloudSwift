@@ -319,14 +319,14 @@ public actor GoogleCloudStorageAPI {
         data: Data,
         contentType: String
     ) async throws -> StorageObject {
-        let encodedName = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? name
+        // Don't encode name here - buildURL handles query parameter encoding
         let response: GoogleCloudAPIResponse<StorageObject> = try await client.postRawWithJSONResponse(
             path: "/upload/storage/v1/b/\(bucket)/o",
             data: data,
             contentType: contentType,
             queryParameters: [
                 "uploadType": "media",
-                "name": encodedName
+                "name": name
             ]
         )
         return response.data
