@@ -279,6 +279,39 @@ public actor GoogleCloudHTTPClient {
         )
     }
 
+    // MARK: - Raw Data Methods
+
+    /// Perform a GET request that returns raw data (not JSON).
+    /// Use this for downloading binary content like Cloud Storage objects.
+    public func getRaw(
+        path: String,
+        queryParameters: [String: String]? = nil
+    ) async throws -> Data {
+        try await executeRawRequest(method: .get, path: path, data: nil, contentType: nil, queryParameters: queryParameters)
+    }
+
+    /// Perform a POST request with raw data body.
+    /// Use this for uploading binary content like Cloud Storage objects.
+    public func postRaw(
+        path: String,
+        data: Data,
+        contentType: String,
+        queryParameters: [String: String]? = nil
+    ) async throws -> Data {
+        try await executeRawRequest(method: .post, path: path, data: data, contentType: contentType, queryParameters: queryParameters)
+    }
+
+    /// Perform a POST request with raw data body and return a JSON-decoded response.
+    /// Use this for uploading binary content that returns JSON metadata.
+    public func postRawWithJSONResponse<T: Decodable & Sendable>(
+        path: String,
+        data: Data,
+        contentType: String,
+        queryParameters: [String: String]? = nil
+    ) async throws -> GoogleCloudAPIResponse<T> {
+        try await executeRawRequestWithJSONResponse(method: .post, path: path, data: data, contentType: contentType, queryParameters: queryParameters)
+    }
+
     /// Get the project ID from the auth client.
     public func getProjectId() async -> String {
         await authClient.projectId
@@ -436,6 +469,182 @@ public actor GoogleCloudHTTPClient {
         }
     }
 
+    private func executeRawRequest(
+        method: GoogleCloudHTTPMethod,
+        path: String,
+        data: Data?,
+        contentType: String?,
+        queryParameters: [String: String]?
+    ) async throws -> Data {
+        var lastError: Error?
+        var hasRefreshedToken = false
+
+        for attempt in 0...retryConfiguration.maxRetries {
+            try Task.checkCancellation()
+
+            do {
+                let token = try await authClient.getAccessToken()
+                let urlString = buildURL(path: path, queryParameters: queryParameters)
+                var request = HTTPClientRequest(url: urlString)
+                request.method = HTTPMethod(rawValue: method.rawValue)
+
+                request.headers.add(name: "Authorization", value: "Bearer \(token.token)")
+                if let contentType = contentType {
+                    request.headers.add(name: "Content-Type", value: contentType)
+                }
+
+                if let data = data {
+                    request.body = .bytes(ByteBuffer(data: data))
+                }
+
+                let response: HTTPClientResponse
+                do {
+                    response = try await httpClient.execute(request, timeout: .seconds(Int64(requestTimeout)))
+                } catch {
+                    throw GoogleCloudAPIError.networkError("Request failed: \(error)")
+                }
+
+                let responseBody = try await response.body.collect(upTo: 100 * 1024 * 1024) // 100MB max for raw data
+                let responseData = Data(buffer: responseBody)
+
+                guard response.status.code >= 200 && response.status.code < 300 else {
+                    let errorResponse = try? JSONDecoder().decode(GoogleCloudErrorResponse.self, from: responseData)
+                    throw GoogleCloudAPIError.httpError(Int(response.status.code), errorResponse)
+                }
+
+                return responseData
+            } catch let error as GoogleCloudAPIError {
+                lastError = error
+
+                if case .httpError(let statusCode, _) = error,
+                   statusCode == 401,
+                   !hasRefreshedToken {
+                    hasRefreshedToken = true
+                    _ = try? await authClient.refreshToken()
+                    continue
+                }
+
+                if case .httpError(let statusCode, _) = error,
+                   retryConfiguration.isRetryable(statusCode: statusCode),
+                   attempt < retryConfiguration.maxRetries {
+                    let delay = retryConfiguration.delay(for: attempt)
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    continue
+                }
+
+                if case .networkError = error, attempt < retryConfiguration.maxRetries {
+                    let delay = retryConfiguration.delay(for: attempt)
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    continue
+                }
+
+                throw error
+            } catch is CancellationError {
+                throw GoogleCloudAPIError.cancelled
+            } catch {
+                lastError = error
+                throw error
+            }
+        }
+
+        throw GoogleCloudAPIError.maxRetriesExceeded(lastError: lastError ?? GoogleCloudAPIError.requestFailed("Unknown error"))
+    }
+
+    private func executeRawRequestWithJSONResponse<T: Decodable & Sendable>(
+        method: GoogleCloudHTTPMethod,
+        path: String,
+        data: Data?,
+        contentType: String?,
+        queryParameters: [String: String]?
+    ) async throws -> GoogleCloudAPIResponse<T> {
+        var lastError: Error?
+        var hasRefreshedToken = false
+
+        for attempt in 0...retryConfiguration.maxRetries {
+            try Task.checkCancellation()
+
+            do {
+                let token = try await authClient.getAccessToken()
+                let urlString = buildURL(path: path, queryParameters: queryParameters)
+                var request = HTTPClientRequest(url: urlString)
+                request.method = HTTPMethod(rawValue: method.rawValue)
+
+                request.headers.add(name: "Authorization", value: "Bearer \(token.token)")
+                if let contentType = contentType {
+                    request.headers.add(name: "Content-Type", value: contentType)
+                }
+
+                if let data = data {
+                    request.body = .bytes(ByteBuffer(data: data))
+                }
+
+                let response: HTTPClientResponse
+                do {
+                    response = try await httpClient.execute(request, timeout: .seconds(Int64(requestTimeout)))
+                } catch {
+                    throw GoogleCloudAPIError.networkError("Request failed: \(error)")
+                }
+
+                let responseBody = try await response.body.collect(upTo: 10 * 1024 * 1024)
+                let responseData = Data(buffer: responseBody)
+                let headers = response.headers.map { ($0.name, $0.value) }
+
+                guard response.status.code >= 200 && response.status.code < 300 else {
+                    let errorResponse = try? JSONDecoder().decode(GoogleCloudErrorResponse.self, from: responseData)
+                    throw GoogleCloudAPIError.httpError(Int(response.status.code), errorResponse)
+                }
+
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+
+                do {
+                    let decodedData = try decoder.decode(T.self, from: responseData)
+                    return GoogleCloudAPIResponse(
+                        data: decodedData,
+                        statusCode: Int(response.status.code),
+                        headers: headers
+                    )
+                } catch {
+                    let responseString = String(data: responseData, encoding: .utf8) ?? "Unable to decode response"
+                    throw GoogleCloudAPIError.decodingError("Failed to decode response: \(error). Response: \(responseString)")
+                }
+            } catch let error as GoogleCloudAPIError {
+                lastError = error
+
+                if case .httpError(let statusCode, _) = error,
+                   statusCode == 401,
+                   !hasRefreshedToken {
+                    hasRefreshedToken = true
+                    _ = try? await authClient.refreshToken()
+                    continue
+                }
+
+                if case .httpError(let statusCode, _) = error,
+                   retryConfiguration.isRetryable(statusCode: statusCode),
+                   attempt < retryConfiguration.maxRetries {
+                    let delay = retryConfiguration.delay(for: attempt)
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    continue
+                }
+
+                if case .networkError = error, attempt < retryConfiguration.maxRetries {
+                    let delay = retryConfiguration.delay(for: attempt)
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    continue
+                }
+
+                throw error
+            } catch is CancellationError {
+                throw GoogleCloudAPIError.cancelled
+            } catch {
+                lastError = error
+                throw error
+            }
+        }
+
+        throw GoogleCloudAPIError.maxRetriesExceeded(lastError: lastError ?? GoogleCloudAPIError.requestFailed("Unknown error"))
+    }
+
     private func buildURL(path: String, queryParameters: [String: String]?) -> String {
         var urlString = "\(baseURL)\(path.hasPrefix("/") ? path : "/\(path)")"
 
@@ -461,7 +670,10 @@ public actor GoogleCloudHTTPClient {
 
 // MARK: - Helper Types
 
-private struct EmptyBody: Encodable {}
+/// An empty body for POST/PUT requests that don't require a body.
+public struct EmptyBody: Encodable, Sendable {
+    public init() {}
+}
 
 public struct EmptyResponse: Decodable, Sendable {
     public init() {}
@@ -474,6 +686,13 @@ public struct GoogleCloudListResponse<T: Decodable & Sendable>: Decodable, Senda
     public let items: [T]?
     public let nextPageToken: String?
     public let selfLink: String?
+
+    /// Create a list response.
+    public init(items: [T]?, nextPageToken: String?, selfLink: String? = nil) {
+        self.items = items
+        self.nextPageToken = nextPageToken
+        self.selfLink = selfLink
+    }
 
     /// Returns true if there are more pages of results.
     public var hasMorePages: Bool {
