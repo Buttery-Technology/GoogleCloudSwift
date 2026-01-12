@@ -67,14 +67,14 @@ public struct ServerSentEvent: Sendable {
 }
 
 /// Errors that can occur during streaming operations.
-public enum StreamingError: Error, Sendable {
+public enum StreamingError: Error, Sendable, LocalizedError {
     case connectionFailed(String)
     case streamClosed
     case invalidData(String)
     case timeout
     case serverError(Int, String?)
 
-    public var localizedDescription: String {
+    public var errorDescription: String? {
         switch self {
         case .connectionFailed(let message):
             return "Connection failed: \(message)"
@@ -86,6 +86,40 @@ public enum StreamingError: Error, Sendable {
             return "Stream timed out"
         case .serverError(let code, let message):
             return "Server error \(code): \(message ?? "Unknown")"
+        }
+    }
+
+    public var failureReason: String? {
+        switch self {
+        case .connectionFailed:
+            return "The connection to the streaming endpoint could not be established."
+        case .streamClosed:
+            return "The server closed the connection before the stream completed."
+        case .invalidData:
+            return "The received data could not be parsed or processed."
+        case .timeout:
+            return "No data was received within the expected time period."
+        case .serverError(let code, _):
+            return "The server returned HTTP status code \(code)."
+        }
+    }
+
+    public var recoverySuggestion: String? {
+        switch self {
+        case .connectionFailed:
+            return "Check your network connection and try again."
+        case .streamClosed:
+            return "Retry the request. If the problem persists, the service may be experiencing issues."
+        case .invalidData:
+            return "This may indicate an API version mismatch or unexpected response format."
+        case .timeout:
+            return "Increase the timeout duration or check if the service is responding."
+        case .serverError(let code, _):
+            if code >= 500 {
+                return "This is a server-side error. Retry the request after a short delay."
+            } else {
+                return "Check the request parameters and authentication."
+            }
         }
     }
 }
