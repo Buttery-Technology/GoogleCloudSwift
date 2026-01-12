@@ -313,9 +313,196 @@ actor Counter {
     #expect(stats.missRate == 1.0)
 }
 
+// MARK: - Request Coalescing Tests
+
+@Test func testCacheGetOrFetchCoalescing() async throws {
+    let config = CacheConfiguration(
+        defaultTTL: 300,
+        maxEntries: 100,
+        coalesceFetches: true
+    )
+    let cache = InMemoryCache<String, Int>(configuration: config)
+    let fetchCounter = Counter()
+
+    // Launch multiple concurrent requests for the same key
+    let results = try await withThrowingTaskGroup(of: Int.self) { group in
+        for _ in 0..<10 {
+            group.addTask {
+                try await cache.getOrFetch("shared-key") {
+                    // Add small delay to ensure coalescing
+                    try await Task.sleep(nanoseconds: 50_000_000)
+                    await fetchCounter.increment()
+                    return 42
+                }
+            }
+        }
+
+        var results: [Int] = []
+        for try await result in group {
+            results.append(result)
+        }
+        return results
+    }
+
+    // All results should be the same
+    #expect(results.count == 10)
+    #expect(results.allSatisfy { $0 == 42 })
+
+    // Only one fetch should have occurred due to coalescing
+    #expect(await fetchCounter.value == 1)
+}
+
+@Test func testCacheGetOrFetchNoCoalescing() async throws {
+    let config = CacheConfiguration(
+        defaultTTL: 300,
+        maxEntries: 100,
+        coalesceFetches: false
+    )
+    let cache = InMemoryCache<String, Int>(configuration: config)
+    let fetchCounter = Counter()
+
+    // Without coalescing, each request fetches independently
+    // But since one will complete first and cache, others should use cache
+    let result1 = try await cache.getOrFetch("key1") {
+        await fetchCounter.increment()
+        return 42
+    }
+
+    let result2 = try await cache.getOrFetch("key1") {
+        await fetchCounter.increment()
+        return 99
+    }
+
+    #expect(result1 == 42)
+    #expect(result2 == 42) // Uses cached value
+    #expect(await fetchCounter.value == 1) // Only first fetch
+}
+
+// MARK: - Cache Observer Tests
+
+@Test func testCacheObserverHitMiss() {
+    let observer = TestCacheObserver()
+    let cache = InMemoryCache<String, String>(configuration: .default, observer: observer)
+
+    cache.set("key1", value: "value1")
+
+    // Should emit set event
+    #expect(observer.setCount == 1)
+
+    // Hit
+    _ = cache.get("key1")
+    #expect(observer.hitCount == 1)
+
+    // Miss
+    _ = cache.get("nonexistent")
+    #expect(observer.missCount == 1)
+}
+
+@Test func testCacheObserverEviction() {
+    let config = CacheConfiguration(
+        defaultTTL: 300,
+        maxEntries: 2
+    )
+    let observer = TestCacheObserver()
+    let cache = InMemoryCache<String, String>(configuration: config, observer: observer)
+
+    cache.set("key1", value: "value1")
+    cache.set("key2", value: "value2")
+    cache.set("key3", value: "value3") // Should evict one
+
+    #expect(observer.evictedCount == 1)
+}
+
+@Test func testCacheObserverRemove() {
+    let observer = TestCacheObserver()
+    let cache = InMemoryCache<String, String>(configuration: .default, observer: observer)
+
+    cache.set("key1", value: "value1")
+    _ = cache.remove("key1")
+
+    #expect(observer.removedCount == 1)
+}
+
+// MARK: - Coalesce Fetches Configuration Test
+
+@Test func testCoalesceFetchesConfiguration() {
+    let config = CacheConfiguration.default
+    #expect(config.coalesceFetches == true)
+
+    let customConfig = CacheConfiguration(coalesceFetches: false)
+    #expect(customConfig.coalesceFetches == false)
+}
+
 // MARK: - Helper Types
 
 struct TestCacheData: Sendable, Equatable {
     let name: String
     let value: Int
+}
+
+/// Test observer for cache events
+final class TestCacheObserver: CacheEventObserver, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _hitCount = 0
+    private var _missCount = 0
+    private var _setCount = 0
+    private var _removedCount = 0
+    private var _evictedCount = 0
+    private var _expiredCount = 0
+
+    var hitCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _hitCount
+    }
+
+    var missCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _missCount
+    }
+
+    var setCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _setCount
+    }
+
+    var removedCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _removedCount
+    }
+
+    var evictedCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _evictedCount
+    }
+
+    var expiredCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return _expiredCount
+    }
+
+    func cacheDidEmitEvent<Key: Sendable>(_ event: CacheEvent<Key>) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        switch event {
+        case .hit:
+            _hitCount += 1
+        case .miss:
+            _missCount += 1
+        case .set:
+            _setCount += 1
+        case .removed:
+            _removedCount += 1
+        case .evicted:
+            _evictedCount += 1
+        case .expired:
+            _expiredCount += 1
+        }
+    }
 }

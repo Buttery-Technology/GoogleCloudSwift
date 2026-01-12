@@ -7,6 +7,50 @@
 
 import Foundation
 
+// MARK: - Cache Events
+
+/// Events emitted by the cache for observability.
+public enum CacheEvent<Key: Sendable>: Sendable {
+    /// A cache hit occurred.
+    case hit(key: Key)
+    /// A cache miss occurred.
+    case miss(key: Key)
+    /// A value was stored in the cache.
+    case set(key: Key)
+    /// A value was removed from the cache.
+    case removed(key: Key)
+    /// A value was evicted due to capacity limits.
+    case evicted(key: Key)
+    /// A value expired and was removed.
+    case expired(key: Key)
+}
+
+/// Protocol for receiving cache events.
+///
+/// Implement this protocol to monitor cache behavior for debugging,
+/// metrics collection, or logging purposes.
+///
+/// ## Example Usage
+/// ```swift
+/// class MyCacheObserver: CacheEventObserver {
+///     func cacheDidEmitEvent<Key>(_ event: CacheEvent<Key>) {
+///         switch event {
+///         case .hit(let key):
+///             metrics.increment("cache.hit")
+///         case .miss(let key):
+///             metrics.increment("cache.miss")
+///         default:
+///             break
+///         }
+///     }
+/// }
+/// ```
+public protocol CacheEventObserver: AnyObject, Sendable {
+    /// Called when a cache event occurs.
+    /// - Parameter event: The cache event that occurred.
+    func cacheDidEmitEvent<Key: Sendable>(_ event: CacheEvent<Key>)
+}
+
 // MARK: - Cache Errors
 
 /// Errors that can occur with caching.
@@ -15,8 +59,6 @@ public enum CacheError: Error, Sendable, LocalizedError {
     case notFound(key: String)
     /// The cached item has expired.
     case expired(key: String)
-    /// The cache is full and cannot accept new items.
-    case cacheFull(maxSize: Int)
     /// Failed to serialize the value.
     case serializationFailed(String)
     /// Failed to deserialize the value.
@@ -28,8 +70,6 @@ public enum CacheError: Error, Sendable, LocalizedError {
             return "Cache miss: no entry found for key '\(key)'"
         case .expired(let key):
             return "Cache entry for '\(key)' has expired"
-        case .cacheFull(let maxSize):
-            return "Cache is full (max size: \(maxSize))"
         case .serializationFailed(let message):
             return "Failed to serialize value: \(message)"
         case .deserializationFailed(let message):
@@ -104,9 +144,6 @@ public struct CacheConfiguration: Sendable {
     /// Maximum number of entries in the cache.
     public let maxEntries: Int
 
-    /// Maximum memory size in bytes (0 = unlimited).
-    public let maxMemorySize: Int
-
     /// Eviction policy when cache is full.
     public let evictionPolicy: CacheEvictionPolicy
 
@@ -116,60 +153,63 @@ public struct CacheConfiguration: Sendable {
     /// Interval for automatic cleanup in seconds.
     public let cleanupInterval: TimeInterval
 
+    /// Whether to coalesce concurrent fetch requests for the same key.
+    public let coalesceFetches: Bool
+
     /// Default configuration.
     public static let `default` = CacheConfiguration(
         defaultTTL: 300, // 5 minutes
         maxEntries: 1000,
-        maxMemorySize: 0,
         evictionPolicy: .lru,
         autoCleanup: true,
-        cleanupInterval: 60
+        cleanupInterval: 60,
+        coalesceFetches: true
     )
 
     /// Short-lived cache for frequently changing data.
     public static let shortLived = CacheConfiguration(
         defaultTTL: 30,
         maxEntries: 500,
-        maxMemorySize: 0,
         evictionPolicy: .lru,
         autoCleanup: true,
-        cleanupInterval: 15
+        cleanupInterval: 15,
+        coalesceFetches: true
     )
 
     /// Long-lived cache for stable data.
     public static let longLived = CacheConfiguration(
         defaultTTL: 3600, // 1 hour
         maxEntries: 5000,
-        maxMemorySize: 0,
         evictionPolicy: .lru,
         autoCleanup: true,
-        cleanupInterval: 300
+        cleanupInterval: 300,
+        coalesceFetches: true
     )
 
     /// Cache for rarely changing configuration data.
     public static let configuration = CacheConfiguration(
         defaultTTL: 86400, // 24 hours
         maxEntries: 100,
-        maxMemorySize: 0,
         evictionPolicy: .lru,
         autoCleanup: true,
-        cleanupInterval: 3600
+        cleanupInterval: 3600,
+        coalesceFetches: true
     )
 
     public init(
         defaultTTL: TimeInterval = 300,
         maxEntries: Int = 1000,
-        maxMemorySize: Int = 0,
         evictionPolicy: CacheEvictionPolicy = .lru,
         autoCleanup: Bool = true,
-        cleanupInterval: TimeInterval = 60
+        cleanupInterval: TimeInterval = 60,
+        coalesceFetches: Bool = true
     ) {
         self.defaultTTL = defaultTTL
         self.maxEntries = maxEntries
-        self.maxMemorySize = maxMemorySize
         self.evictionPolicy = evictionPolicy
         self.autoCleanup = autoCleanup
         self.cleanupInterval = cleanupInterval
+        self.coalesceFetches = coalesceFetches
     }
 }
 
@@ -225,17 +265,20 @@ public struct CacheStatistics: Sendable {
 /// let cache = InMemoryCache<String, BucketMetadata>(configuration: .default)
 ///
 /// // Store a value
-/// await cache.set("my-bucket", value: metadata)
+/// cache.set("my-bucket", value: metadata)
 ///
 /// // Retrieve a value
-/// if let metadata = await cache.get("my-bucket") {
+/// if let metadata = cache.get("my-bucket") {
 ///     print("Found: \(metadata)")
 /// }
 ///
-/// // Use get-or-fetch pattern
+/// // Use get-or-fetch pattern (with automatic request coalescing)
 /// let data = try await cache.getOrFetch("my-bucket") {
 ///     try await storageAPI.getBucket("my-bucket")
 /// }
+///
+/// // Add an observer for metrics
+/// cache.observer = myMetricsObserver
 /// ```
 public final class InMemoryCache<Key: Hashable & Sendable, Value: Sendable>: @unchecked Sendable {
     private var entries: [Key: CacheEntry<Value>] = [:]
@@ -247,10 +290,21 @@ public final class InMemoryCache<Key: Hashable & Sendable, Value: Sendable>: @un
     private var cleanupTask: Task<Void, Never>?
     private let lock = NSLock()
 
+    /// In-flight fetch tasks for request coalescing.
+    private var inFlightFetches: [Key: Task<Value, Error>] = [:]
+    private let fetchLock = NSLock()
+
+    /// Optional observer for cache events.
+    /// Set this to receive notifications about cache hits, misses, evictions, etc.
+    public weak var observer: CacheEventObserver?
+
     /// Create an in-memory cache.
-    /// - Parameter configuration: Cache configuration.
-    public init(configuration: CacheConfiguration = .default) {
+    /// - Parameters:
+    ///   - configuration: Cache configuration.
+    ///   - observer: Optional observer for cache events.
+    public init(configuration: CacheConfiguration = .default, observer: CacheEventObserver? = nil) {
         self.configuration = configuration
+        self.observer = observer
         if configuration.autoCleanup {
             startAutoCleanup()
         }
@@ -294,6 +348,7 @@ public final class InMemoryCache<Key: Hashable & Sendable, Value: Sendable>: @un
 
         guard let entry = entries[key] else {
             misses += 1
+            emitEvent(.miss(key: key))
             return nil
         }
 
@@ -301,15 +356,23 @@ public final class InMemoryCache<Key: Hashable & Sendable, Value: Sendable>: @un
             entries.removeValue(forKey: key)
             expirations += 1
             misses += 1
+            emitEvent(.expired(key: key))
+            emitEvent(.miss(key: key))
             return nil
         }
 
         entries[key] = entry.withAccess()
         hits += 1
+        emitEvent(.hit(key: key))
         return entry.value
     }
 
     /// Get a value or fetch it if not cached.
+    ///
+    /// When `coalesceFetches` is enabled in configuration (default), concurrent requests
+    /// for the same key will share a single fetch operation, preventing thundering herd
+    /// problems when multiple requests hit an empty or expired cache entry simultaneously.
+    ///
     /// - Parameters:
     ///   - key: The cache key.
     ///   - ttl: Optional TTL override for this entry.
@@ -318,15 +381,73 @@ public final class InMemoryCache<Key: Hashable & Sendable, Value: Sendable>: @un
     public func getOrFetch(
         _ key: Key,
         ttl: TimeInterval? = nil,
-        fetch: @Sendable () async throws -> Value
+        fetch: @escaping @Sendable () async throws -> Value
     ) async throws -> Value {
+        // Check cache first
         if let cached = get(key) {
             return cached
         }
 
-        let value = try await fetch()
-        set(key, value: value, ttl: ttl)
-        return value
+        // If coalescing is disabled, just fetch directly
+        guard configuration.coalesceFetches else {
+            let value = try await fetch()
+            set(key, value: value, ttl: ttl)
+            return value
+        }
+
+        // Atomically check for existing task or create new one
+        let (task, isNewTask) = getOrCreateInFlightFetch(for: key, fetch: fetch)
+
+        if !isNewTask {
+            // Wait for existing fetch to complete
+            return try await task.value
+        }
+
+        // We created a new task, so we're responsible for cleanup
+        do {
+            let value = try await task.value
+
+            // Store in cache
+            set(key, value: value, ttl: ttl)
+
+            // Remove from in-flight
+            removeInFlightFetch(for: key)
+
+            return value
+        } catch {
+            // Remove from in-flight on error
+            removeInFlightFetch(for: key)
+
+            throw error
+        }
+    }
+
+    // MARK: - In-Flight Fetch Management (synchronous helpers)
+
+    /// Atomically get an existing in-flight fetch or create a new one.
+    /// Returns the task and a boolean indicating if it was newly created.
+    private func getOrCreateInFlightFetch(
+        for key: Key,
+        fetch: @escaping @Sendable () async throws -> Value
+    ) -> (Task<Value, Error>, Bool) {
+        fetchLock.lock()
+        defer { fetchLock.unlock() }
+
+        if let existingTask = inFlightFetches[key] {
+            return (existingTask, false)
+        }
+
+        let task = Task<Value, Error> {
+            try await fetch()
+        }
+        inFlightFetches[key] = task
+        return (task, true)
+    }
+
+    private func removeInFlightFetch(for key: Key) {
+        fetchLock.lock()
+        defer { fetchLock.unlock() }
+        inFlightFetches.removeValue(forKey: key)
     }
 
     /// Store a value in the cache.
@@ -345,6 +466,7 @@ public final class InMemoryCache<Key: Hashable & Sendable, Value: Sendable>: @un
 
         let entry = CacheEntry(value: value, ttl: ttl ?? configuration.defaultTTL)
         entries[key] = entry
+        emitEvent(.set(key: key))
     }
 
     /// Remove a value from the cache.
@@ -354,7 +476,11 @@ public final class InMemoryCache<Key: Hashable & Sendable, Value: Sendable>: @un
     public func remove(_ key: Key) -> Value? {
         lock.lock()
         defer { lock.unlock() }
-        return entries.removeValue(forKey: key)?.value
+        if let entry = entries.removeValue(forKey: key) {
+            emitEvent(.removed(key: key))
+            return entry.value
+        }
+        return nil
     }
 
     /// Check if a key exists in the cache (and is not expired).
@@ -368,6 +494,7 @@ public final class InMemoryCache<Key: Hashable & Sendable, Value: Sendable>: @un
         if entry.isExpired {
             entries.removeValue(forKey: key)
             expirations += 1
+            emitEvent(.expired(key: key))
             return false
         }
         return true
@@ -389,6 +516,7 @@ public final class InMemoryCache<Key: Hashable & Sendable, Value: Sendable>: @un
         for key in expiredKeys {
             entries.removeValue(forKey: key)
             expirations += 1
+            emitEvent(.expired(key: key))
         }
     }
 
@@ -443,7 +571,14 @@ public final class InMemoryCache<Key: Hashable & Sendable, Value: Sendable>: @un
         if let key = keyToEvict {
             entries.removeValue(forKey: key)
             evictions += 1
+            emitEvent(.evicted(key: key))
         }
+    }
+
+    // MARK: - Private Helpers
+
+    private func emitEvent(_ event: CacheEvent<Key>) {
+        observer?.cacheDidEmitEvent(event)
     }
 }
 
