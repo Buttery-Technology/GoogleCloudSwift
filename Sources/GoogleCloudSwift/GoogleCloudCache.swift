@@ -343,28 +343,37 @@ public final class InMemoryCache<Key: Hashable & Sendable, Value: Sendable>: @un
     /// - Parameter key: The cache key.
     /// - Returns: The cached value, or nil if not found or expired.
     public func get(_ key: Key) -> Value? {
+        var events: [CacheEvent<Key>] = []
+        let result: Value?
+
         lock.lock()
-        defer { lock.unlock() }
-
-        guard let entry = entries[key] else {
+        if let entry = entries[key] {
+            if entry.isExpired {
+                entries.removeValue(forKey: key)
+                expirations += 1
+                misses += 1
+                events.append(.expired(key: key))
+                events.append(.miss(key: key))
+                result = nil
+            } else {
+                entries[key] = entry.withAccess()
+                hits += 1
+                events.append(.hit(key: key))
+                result = entry.value
+            }
+        } else {
             misses += 1
-            emitEvent(.miss(key: key))
-            return nil
+            events.append(.miss(key: key))
+            result = nil
+        }
+        lock.unlock()
+
+        // Emit events outside the lock to prevent deadlocks
+        for event in events {
+            emitEvent(event)
         }
 
-        if entry.isExpired {
-            entries.removeValue(forKey: key)
-            expirations += 1
-            misses += 1
-            emitEvent(.expired(key: key))
-            emitEvent(.miss(key: key))
-            return nil
-        }
-
-        entries[key] = entry.withAccess()
-        hits += 1
-        emitEvent(.hit(key: key))
-        return entry.value
+        return result
     }
 
     /// Get a value or fetch it if not cached.
@@ -456,16 +465,24 @@ public final class InMemoryCache<Key: Hashable & Sendable, Value: Sendable>: @un
     ///   - value: The value to cache.
     ///   - ttl: Optional TTL override (uses default if not provided).
     public func set(_ key: Key, value: Value, ttl: TimeInterval? = nil) {
-        lock.lock()
-        defer { lock.unlock() }
+        var evictedKeys: [Key] = []
 
+        lock.lock()
         // Evict if necessary
         while entries.count >= configuration.maxEntries {
-            evictOne()
+            if let evictedKey = evictOneReturningKey() {
+                evictedKeys.append(evictedKey)
+            }
         }
 
         let entry = CacheEntry(value: value, ttl: ttl ?? configuration.defaultTTL)
         entries[key] = entry
+        lock.unlock()
+
+        // Emit events outside the lock
+        for evictedKey in evictedKeys {
+            emitEvent(.evicted(key: evictedKey))
+        }
         emitEvent(.set(key: key))
     }
 
@@ -475,29 +492,41 @@ public final class InMemoryCache<Key: Hashable & Sendable, Value: Sendable>: @un
     @discardableResult
     public func remove(_ key: Key) -> Value? {
         lock.lock()
-        defer { lock.unlock() }
-        if let entry = entries.removeValue(forKey: key) {
+        let entry = entries.removeValue(forKey: key)
+        lock.unlock()
+
+        if entry != nil {
             emitEvent(.removed(key: key))
-            return entry.value
         }
-        return nil
+        return entry?.value
     }
 
     /// Check if a key exists in the cache (and is not expired).
     /// - Parameter key: The cache key.
     /// - Returns: `true` if the key exists and is not expired.
     public func contains(_ key: Key) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
+        var expiredKey: Key?
 
-        guard let entry = entries[key] else { return false }
-        if entry.isExpired {
-            entries.removeValue(forKey: key)
-            expirations += 1
-            emitEvent(.expired(key: key))
-            return false
+        lock.lock()
+        let result: Bool
+        if let entry = entries[key] {
+            if entry.isExpired {
+                entries.removeValue(forKey: key)
+                expirations += 1
+                expiredKey = key
+                result = false
+            } else {
+                result = true
+            }
+        } else {
+            result = false
         }
-        return true
+        lock.unlock()
+
+        if let key = expiredKey {
+            emitEvent(.expired(key: key))
+        }
+        return result
     }
 
     /// Clear all entries from the cache.
@@ -510,12 +539,15 @@ public final class InMemoryCache<Key: Hashable & Sendable, Value: Sendable>: @un
     /// Remove all expired entries.
     public func cleanup() {
         lock.lock()
-        defer { lock.unlock() }
-
         let expiredKeys = entries.filter { $0.value.isExpired }.map { $0.key }
         for key in expiredKeys {
             entries.removeValue(forKey: key)
             expirations += 1
+        }
+        lock.unlock()
+
+        // Emit events outside the lock
+        for key in expiredKeys {
             emitEvent(.expired(key: key))
         }
     }
@@ -549,8 +581,10 @@ public final class InMemoryCache<Key: Hashable & Sendable, Value: Sendable>: @un
 
     // MARK: - Private Methods
 
-    private func evictOne() {
-        guard !entries.isEmpty else { return }
+    /// Evicts one entry and returns the evicted key (if any).
+    /// Must be called while holding the lock.
+    private func evictOneReturningKey() -> Key? {
+        guard !entries.isEmpty else { return nil }
 
         let keyToEvict: Key?
 
@@ -571,8 +605,9 @@ public final class InMemoryCache<Key: Hashable & Sendable, Value: Sendable>: @un
         if let key = keyToEvict {
             entries.removeValue(forKey: key)
             evictions += 1
-            emitEvent(.evicted(key: key))
+            return key
         }
+        return nil
     }
 
     // MARK: - Private Helpers
@@ -601,11 +636,26 @@ public final class InMemoryCache<Key: Hashable & Sendable, Value: Sendable>: @un
 /// ```
 public final class GoogleCloudResponseCache: @unchecked Sendable {
     private var cache: InMemoryCache<String, AnyCacheable>
+    private let configuration: CacheConfiguration
+
+    /// In-flight fetch tasks for request coalescing (keyed by ResponseCacheKey.stringValue).
+    private var inFlightFetches: [String: Any] = [:]
+    private let fetchLock = NSLock()
+
+    /// Optional observer for cache events.
+    /// Events will be forwarded from the underlying cache.
+    public var observer: CacheEventObserver? {
+        get { cache.observer }
+        set { cache.observer = newValue }
+    }
 
     /// Create a response cache.
-    /// - Parameter configuration: Cache configuration.
-    public init(configuration: CacheConfiguration = .default) {
-        self.cache = InMemoryCache(configuration: configuration)
+    /// - Parameters:
+    ///   - configuration: Cache configuration.
+    ///   - observer: Optional observer for cache events.
+    public init(configuration: CacheConfiguration = .default, observer: CacheEventObserver? = nil) {
+        self.configuration = configuration
+        self.cache = InMemoryCache(configuration: configuration, observer: observer)
     }
 
     /// Get a cached response.
@@ -628,6 +678,10 @@ public final class GoogleCloudResponseCache: @unchecked Sendable {
     }
 
     /// Get a response or fetch it if not cached.
+    ///
+    /// When `coalesceFetches` is enabled in configuration (default), concurrent requests
+    /// for the same key will share a single fetch operation.
+    ///
     /// - Parameters:
     ///   - key: The cache key.
     ///   - ttl: Optional TTL override.
@@ -636,15 +690,66 @@ public final class GoogleCloudResponseCache: @unchecked Sendable {
     public func getOrFetch<T: Sendable>(
         _ key: ResponseCacheKey,
         ttl: TimeInterval? = nil,
-        fetch: @Sendable () async throws -> T
+        fetch: @escaping @Sendable () async throws -> T
     ) async throws -> T {
+        // Check cache first
         if let cached: T = get(key) {
             return cached
         }
 
-        let value = try await fetch()
-        set(value, forKey: key, ttl: ttl)
-        return value
+        // If coalescing is disabled, just fetch directly
+        guard configuration.coalesceFetches else {
+            let value = try await fetch()
+            set(value, forKey: key, ttl: ttl)
+            return value
+        }
+
+        let keyString = key.stringValue
+
+        // Atomically check for existing task or create new one
+        let (task, isNewTask) = getOrCreateInFlightFetch(for: keyString, fetch: fetch)
+
+        if !isNewTask {
+            // Wait for existing fetch to complete
+            return try await task.value
+        }
+
+        // We created a new task, so we're responsible for cleanup
+        do {
+            let value = try await task.value
+            set(value, forKey: key, ttl: ttl)
+            removeInFlightFetch(for: keyString)
+            return value
+        } catch {
+            removeInFlightFetch(for: keyString)
+            throw error
+        }
+    }
+
+    // MARK: - In-Flight Fetch Management
+
+    private func getOrCreateInFlightFetch<T: Sendable>(
+        for key: String,
+        fetch: @escaping @Sendable () async throws -> T
+    ) -> (Task<T, Error>, Bool) {
+        fetchLock.lock()
+        defer { fetchLock.unlock() }
+
+        if let existingTask = inFlightFetches[key] as? Task<T, Error> {
+            return (existingTask, false)
+        }
+
+        let task = Task<T, Error> {
+            try await fetch()
+        }
+        inFlightFetches[key] = task
+        return (task, true)
+    }
+
+    private func removeInFlightFetch(for key: String) {
+        fetchLock.lock()
+        defer { fetchLock.unlock() }
+        inFlightFetches.removeValue(forKey: key)
     }
 
     /// Remove a cached response.

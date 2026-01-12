@@ -433,6 +433,56 @@ actor Counter {
     #expect(customConfig.coalesceFetches == false)
 }
 
+@Test func testResponseCacheGetOrFetchCoalescing() async throws {
+    let config = CacheConfiguration(
+        defaultTTL: 300,
+        maxEntries: 100,
+        coalesceFetches: true
+    )
+    let cache = GoogleCloudResponseCache(configuration: config)
+    let fetchCounter = Counter()
+
+    // Launch multiple concurrent requests for the same key
+    let results = try await withThrowingTaskGroup(of: Int.self) { group in
+        for _ in 0..<10 {
+            group.addTask {
+                try await cache.getOrFetch(.custom("shared-key")) {
+                    try await Task.sleep(nanoseconds: 50_000_000)
+                    await fetchCounter.increment()
+                    return 42
+                }
+            }
+        }
+
+        var results: [Int] = []
+        for try await result in group {
+            results.append(result)
+        }
+        return results
+    }
+
+    // All results should be the same
+    #expect(results.count == 10)
+    #expect(results.allSatisfy { $0 == 42 })
+
+    // Only one fetch should have occurred due to coalescing
+    #expect(await fetchCounter.value == 1)
+}
+
+@Test func testResponseCacheObserver() {
+    let observer = TestCacheObserver()
+    let cache = GoogleCloudResponseCache(observer: observer)
+
+    cache.set("value1", forKey: .custom("key1"))
+    #expect(observer.setCount == 1)
+
+    let _: String? = cache.get(.custom("key1"))
+    #expect(observer.hitCount == 1)
+
+    let _: String? = cache.get(.custom("nonexistent"))
+    #expect(observer.missCount == 1)
+}
+
 // MARK: - Helper Types
 
 struct TestCacheData: Sendable, Equatable {
