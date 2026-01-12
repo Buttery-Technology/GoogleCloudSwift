@@ -260,12 +260,14 @@ public final class InMemoryCache<Key: Hashable & Sendable, Value: Sendable>: @un
         cleanupTask?.cancel()
     }
 
-    /// Start automatic cleanup (call after initialization if needed).
+    /// Start automatic cleanup.
+    /// Called automatically during init if `autoCleanup` is enabled in configuration.
+    /// Can also be called manually to start cleanup on a cache created with `autoCleanup: false`.
     public func startAutoCleanup() {
         lock.lock()
         defer { lock.unlock() }
 
-        guard configuration.autoCleanup, cleanupTask == nil else { return }
+        guard cleanupTask == nil else { return }
 
         cleanupTask = Task { [weak self] in
             while !Task.isCancelled {
