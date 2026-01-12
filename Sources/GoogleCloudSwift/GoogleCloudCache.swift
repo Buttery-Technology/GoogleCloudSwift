@@ -251,6 +251,13 @@ public final class InMemoryCache<Key: Hashable & Sendable, Value: Sendable>: @un
     /// - Parameter configuration: Cache configuration.
     public init(configuration: CacheConfiguration = .default) {
         self.configuration = configuration
+        if configuration.autoCleanup {
+            startAutoCleanup()
+        }
+    }
+
+    deinit {
+        cleanupTask?.cancel()
     }
 
     /// Start automatic cleanup (call after initialization if needed).
@@ -415,24 +422,26 @@ public final class InMemoryCache<Key: Hashable & Sendable, Value: Sendable>: @un
     private func evictOne() {
         guard !entries.isEmpty else { return }
 
-        let keyToEvict: Key
+        let keyToEvict: Key?
 
         switch configuration.evictionPolicy {
         case .lru:
-            keyToEvict = entries.min { $0.value.lastAccessedAt < $1.value.lastAccessedAt }!.key
+            keyToEvict = entries.min { $0.value.lastAccessedAt < $1.value.lastAccessedAt }?.key
 
         case .lfu:
-            keyToEvict = entries.min { $0.value.accessCount < $1.value.accessCount }!.key
+            keyToEvict = entries.min { $0.value.accessCount < $1.value.accessCount }?.key
 
         case .fifo:
-            keyToEvict = entries.min { $0.value.createdAt < $1.value.createdAt }!.key
+            keyToEvict = entries.min { $0.value.createdAt < $1.value.createdAt }?.key
 
         case .ttl:
-            keyToEvict = entries.min { $0.value.expiresAt < $1.value.expiresAt }!.key
+            keyToEvict = entries.min { $0.value.expiresAt < $1.value.expiresAt }?.key
         }
 
-        entries.removeValue(forKey: keyToEvict)
-        evictions += 1
+        if let key = keyToEvict {
+            entries.removeValue(forKey: key)
+            evictions += 1
+        }
     }
 }
 
