@@ -25,6 +25,7 @@ import Foundation
 /// )
 /// print(deployment.createCommand)
 /// ```
+@available(*, deprecated, message: "Cloud Deployment Manager reaches end of support on March 31, 2026. Use GoogleCloudInfrastructureManager (Terraform-based) instead.")
 public struct GoogleCloudDeployment: Codable, Sendable, Equatable {
     /// Name of the deployment
     public let name: String
@@ -160,6 +161,7 @@ extension GoogleCloudDeployment {
 // MARK: - Deployment Manifest
 
 /// Represents a deployment manifest (configuration snapshot)
+@available(*, deprecated, message: "Cloud Deployment Manager reaches end of support on March 31, 2026. Use GoogleCloudInfrastructureManager (Terraform-based) instead.")
 public struct GoogleCloudDeploymentManifest: Codable, Sendable, Equatable {
     /// Deployment name
     public let deploymentName: String
@@ -199,6 +201,7 @@ public struct GoogleCloudDeploymentManifest: Codable, Sendable, Equatable {
 // MARK: - Deployment Resource
 
 /// Represents a resource within a deployment
+@available(*, deprecated, message: "Cloud Deployment Manager reaches end of support on March 31, 2026. Use GoogleCloudInfrastructureManager (Terraform-based) instead.")
 public struct GoogleCloudDeploymentResource: Codable, Sendable, Equatable {
     /// Resource name
     public let name: String
@@ -233,6 +236,7 @@ public struct GoogleCloudDeploymentResource: Codable, Sendable, Equatable {
 // MARK: - Deployment Types
 
 /// Common Deployment Manager resource types
+@available(*, deprecated, message: "Cloud Deployment Manager reaches end of support on March 31, 2026. Use GoogleCloudInfrastructureManager (Terraform-based) instead.")
 public enum GoogleCloudDeploymentType: String, Codable, Sendable, CaseIterable {
     // Compute
     case instance = "compute.v1.instance"
@@ -284,6 +288,7 @@ public enum GoogleCloudDeploymentType: String, Codable, Sendable, CaseIterable {
 // MARK: - DAIS Deployment Templates
 
 /// Predefined Deployment Manager configurations for DAIS
+@available(*, deprecated, message: "Cloud Deployment Manager reaches end of support on March 31, 2026. Use GoogleCloudInfrastructureManager (Terraform-based) instead.")
 public enum DAISDeploymentManagerTemplate {
     /// Generate a YAML configuration for a DAIS compute instance
     public static func instanceConfig(
