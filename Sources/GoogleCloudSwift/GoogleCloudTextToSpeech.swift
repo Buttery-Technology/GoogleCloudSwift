@@ -596,10 +596,10 @@ public struct GoogleCloudTextToSpeechOperations: Sendable {
     ]
 }
 
-// MARK: - DAIS Template
+// MARK: - Cloud Template
 
-/// DAIS template for Text-to-Speech
-public struct DAISTextToSpeechTemplate: Codable, Sendable, Equatable {
+/// Cloud template for Text-to-Speech
+public struct TextToSpeechTemplate: Codable, Sendable, Equatable {
     /// Project ID
     public let projectID: String
 
@@ -719,7 +719,7 @@ public struct DAISTextToSpeechTemplate: Codable, Sendable, Equatable {
     public var setupScript: String {
         """
         #!/bin/bash
-        # DAIS Text-to-Speech Setup
+        # Cloud Text-to-Speech Setup
 
         PROJECT_ID="\(projectID)"
 
@@ -750,7 +750,7 @@ public struct DAISTextToSpeechTemplate: Codable, Sendable, Equatable {
     public var teardownScript: String {
         """
         #!/bin/bash
-        # DAIS Text-to-Speech Teardown
+        # Cloud Text-to-Speech Teardown
 
         PROJECT_ID="\(projectID)"
 

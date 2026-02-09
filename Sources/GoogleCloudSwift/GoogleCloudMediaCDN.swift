@@ -789,10 +789,10 @@ public struct MediaCDNOperations: Sendable {
     }
 }
 
-// MARK: - DAIS Media CDN Template
+// MARK: - Cloud Media CDN Template
 
-/// DAIS template for Media CDN configurations
-public struct DAISMediaCDNTemplate: Sendable {
+/// Cloud template for Media CDN configurations
+public struct MediaCDNTemplate: Sendable {
     public let projectID: String
     public let location: String
 

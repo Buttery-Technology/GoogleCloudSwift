@@ -442,10 +442,10 @@ public struct GoogleCloudBigtableAppProfile: Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - DAIS Bigtable Template
+// MARK: - Cloud Bigtable Template
 
-/// Production-ready Cloud Bigtable templates for DAIS systems
-public struct DAISBigtableTemplate: Sendable {
+/// Production-ready Cloud Bigtable templates for Cloud systems
+public struct BigtableTemplate: Sendable {
     public let projectID: String
     public let instanceName: String
     public let zone: String
@@ -453,7 +453,7 @@ public struct DAISBigtableTemplate: Sendable {
 
     public init(
         projectID: String,
-        instanceName: String = "dais-bigtable",
+        instanceName: String = "app-bigtable",
         zone: String = "us-central1-a",
         serviceAccount: String? = nil
     ) {
@@ -468,9 +468,9 @@ public struct DAISBigtableTemplate: Sendable {
         GoogleCloudBigtableInstance(
             name: instanceName,
             projectID: projectID,
-            displayName: "DAIS Production Instance",
+            displayName: "Cloud Production Instance",
             instanceType: .production,
-            labels: ["env": "production", "managed-by": "dais"]
+            labels: ["env": "production", "managed-by": "googlecloudswift"]
         )
     }
 
@@ -479,9 +479,9 @@ public struct DAISBigtableTemplate: Sendable {
         GoogleCloudBigtableInstance(
             name: "\(instanceName)-dev",
             projectID: projectID,
-            displayName: "DAIS Development Instance",
+            displayName: "Cloud Development Instance",
             instanceType: .development,
-            labels: ["env": "development", "managed-by": "dais"]
+            labels: ["env": "development", "managed-by": "googlecloudswift"]
         )
     }
 
@@ -589,7 +589,7 @@ public struct DAISBigtableTemplate: Sendable {
         \(entitiesTable.createCommand)
 
         echo ""
-        echo "DAIS Bigtable setup complete!"
+        echo "Cloud Bigtable setup complete!"
         echo ""
         echo "Instance: $INSTANCE_NAME"
         echo "Zone: $ZONE"

@@ -780,11 +780,11 @@ extension GoogleCloudSQLInstance {
     }
 }
 
-// MARK: - DAIS SQL Templates
+// MARK: - Cloud SQL Templates
 
-/// Predefined Cloud SQL configurations for DAIS
-public enum DAISSQLTemplate {
-    /// Create a PostgreSQL instance for DAIS
+/// Predefined Cloud SQL configurations for Cloud
+public enum SQLTemplate {
+    /// Create a PostgreSQL instance for Cloud
     public static func postgresInstance(
         name: String,
         projectID: String,
@@ -811,20 +811,20 @@ public enum DAISSQLTemplate {
                 "log_min_duration_statement": "1000"
             ],
             labels: [
-                "app": "butteryai",
-                "managed-by": "dais",
+                "app": "my-app",
+                "managed-by": "googlecloudswift",
                 "database": "postgresql"
             ]
         )
     }
 
-    /// Create a database for DAIS
-    public static func daisDatabase(
+    /// Create a database for Cloud
+    public static func appDatabase(
         instanceName: String,
         projectID: String
     ) -> GoogleCloudSQLDatabase {
         GoogleCloudSQLDatabase(
-            name: "dais",
+            name: "app",
             instanceName: instanceName,
             projectID: projectID,
             charset: "UTF8",
@@ -832,21 +832,21 @@ public enum DAISSQLTemplate {
         )
     }
 
-    /// Create an application user for DAIS
-    public static func daisUser(
+    /// Create an application user for Cloud
+    public static func appUser(
         instanceName: String,
         projectID: String,
         password: String
     ) -> GoogleCloudSQLUser {
         GoogleCloudSQLUser(
-            name: "dais_app",
+            name: "app_app",
             instanceName: instanceName,
             projectID: projectID,
             password: password
         )
     }
 
-    /// Generate a setup script for DAIS PostgreSQL
+    /// Generate a setup script for Cloud PostgreSQL
     public static func setupScript(
         instance: GoogleCloudSQLInstance,
         database: GoogleCloudSQLDatabase,
@@ -854,14 +854,14 @@ public enum DAISSQLTemplate {
     ) -> String {
         """
         #!/bin/bash
-        # DAIS Cloud SQL PostgreSQL Setup Script
+        # Cloud Cloud SQL PostgreSQL Setup Script
         # Instance: \(instance.name)
         # Project: \(instance.projectID)
 
         set -e
 
         echo "========================================"
-        echo "DAIS Cloud SQL PostgreSQL Setup"
+        echo "Cloud Cloud SQL PostgreSQL Setup"
         echo "========================================"
 
         # Enable Cloud SQL Admin API
@@ -902,7 +902,7 @@ public enum DAISSQLTemplate {
         """
     }
 
-    /// Connection string template for DAIS
+    /// Connection string template for Cloud
     public static func connectionString(
         instance: GoogleCloudSQLInstance,
         database: GoogleCloudSQLDatabase,

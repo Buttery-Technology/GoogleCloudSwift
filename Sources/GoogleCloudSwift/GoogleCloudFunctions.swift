@@ -689,10 +689,10 @@ public struct VPCConnector: Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - DAIS Function Templates
+// MARK: - Cloud Function Templates
 
-/// Predefined Cloud Function configurations for DAIS
-public enum DAISFunctionTemplate {
+/// Predefined Cloud Function configurations for Cloud
+public enum FunctionTemplate {
 
     /// Event processor function for handling Pub/Sub messages
     public static func eventProcessor(
@@ -718,11 +718,11 @@ public enum DAISFunctionTemplate {
                 "PROJECT_ID": projectID
             ],
             labels: [
-                "app": "butteryai",
+                "app": "my-app",
                 "deployment": deploymentName,
                 "component": "event-processor"
             ],
-            description: "DAIS event processor for \(deploymentName)"
+            description: "Cloud event processor for \(deploymentName)"
         )
     }
 
@@ -745,11 +745,11 @@ public enum DAISFunctionTemplate {
             minInstances: 0,
             maxInstances: 10,
             labels: [
-                "app": "butteryai",
+                "app": "my-app",
                 "deployment": deploymentName,
                 "component": "health-check"
             ],
-            description: "DAIS health check endpoint"
+            description: "Cloud health check endpoint"
         )
     }
 
@@ -777,11 +777,11 @@ public enum DAISFunctionTemplate {
                 "PROJECT_ID": projectID
             ],
             labels: [
-                "app": "butteryai",
+                "app": "my-app",
                 "deployment": deploymentName,
                 "component": "webhook"
             ],
-            description: "DAIS webhook handler for external integrations"
+            description: "Cloud webhook handler for external integrations"
         )
     }
 
@@ -810,11 +810,11 @@ public enum DAISFunctionTemplate {
                 "PROJECT_ID": projectID
             ],
             labels: [
-                "app": "butteryai",
+                "app": "my-app",
                 "deployment": deploymentName,
                 "component": "maintenance"
             ],
-            description: "DAIS scheduled maintenance tasks"
+            description: "Cloud scheduled maintenance tasks"
         )
 
         let scheduler = CloudSchedulerJob(
@@ -856,11 +856,11 @@ public enum DAISFunctionTemplate {
                 "BUCKET_NAME": bucket
             ],
             labels: [
-                "app": "butteryai",
+                "app": "my-app",
                 "deployment": deploymentName,
                 "component": "storage-processor"
             ],
-            description: "DAIS storage event processor"
+            description: "Cloud storage event processor"
         )
     }
 
@@ -931,7 +931,7 @@ public enum DAISFunctionTemplate {
         """
     }
 
-    /// Generate setup script for DAIS functions
+    /// Generate setup script for Cloud functions
     public static func setupScript(
         projectID: String,
         region: String,
@@ -959,14 +959,14 @@ public enum DAISFunctionTemplate {
 
         return """
         #!/bin/bash
-        # DAIS Cloud Functions Setup Script
+        # Cloud Cloud Functions Setup Script
         # Deployment: \(deploymentName)
         # Project: \(projectID)
 
         set -e
 
         echo "========================================"
-        echo "DAIS Cloud Functions Deployment"
+        echo "Cloud Cloud Functions Deployment"
         echo "========================================"
 
         # Enable required APIs
@@ -977,36 +977,36 @@ public enum DAISFunctionTemplate {
 
         # Create function source directories
         echo "Creating function source directories..."
-        mkdir -p /tmp/dais-functions/event-processor
-        mkdir -p /tmp/dais-functions/health-check
-        mkdir -p /tmp/dais-functions/webhook
+        mkdir -p /tmp/app-functions/event-processor
+        mkdir -p /tmp/app-functions/health-check
+        mkdir -p /tmp/app-functions/webhook
 
         # Write event processor code
-        cat > /tmp/dais-functions/event-processor/main.py << 'PYTHON_EOF'
+        cat > /tmp/app-functions/event-processor/main.py << 'PYTHON_EOF'
         \(eventProcessorCode())
         PYTHON_EOF
 
-        cat > /tmp/dais-functions/event-processor/requirements.txt << 'REQ_EOF'
+        cat > /tmp/app-functions/event-processor/requirements.txt << 'REQ_EOF'
         functions-framework==3.*
         REQ_EOF
 
         # Write health check code
-        cat > /tmp/dais-functions/health-check/main.py << 'PYTHON_EOF'
+        cat > /tmp/app-functions/health-check/main.py << 'PYTHON_EOF'
         \(healthCheckCode())
         PYTHON_EOF
 
-        cat > /tmp/dais-functions/health-check/requirements.txt << 'REQ_EOF'
+        cat > /tmp/app-functions/health-check/requirements.txt << 'REQ_EOF'
         functions-framework==3.*
         REQ_EOF
 
         # Deploy event processor
         echo "Deploying event processor function..."
-        cd /tmp/dais-functions/event-processor
+        cd /tmp/app-functions/event-processor
         \(eventProcessor.deployCommand)
 
         # Deploy health check
         echo "Deploying health check function..."
-        cd /tmp/dais-functions/health-check
+        cd /tmp/app-functions/health-check
         \(healthCheck.deployCommand)
 
         echo ""

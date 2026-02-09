@@ -9,7 +9,7 @@ import Foundation
 
 /// Models for interacting with Google Cloud Secret Manager.
 ///
-/// Secret Manager is recommended for storing sensitive DAIS configuration:
+/// Secret Manager is recommended for storing sensitive Cloud configuration:
 /// - Certificate master encryption keys
 /// - API keys and tokens
 /// - Database credentials
@@ -21,7 +21,7 @@ import Foundation
 /// ## Example Usage
 /// ```swift
 /// let secret = GoogleCloudSecret(
-///     name: "butteryai-certificate-master-key",
+///     name: "app-certificate-master-key",
 ///     projectID: "my-project"
 /// )
 ///
@@ -153,17 +153,17 @@ public struct GoogleCloudSecretVersion: Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - Common DAIS Secrets
+// MARK: - Common Cloud Secrets
 
-/// Predefined secret configurations for common DAIS use cases
-public enum DAISSecretTemplate {
+/// Predefined secret configurations for common Cloud use cases
+public enum SecretTemplate {
     /// Certificate master encryption key
     public static func certificateMasterKey(projectID: String) -> GoogleCloudSecret {
         GoogleCloudSecret(
-            name: "butteryai-certificate-master-key",
+            name: "app-certificate-master-key",
             projectID: projectID,
             labels: [
-                "app": "butteryai",
+                "app": "my-app",
                 "component": "certificates",
                 "sensitivity": "critical"
             ]
@@ -173,10 +173,10 @@ public enum DAISSecretTemplate {
     /// Database connection string
     public static func databaseURL(projectID: String) -> GoogleCloudSecret {
         GoogleCloudSecret(
-            name: "butteryai-database-url",
+            name: "app-database-url",
             projectID: projectID,
             labels: [
-                "app": "butteryai",
+                "app": "my-app",
                 "component": "database",
                 "sensitivity": "high"
             ]
@@ -186,10 +186,10 @@ public enum DAISSecretTemplate {
     /// API authentication token
     public static func apiToken(projectID: String) -> GoogleCloudSecret {
         GoogleCloudSecret(
-            name: "butteryai-api-token",
+            name: "app-api-token",
             projectID: projectID,
             labels: [
-                "app": "butteryai",
+                "app": "my-app",
                 "component": "api",
                 "sensitivity": "high"
             ]
@@ -199,10 +199,10 @@ public enum DAISSecretTemplate {
     /// gRPC TLS certificate (PEM)
     public static func grpcCertificate(projectID: String) -> GoogleCloudSecret {
         GoogleCloudSecret(
-            name: "butteryai-grpc-certificate",
+            name: "app-grpc-certificate",
             projectID: projectID,
             labels: [
-                "app": "butteryai",
+                "app": "my-app",
                 "component": "grpc",
                 "sensitivity": "medium"
             ]
@@ -212,10 +212,10 @@ public enum DAISSecretTemplate {
     /// gRPC TLS private key (PEM)
     public static func grpcPrivateKey(projectID: String) -> GoogleCloudSecret {
         GoogleCloudSecret(
-            name: "butteryai-grpc-private-key",
+            name: "app-grpc-private-key",
             projectID: projectID,
             labels: [
-                "app": "butteryai",
+                "app": "my-app",
                 "component": "grpc",
                 "sensitivity": "critical"
             ]

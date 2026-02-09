@@ -681,11 +681,11 @@ public enum PubSubRole: String, Codable, Sendable, CaseIterable {
     }
 }
 
-// MARK: - DAIS Pub/Sub Templates
+// MARK: - Cloud Pub/Sub Templates
 
-/// Predefined Pub/Sub configurations for DAIS
-public enum DAISPubSubTemplate {
-    /// Create a topic for DAIS events
+/// Predefined Pub/Sub configurations for Cloud
+public enum PubSubTemplate {
+    /// Create a topic for Cloud events
     public static func eventsTopic(
         name: String,
         projectID: String,
@@ -696,14 +696,14 @@ public enum DAISPubSubTemplate {
             projectID: projectID,
             messageRetentionDuration: messageRetention,
             labels: [
-                "app": "butteryai",
-                "managed-by": "dais",
+                "app": "my-app",
+                "managed-by": "googlecloudswift",
                 "type": "events"
             ]
         )
     }
 
-    /// Create a topic for DAIS commands
+    /// Create a topic for Cloud commands
     public static func commandsTopic(
         name: String,
         projectID: String
@@ -713,14 +713,14 @@ public enum DAISPubSubTemplate {
             projectID: projectID,
             messageRetentionDuration: "1d",
             labels: [
-                "app": "butteryai",
-                "managed-by": "dais",
+                "app": "my-app",
+                "managed-by": "googlecloudswift",
                 "type": "commands"
             ]
         )
     }
 
-    /// Create a subscription for a DAIS node
+    /// Create a subscription for a Cloud node
     public static func nodeSubscription(
         nodeName: String,
         topicName: String,
@@ -737,8 +737,8 @@ public enum DAISPubSubTemplate {
             enableExactlyOnceDelivery: true,
             enableMessageOrdering: enableOrdering,
             labels: [
-                "app": "butteryai",
-                "managed-by": "dais",
+                "app": "my-app",
+                "managed-by": "googlecloudswift",
                 "node": nodeName
             ]
         )
@@ -754,8 +754,8 @@ public enum DAISPubSubTemplate {
             projectID: projectID,
             messageRetentionDuration: "14d",
             labels: [
-                "app": "butteryai",
-                "managed-by": "dais",
+                "app": "my-app",
+                "managed-by": "googlecloudswift",
                 "type": "dead-letter"
             ]
         )
@@ -785,13 +785,13 @@ public enum DAISPubSubTemplate {
                 maximumBackoff: "600s"
             ),
             labels: [
-                "app": "butteryai",
-                "managed-by": "dais"
+                "app": "my-app",
+                "managed-by": "googlecloudswift"
             ]
         )
     }
 
-    /// Generate a setup script for DAIS Pub/Sub infrastructure
+    /// Generate a setup script for Cloud Pub/Sub infrastructure
     public static func setupScript(
         deploymentName: String,
         projectID: String,
@@ -803,14 +803,14 @@ public enum DAISPubSubTemplate {
 
         var script = """
         #!/bin/bash
-        # DAIS Pub/Sub Setup Script
+        # Cloud Pub/Sub Setup Script
         # Deployment: \(deploymentName)
         # Project: \(projectID)
 
         set -e
 
         echo "========================================"
-        echo "DAIS Pub/Sub Infrastructure Setup"
+        echo "Cloud Pub/Sub Infrastructure Setup"
         echo "========================================"
 
         # Enable Pub/Sub API
@@ -851,10 +851,10 @@ public enum DAISPubSubTemplate {
         echo "Pub/Sub setup complete!"
         echo ""
         echo "Topics:"
-        gcloud pubsub topics list --project=\(projectID) --filter="labels.managed-by=dais"
+        gcloud pubsub topics list --project=\(projectID) --filter="labels.managed-by=googlecloudswift"
         echo ""
         echo "Subscriptions:"
-        gcloud pubsub subscriptions list --project=\(projectID) --filter="labels.managed-by=dais"
+        gcloud pubsub subscriptions list --project=\(projectID) --filter="labels.managed-by=googlecloudswift"
         """
 
         return script

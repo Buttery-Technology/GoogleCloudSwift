@@ -1141,10 +1141,10 @@ public struct VisionOperations: Sendable {
     }
 }
 
-// MARK: - DAIS Vision AI Template
+// MARK: - Cloud Vision AI Template
 
-/// DAIS template for Vision AI processing
-public struct DAISVisionAITemplate: Sendable {
+/// Cloud template for Vision AI processing
+public struct VisionAITemplate: Sendable {
     /// Project ID
     public let projectID: String
 
@@ -1224,10 +1224,10 @@ public struct DAISVisionAITemplate: Sendable {
     /// Product search product set
     public var productSet: GoogleCloudVisionProductSet {
         GoogleCloudVisionProductSet(
-            name: "dais-products",
+            name: "app-products",
             projectID: projectID,
             location: location,
-            displayName: "DAIS Product Catalog"
+            displayName: "Cloud Product Catalog"
         )
     }
 

@@ -651,10 +651,10 @@ public struct RetailOperations: Sendable {
     }
 }
 
-// MARK: - DAIS Retail Template
+// MARK: - Cloud Retail Template
 
-/// DAIS template for Retail configurations
-public struct DAISRetailTemplate: Sendable {
+/// Cloud template for Retail configurations
+public struct RetailTemplate: Sendable {
     public let projectID: String
     public let location: String
     public let catalogName: String

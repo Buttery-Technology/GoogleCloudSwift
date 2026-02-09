@@ -557,10 +557,10 @@ public struct BigQueryOperations {
     }
 }
 
-// MARK: - DAIS BigQuery Template
+// MARK: - Cloud BigQuery Template
 
-/// BigQuery templates for DAIS deployments
-public struct DAISBigQueryTemplate {
+/// BigQuery templates for Cloud deployments
+public struct BigQueryTemplate {
 
     /// Create analytics dataset
     public static func analyticsDataset(

@@ -406,10 +406,10 @@ public struct ProfilerLanguageConfig: Sendable {
     }
 }
 
-// MARK: - DAIS Profiler Template
+// MARK: - Cloud Profiler Template
 
-/// Production-ready Cloud Profiler templates for DAIS systems
-public struct DAISProfilerTemplate: Sendable {
+/// Production-ready Cloud Profiler templates for Cloud systems
+public struct ProfilerTemplate: Sendable {
     public let projectID: String
     public let service: String
     public let serviceVersion: String
@@ -417,7 +417,7 @@ public struct DAISProfilerTemplate: Sendable {
 
     public init(
         projectID: String,
-        service: String = "dais-service",
+        service: String = "app-service",
         serviceVersion: String = "1.0.0",
         serviceAccount: String? = nil
     ) {
@@ -510,7 +510,7 @@ public struct DAISProfilerTemplate: Sendable {
 
         script += """
         echo ""
-        echo "DAIS Cloud Profiler setup complete!"
+        echo "Cloud Cloud Profiler setup complete!"
         echo ""
         echo "Service: $SERVICE_NAME"
         echo "Version: $SERVICE_VERSION"

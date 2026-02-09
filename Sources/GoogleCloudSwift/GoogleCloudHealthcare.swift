@@ -623,10 +623,10 @@ public struct HealthcareOperations: Sendable {
     }
 }
 
-// MARK: - DAIS Healthcare Template
+// MARK: - Cloud Healthcare Template
 
-/// DAIS template for Healthcare configurations
-public struct DAISHealthcareTemplate: Sendable {
+/// Cloud template for Healthcare configurations
+public struct HealthcareTemplate: Sendable {
     public let projectID: String
     public let location: String
 

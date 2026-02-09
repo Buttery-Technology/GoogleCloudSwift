@@ -690,10 +690,10 @@ public struct InterconnectOperations: Sendable {
     }
 }
 
-// MARK: - DAIS Interconnect Template
+// MARK: - Cloud Interconnect Template
 
-/// DAIS template for Interconnect configurations
-public struct DAISInterconnectTemplate: Sendable {
+/// Cloud template for Interconnect configurations
+public struct InterconnectTemplate: Sendable {
     public let projectID: String
     public let region: String
 

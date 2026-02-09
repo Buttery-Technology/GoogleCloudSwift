@@ -901,10 +901,10 @@ public struct GoogleCloudBatchOperations: Sendable {
     ]
 }
 
-// MARK: - DAIS Template
+// MARK: - Cloud Template
 
-/// DAIS template for Cloud Batch
-public struct DAISBatchTemplate: Codable, Sendable, Equatable {
+/// Cloud template for Cloud Batch
+public struct BatchTemplate: Codable, Sendable, Equatable {
     /// Project ID
     public let projectID: String
 
@@ -1154,7 +1154,7 @@ public struct DAISBatchTemplate: Codable, Sendable, Equatable {
     public var setupScript: String {
         """
         #!/bin/bash
-        # DAIS Batch Setup
+        # Cloud Batch Setup
 
         PROJECT_ID="\(projectID)"
 
@@ -1190,7 +1190,7 @@ public struct DAISBatchTemplate: Codable, Sendable, Equatable {
     public var teardownScript: String {
         """
         #!/bin/bash
-        # DAIS Batch Teardown
+        # Cloud Batch Teardown
 
         PROJECT_ID="\(projectID)"
 

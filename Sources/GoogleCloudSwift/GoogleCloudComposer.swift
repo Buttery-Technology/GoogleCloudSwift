@@ -481,10 +481,10 @@ public struct ComposerOperations: Sendable {
     }
 }
 
-// MARK: - DAIS Composer Template
+// MARK: - Cloud Composer Template
 
-/// Production-ready Cloud Composer templates for DAIS systems
-public struct DAISComposerTemplate: Sendable {
+/// Production-ready Cloud Composer templates for Cloud systems
+public struct ComposerTemplate: Sendable {
     public let projectID: String
     public let location: String
     public let environmentName: String
@@ -493,7 +493,7 @@ public struct DAISComposerTemplate: Sendable {
     public init(
         projectID: String,
         location: String = "us-central1",
-        environmentName: String = "dais-composer",
+        environmentName: String = "app-composer",
         serviceAccount: String? = nil
     ) {
         self.projectID = projectID
@@ -515,7 +515,7 @@ public struct DAISComposerTemplate: Sendable {
                 ),
                 environmentSize: .small
             ),
-            labels: ["env": "development", "managed-by": "dais"]
+            labels: ["env": "development", "managed-by": "googlecloudswift"]
         )
     }
 
@@ -545,7 +545,7 @@ public struct DAISComposerTemplate: Sendable {
                 },
                 environmentSize: .medium
             ),
-            labels: ["env": "production", "managed-by": "dais"]
+            labels: ["env": "production", "managed-by": "googlecloudswift"]
         )
     }
 
@@ -583,27 +583,27 @@ public struct DAISComposerTemplate: Sendable {
                 ),
                 environmentSize: .large
             ),
-            labels: ["env": "production", "ha": "true", "managed-by": "dais"]
+            labels: ["env": "production", "ha": "true", "managed-by": "googlecloudswift"]
         )
     }
 
     /// Sample ETL DAG
     public var sampleETLDAG: GoogleCloudComposerDAG {
         GoogleCloudComposerDAG(
-            dagID: "dais_etl_pipeline",
+            dagID: "app_etl_pipeline",
             schedule: GoogleCloudComposerDAG.Schedules.daily,
-            description: "DAIS daily ETL pipeline",
-            tags: ["dais", "etl", "production"]
+            description: "Cloud daily ETL pipeline",
+            tags: ["app", "etl", "production"]
         )
     }
 
     /// Sample data sync DAG
     public var sampleDataSyncDAG: GoogleCloudComposerDAG {
         GoogleCloudComposerDAG(
-            dagID: "dais_data_sync",
+            dagID: "app_data_sync",
             schedule: GoogleCloudComposerDAG.Schedules.hourly,
-            description: "DAIS hourly data synchronization",
-            tags: ["dais", "sync"]
+            description: "Cloud hourly data synchronization",
+            tags: ["app", "sync"]
         )
     }
 
@@ -638,7 +638,7 @@ public struct DAISComposerTemplate: Sendable {
         \(productionEnvironment.createCommand)
 
         echo ""
-        echo "DAIS Composer setup complete!"
+        echo "Cloud Composer setup complete!"
         echo ""
         echo "Environment: $ENV_NAME"
         echo "Location: $LOCATION"

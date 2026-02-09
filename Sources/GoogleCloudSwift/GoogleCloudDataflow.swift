@@ -695,10 +695,10 @@ public struct GoogleDataflowTemplates {
     }
 }
 
-// MARK: - DAIS Dataflow Template
+// MARK: - Cloud Dataflow Template
 
-/// Dataflow templates for DAIS deployments
-public struct DAISDataflowTemplate {
+/// Dataflow templates for Cloud deployments
+public struct DataflowTemplate {
 
     /// Create streaming ETL job from Pub/Sub to BigQuery
     public static func streamingETLJob(
@@ -732,7 +732,7 @@ public struct DAISDataflowTemplate {
             ),
             labels: [
                 "deployment": deploymentName,
-                "managed-by": "dais"
+                "managed-by": "googlecloudswift"
             ]
         )
     }
@@ -768,7 +768,7 @@ public struct DAISDataflowTemplate {
             ),
             labels: [
                 "deployment": deploymentName,
-                "managed-by": "dais"
+                "managed-by": "googlecloudswift"
             ]
         )
     }
@@ -809,7 +809,7 @@ public struct DAISDataflowTemplate {
             ),
             labels: [
                 "deployment": deploymentName,
-                "managed-by": "dais"
+                "managed-by": "googlecloudswift"
             ]
         )
     }
@@ -847,12 +847,12 @@ public struct DAISDataflowTemplate {
             ),
             labels: [
                 "deployment": deploymentName,
-                "managed-by": "dais"
+                "managed-by": "googlecloudswift"
             ]
         )
     }
 
-    /// Setup script for DAIS Dataflow infrastructure
+    /// Setup script for Cloud Dataflow infrastructure
     public static func setupScript(
         projectID: String,
         region: String,

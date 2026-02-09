@@ -930,11 +930,11 @@ public enum CommonDNSRecords {
     }
 }
 
-// MARK: - DAIS DNS Templates
+// MARK: - Cloud DNS Templates
 
-/// Predefined DNS configurations for DAIS deployments.
-public enum DAISDNSTemplate {
-    /// Create a managed zone for DAIS
+/// Predefined DNS configurations for Cloud deployments.
+public enum DNSTemplate {
+    /// Create a managed zone for Cloud
     public static func managedZone(
         projectID: String,
         deploymentName: String,
@@ -945,7 +945,7 @@ public enum DAISDNSTemplate {
             name: "\(deploymentName)-zone",
             dnsName: domain,
             projectID: projectID,
-            description: "DNS zone for DAIS deployment \(deploymentName)",
+            description: "DNS zone for Cloud deployment \(deploymentName)",
             visibility: visibility,
             dnssecConfig: visibility == .public ? .init(state: .on) : nil
         )
@@ -962,7 +962,7 @@ public enum DAISDNSTemplate {
             name: "\(deploymentName)-internal",
             dnsName: domain,
             projectID: projectID,
-            description: "Internal DNS zone for DAIS deployment",
+            description: "Internal DNS zone for Cloud deployment",
             visibility: .private,
             networks: networks
         )
@@ -1027,7 +1027,7 @@ public enum DAISDNSTemplate {
         GoogleCloudDNSPolicy(
             name: "\(deploymentName)-internal-policy",
             projectID: projectID,
-            description: "DNS policy for DAIS internal services",
+            description: "DNS policy for Cloud internal services",
             enableInboundForwarding: true,
             enableLogging: true,
             networks: networks
@@ -1048,14 +1048,14 @@ public enum DAISDNSTemplate {
 
         return """
         #!/bin/bash
-        # DAIS DNS Setup Script
+        # Cloud DNS Setup Script
         # Deployment: \(deploymentName)
         # Domain: \(domain)
 
         set -e
 
         echo "========================================"
-        echo "DAIS DNS Configuration"
+        echo "Cloud DNS Configuration"
         echo "========================================"
 
         # Create managed zone
@@ -1110,7 +1110,7 @@ public enum DAISDNSTemplate {
     ) -> String {
         """
         #!/bin/bash
-        # DAIS DNS Teardown Script
+        # Cloud DNS Teardown Script
         # WARNING: This will delete all DNS records and zones!
 
         set -e

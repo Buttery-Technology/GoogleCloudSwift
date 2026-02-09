@@ -412,10 +412,10 @@ public struct FirestoreLocation: Sendable {
     public static let australiaSoutheast1 = "australia-southeast1"
 }
 
-// MARK: - DAIS Firestore Template
+// MARK: - Cloud Firestore Template
 
-/// Production-ready Firestore templates for DAIS systems
-public struct DAISFirestoreTemplate: Sendable {
+/// Production-ready Firestore templates for Cloud systems
+public struct FirestoreTemplate: Sendable {
     public let projectID: String
     public let databaseID: String
     public let location: String
@@ -430,7 +430,7 @@ public struct DAISFirestoreTemplate: Sendable {
         self.location = location
     }
 
-    /// Main DAIS database configuration
+    /// Main Cloud database configuration
     public var mainDatabase: GoogleCloudFirestoreDatabase {
         GoogleCloudFirestoreDatabase(
             name: databaseID,
@@ -445,7 +445,7 @@ public struct DAISFirestoreTemplate: Sendable {
     /// Analytics database (separate database for analytics data)
     public var analyticsDatabase: GoogleCloudFirestoreDatabase {
         GoogleCloudFirestoreDatabase(
-            name: "dais-analytics",
+            name: "app-analytics",
             projectID: projectID,
             locationID: location,
             type: .firestoreNative,
@@ -457,7 +457,7 @@ public struct DAISFirestoreTemplate: Sendable {
     /// Datastore mode database for legacy compatibility
     public var datastoreModeDatabase: GoogleCloudFirestoreDatabase {
         GoogleCloudFirestoreDatabase(
-            name: "dais-datastore",
+            name: "app-datastore",
             projectID: projectID,
             locationID: location,
             type: .datastoreMode
@@ -543,7 +543,7 @@ public struct DAISFirestoreTemplate: Sendable {
         \(tasksByAgentIndex.createCommand)
 
         echo ""
-        echo "DAIS Firestore setup complete!"
+        echo "Cloud Firestore setup complete!"
         echo ""
         echo "Database: $DATABASE_ID"
         echo "Location: $LOCATION"

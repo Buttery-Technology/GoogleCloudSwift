@@ -1369,11 +1369,11 @@ public enum CloudBuildConfigGenerator {
     }
 }
 
-// MARK: - DAIS Cloud Build Templates
+// MARK: - Cloud Cloud Build Templates
 
-/// Pre-configured Cloud Build templates for DAIS deployments
-public enum DAISCloudBuildTemplate {
-    /// Create a GitHub trigger for DAIS deployment
+/// Pre-configured Cloud Build templates for Cloud deployments
+public enum CloudBuildTemplate {
+    /// Create a GitHub trigger for Cloud deployment
     public static func githubTrigger(
         projectID: String,
         deploymentName: String,
@@ -1386,7 +1386,7 @@ public enum DAISCloudBuildTemplate {
             name: "\(deploymentName)-deploy",
             projectID: projectID,
             description: "Deploy \(deploymentName) on push to main",
-            tags: ["dais", deploymentName],
+            tags: ["app", deploymentName],
             triggerSource: .github(
                 owner: owner,
                 name: repo,
@@ -1412,7 +1412,7 @@ public enum DAISCloudBuildTemplate {
             name: "\(deploymentName)-pr-preview",
             projectID: projectID,
             description: "Deploy preview for PRs to \(deploymentName)",
-            tags: ["dais", deploymentName, "preview"],
+            tags: ["app", deploymentName, "preview"],
             triggerSource: .github(
                 owner: owner,
                 name: repo,
@@ -1433,14 +1433,14 @@ public enum DAISCloudBuildTemplate {
             name: "\(deploymentName)-manual",
             projectID: projectID,
             description: "Manual deployment for \(deploymentName)",
-            tags: ["dais", deploymentName, "manual"],
+            tags: ["app", deploymentName, "manual"],
             triggerSource: .manual,
             buildConfig: .filename("cloudbuild.yaml"),
             region: region
         )
     }
 
-    /// Generate a complete DAIS cloudbuild.yaml
+    /// Generate a complete Cloud cloudbuild.yaml
     public static func cloudbuildYaml(
         projectID: String,
         location: String,
@@ -1451,7 +1451,7 @@ public enum DAISCloudBuildTemplate {
         let imageBase = "\(location)-docker.pkg.dev/\(projectID)/\(deploymentName)-docker"
 
         var yaml = """
-        # DAIS Cloud Build Configuration
+        # Cloud Cloud Build Configuration
         # Deployment: \(deploymentName)
 
         substitutions:
@@ -1544,7 +1544,7 @@ public enum DAISCloudBuildTemplate {
         #!/bin/bash
         set -e
 
-        # DAIS Cloud Build Setup Script
+        # Cloud Cloud Build Setup Script
         # Project: \(projectID)
         # Deployment: \(deploymentName)
 
@@ -1609,7 +1609,7 @@ public enum DAISCloudBuildTemplate {
         #!/bin/bash
         set -e
 
-        # DAIS Cloud Build Teardown Script
+        # Cloud Cloud Build Teardown Script
 
         echo "Deleting build triggers..."
         gcloud builds triggers delete \(deploymentName)-deploy --project=\(projectID) --quiet || true
@@ -1636,7 +1636,7 @@ public enum DAISCloudBuildTemplate {
             name: "\(deploymentName)-pool",
             projectID: projectID,
             region: region,
-            displayName: "DAIS \(deploymentName) Worker Pool",
+            displayName: "Cloud \(deploymentName) Worker Pool",
             privatePoolConfig: .init(
                 workerConfig: .init(machineType: "e2-standard-4", diskSizeGb: 100),
                 networkConfig: networkConfig

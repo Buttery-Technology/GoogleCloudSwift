@@ -764,10 +764,10 @@ public struct DocumentAIOperations: Sendable {
     }
 }
 
-// MARK: - DAIS Document AI Template
+// MARK: - Cloud Document AI Template
 
-/// DAIS template for Document AI processing pipelines
-public struct DAISDocumentAITemplate: Sendable {
+/// Cloud template for Document AI processing pipelines
+public struct DocumentAITemplate: Sendable {
     /// Project ID
     public let projectID: String
 
@@ -786,7 +786,7 @@ public struct DAISDocumentAITemplate: Sendable {
     public init(
         projectID: String,
         location: String = "us",
-        processorPrefix: String = "dais",
+        processorPrefix: String = "app",
         serviceAccount: String,
         documentBucket: String
     ) {
@@ -804,7 +804,7 @@ public struct DAISDocumentAITemplate: Sendable {
             projectID: projectID,
             location: location,
             type: .ocrProcessor,
-            displayName: "DAIS OCR Processor"
+            displayName: "Cloud OCR Processor"
         )
     }
 
@@ -815,7 +815,7 @@ public struct DAISDocumentAITemplate: Sendable {
             projectID: projectID,
             location: location,
             type: .formParser,
-            displayName: "DAIS Form Parser"
+            displayName: "Cloud Form Parser"
         )
     }
 
@@ -826,7 +826,7 @@ public struct DAISDocumentAITemplate: Sendable {
             projectID: projectID,
             location: location,
             type: .invoiceParser,
-            displayName: "DAIS Invoice Parser"
+            displayName: "Cloud Invoice Parser"
         )
     }
 
@@ -837,7 +837,7 @@ public struct DAISDocumentAITemplate: Sendable {
             projectID: projectID,
             location: location,
             type: .documentQuality,
-            displayName: "DAIS Document Quality Checker"
+            displayName: "Cloud Document Quality Checker"
         )
     }
 
@@ -848,7 +848,7 @@ public struct DAISDocumentAITemplate: Sendable {
             projectID: projectID,
             location: location,
             type: .custom,
-            displayName: "DAIS Custom Extractor"
+            displayName: "Cloud Custom Extractor"
         )
     }
 
@@ -894,28 +894,28 @@ public struct DAISDocumentAITemplate: Sendable {
         gcloud documentai processors create \\
             --location=\(location) \\
             --type=OCR_PROCESSOR \\
-            --display-name="DAIS OCR Processor" \\
+            --display-name="Cloud OCR Processor" \\
             --project=\(projectID) || true
 
         # Create Form Parser processor
         gcloud documentai processors create \\
             --location=\(location) \\
             --type=FORM_PARSER_PROCESSOR \\
-            --display-name="DAIS Form Parser" \\
+            --display-name="Cloud Form Parser" \\
             --project=\(projectID) || true
 
         # Create Invoice processor
         gcloud documentai processors create \\
             --location=\(location) \\
             --type=INVOICE_PROCESSOR \\
-            --display-name="DAIS Invoice Parser" \\
+            --display-name="Cloud Invoice Parser" \\
             --project=\(projectID) || true
 
         # Create Document Quality processor
         gcloud documentai processors create \\
             --location=\(location) \\
             --type=DOCUMENT_QUALITY_PROCESSOR \\
-            --display-name="DAIS Document Quality Checker" \\
+            --display-name="Cloud Document Quality Checker" \\
             --project=\(projectID) || true
 
         # Grant Document AI roles to service account

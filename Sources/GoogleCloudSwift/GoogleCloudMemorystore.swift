@@ -360,10 +360,10 @@ public enum MemorystoreOperations {
     }
 }
 
-// MARK: - DAIS Memorystore Templates
+// MARK: - Cloud Memorystore Templates
 
-/// DAIS-specific Memorystore configurations
-public enum DAISMemorystoreTemplate {
+/// Cloud-specific Memorystore configurations
+public enum MemorystoreTemplate {
 
     /// Cache Redis instance (Basic tier)
     public static func cacheInstance(
@@ -379,7 +379,7 @@ public enum DAISMemorystoreTemplate {
             tier: .basic,
             memorySizeGB: memorySizeGB,
             redisVersion: .redis7_0,
-            displayName: "DAIS Cache",
+            displayName: "Cloud Cache",
             redisConfigs: [
                 "maxmemory-policy": "allkeys-lru"
             ],
@@ -401,7 +401,7 @@ public enum DAISMemorystoreTemplate {
             tier: .standardHa,
             memorySizeGB: memorySizeGB,
             redisVersion: .redis7_0,
-            displayName: "DAIS Session Store",
+            displayName: "Cloud Session Store",
             redisConfigs: [
                 "maxmemory-policy": "volatile-lru",
                 "notify-keyspace-events": "Ex"
@@ -427,7 +427,7 @@ public enum DAISMemorystoreTemplate {
             tier: .standardHa,
             memorySizeGB: memorySizeGB,
             redisVersion: .redis7_0,
-            displayName: "DAIS HA Redis",
+            displayName: "Cloud HA Redis",
             labels: ["environment": "production", "purpose": "ha-cache"],
             transitEncryptionMode: .serverAuthentication,
             authEnabled: true,
@@ -451,12 +451,12 @@ public enum DAISMemorystoreTemplate {
             nodeCPUs: 1,
             nodeMemoryMB: 1024,
             memcachedVersion: .memcached1_6,
-            displayName: "DAIS Memcached Cluster",
+            displayName: "Cloud Memcached Cluster",
             labels: ["environment": "production", "purpose": "distributed-cache"]
         )
     }
 
-    /// Setup script for DAIS Memorystore
+    /// Setup script for Cloud Memorystore
     public static func setupScript(
         projectID: String,
         region: String,
@@ -464,7 +464,7 @@ public enum DAISMemorystoreTemplate {
     ) -> String {
         """
         #!/bin/bash
-        # DAIS Memorystore Setup Script
+        # Cloud Memorystore Setup Script
         set -e
 
         PROJECT_ID="\(projectID)"
@@ -482,7 +482,7 @@ public enum DAISMemorystoreTemplate {
             --tier=basic \\
             --size=1 \\
             --redis-version=REDIS_7_0 \\
-            --display-name="DAIS Cache" || true
+            --display-name="Cloud Cache" || true
 
         echo "Memorystore setup complete!"
         echo "Redis host: $(gcloud redis instances describe ${DEPLOYMENT_NAME}-cache --region=${REGION} --project=${PROJECT_ID} --format='value(host)')"
@@ -497,7 +497,7 @@ public enum DAISMemorystoreTemplate {
     ) -> String {
         """
         #!/bin/bash
-        # DAIS Memorystore Teardown Script
+        # Cloud Memorystore Teardown Script
         set -e
 
         PROJECT_ID="\(projectID)"

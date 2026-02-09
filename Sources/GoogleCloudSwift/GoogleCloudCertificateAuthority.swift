@@ -981,10 +981,10 @@ public struct CertificateAuthorityOperations: Sendable {
     }
 }
 
-// MARK: - DAIS Certificate Authority Template
+// MARK: - Cloud Certificate Authority Template
 
-/// DAIS template for Certificate Authority configurations
-public struct DAISCertificateAuthorityTemplate: Sendable {
+/// Cloud template for Certificate Authority configurations
+public struct CertificateAuthorityTemplate: Sendable {
     public let projectID: String
     public let location: String
     public let organization: String

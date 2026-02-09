@@ -607,12 +607,12 @@ public struct VPCServiceControlsOperations {
     }
 }
 
-// MARK: - DAIS VPC-SC Template
+// MARK: - Cloud VPC-SC Template
 
-/// VPC Service Controls templates for DAIS deployments
-public struct DAISVPCServiceControlsTemplate {
+/// VPC Service Controls templates for Cloud deployments
+public struct VPCServiceControlsTemplate {
 
-    /// Create access policy for DAIS
+    /// Create access policy for Cloud
     public static func accessPolicy(
         organizationID: String,
         deploymentName: String

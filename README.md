@@ -1,10 +1,10 @@
 # GoogleCloudSwift
 
-Swift models for deploying and running DAIS (Distributed AI Systems) on Google Cloud Platform.
+A comprehensive Swift library providing type-safe models, REST API clients, and deployment templates for 60+ Google Cloud Platform services.
 
 ## Why Google Cloud?
 
-Google Cloud offers several advantages for DAIS deployments:
+Google Cloud offers several advantages for cloud deployments:
 
 | Feature | Benefit |
 |---------|---------|
@@ -20,7 +20,7 @@ Add GoogleCloudSwift to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/jonnyholland/GoogleCloudSwift.git", from: "1.0.0")
+    .package(url: "https://github.com/Buttery-Technology/GoogleCloudSwift.git", from: "1.0.0")
 ]
 ```
 
@@ -67,13 +67,13 @@ import GoogleCloudSwift
 
 // Configure Google Cloud provider
 let provider = GoogleCloudProvider(
-    projectID: "my-butteryai-project",
+    projectID: "my-app-project",
     region: .usWest1,
     credentials: .applicationDefault
 )
 
 // Create a deployment configuration
-let deployment = GoogleCloudDAISDeployment(
+let deployment = GoogleCloudComputeDeployment(
     name: "production",
     provider: provider,
     nodeCount: 3,
@@ -87,13 +87,13 @@ print(deployment.setupScript)
 print("Monthly cost: $\(deployment.estimatedMonthlyCostUSD)")
 ```
 
-### 3. Deploy DAIS
+### 3. Deploy
 
 ```bash
 # Generate and run the setup script
-swift run GenerateDeploymentScript > setup-dais.sh
-chmod +x setup-dais.sh
-./setup-dais.sh
+swift run GenerateDeploymentScript > setup-deployment.sh
+chmod +x setup-deployment.sh
+./setup-deployment.sh
 ```
 
 ## REST API Usage
@@ -187,7 +187,7 @@ You can also create instances using the high-level `GoogleCloudComputeInstance` 
 
 ```swift
 let config = GoogleCloudComputeInstance(
-    name: "dais-node-1",
+    name: "app-node-1",
     machineType: .e2Medium,
     zone: "us-central1-a",
     bootDisk: .init(
@@ -195,7 +195,7 @@ let config = GoogleCloudComputeInstance(
         sizeGB: 20,
         diskType: .pdBalanced
     ),
-    networkTags: ["dais-node", "allow-grpc"],
+    networkTags: ["app-node", "allow-grpc"],
     scheduling: .spot
 )
 
@@ -247,7 +247,7 @@ GoogleCloudSwift provides models for 60 Google Cloud services:
 | **Cloud Pub/Sub** | Messaging and event streaming | `GoogleCloudPubSubTopic`, `GoogleCloudPubSubSubscription` |
 | **Cloud Functions** | Serverless compute | `GoogleCloudFunction`, `CloudFunctionRuntime` |
 | **Cloud Run** | Containerized services | `GoogleCloudRunService`, `GoogleCloudRunJob` |
-| **GKE** | Kubernetes Engine clusters | `GoogleCloudGKECluster`, `GoogleCloudGKENodePool`, `GKEOperations`, `DAISGKETemplate` |
+| **GKE** | Kubernetes Engine clusters | `GoogleCloudGKECluster`, `GoogleCloudGKENodePool`, `GKEOperations`, `GKETemplate` |
 | **Cloud Logging** | Log management and analysis | `GoogleCloudLogEntry`, `GoogleCloudLogSink` |
 | **Cloud Monitoring** | Metrics, alerts, and uptime checks | `GoogleCloudAlertPolicy`, `GoogleCloudUptimeCheck` |
 | **VPC Networks** | Virtual Private Cloud networking | `GoogleCloudVPCNetwork`, `GoogleCloudSubnet`, `GoogleCloudFirewallRule` |
@@ -265,29 +265,29 @@ GoogleCloudSwift provides models for 60 Google Cloud services:
 | **Cloud Filestore** | Managed NFS file shares | `GoogleCloudFilestoreInstance`, `GoogleCloudFilestoreBackup`, `GoogleCloudFilestoreSnapshot` |
 | **Cloud VPN** | Secure network connectivity | `GoogleCloudVPNGateway`, `GoogleCloudVPNTunnel`, `GoogleCloudExternalVPNGateway` |
 | **BigQuery** | Data warehouse and analytics | `GoogleCloudBigQueryDataset`, `GoogleCloudBigQueryTable`, `GoogleCloudBigQueryJob`, `GoogleCloudBigQueryView` |
-| **Cloud Spanner** | Globally distributed relational database | `GoogleCloudSpannerInstance`, `GoogleCloudSpannerDatabase`, `GoogleCloudSpannerBackup`, `DAISSpannerTemplate` |
-| **Firestore** | NoSQL document database | `GoogleCloudFirestoreDatabase`, `GoogleCloudFirestoreIndex`, `GoogleCloudFirestoreExport`, `DAISFirestoreTemplate` |
-| **Vertex AI** | Machine learning platform | `GoogleCloudVertexAIModel`, `GoogleCloudVertexAIEndpoint`, `GoogleCloudVertexAICustomJob`, `DAISVertexAITemplate` |
-| **Cloud Trace** | Distributed tracing | `GoogleCloudTraceSpan`, `GoogleCloudTraceSink`, `TraceOperations`, `DAISTraceTemplate` |
-| **Cloud Profiler** | Continuous profiling | `GoogleCloudProfilerProfile`, `GoogleCloudProfilerAgentConfig`, `ProfilerOperations`, `DAISProfilerTemplate` |
-| **Error Reporting** | Error collection and analysis | `GoogleCloudErrorEvent`, `GoogleCloudErrorGroup`, `ErrorReportingOperations`, `DAISErrorReportingTemplate` |
-| **Cloud Bigtable** | Wide-column NoSQL database | `GoogleCloudBigtableInstance`, `GoogleCloudBigtableCluster`, `GoogleCloudBigtableTable`, `DAISBigtableTemplate` |
-| **Dataproc** | Managed Spark and Hadoop | `GoogleCloudDataprocCluster`, `GoogleCloudDataprocJob`, `GoogleCloudDataprocBatch`, `DAISDataprocTemplate` |
-| **Cloud Composer** | Managed Apache Airflow | `GoogleCloudComposerEnvironment`, `GoogleCloudComposerDAG`, `ComposerOperations`, `DAISComposerTemplate` |
-| **Document AI** | Intelligent document processing | `GoogleCloudDocumentAIProcessor`, `GoogleCloudDocument`, `DocumentAIOperations`, `DAISDocumentAITemplate` |
-| **Vision AI** | Image analysis and understanding | `GoogleCloudVisionRequest`, `GoogleCloudVisionResponse`, `VisionOperations`, `DAISVisionAITemplate` |
-| **Speech-to-Text** | Audio transcription | `GoogleCloudSpeechRecognitionRequest`, `GoogleCloudSpeechRecognizer`, `SpeechToTextOperations`, `DAISSpeechToTextTemplate` |
-| **Text-to-Speech** | Speech synthesis | `GoogleCloudTextToSpeechRequest`, `GoogleCloudTextToSpeechVoice`, `SSMLBuilder`, `DAISTextToSpeechTemplate` |
-| **Translation AI** | Text translation | `GoogleCloudTranslationRequest`, `GoogleCloudGlossary`, `LanguageCode`, `DAISTranslationTemplate` |
-| **Cloud Batch** | Containerized batch processing | `GoogleCloudBatchJob`, `TaskGroup`, `AllocationPolicy`, `DAISBatchTemplate` |
-| **Binary Authorization** | Container image security | `GoogleCloudBinaryAuthorizationPolicy`, `GoogleCloudAttestor`, `AdmissionRule`, `DAISBinaryAuthorizationTemplate` |
-| **Certificate Authority Service** | Private CA management | `GoogleCloudCaPool`, `GoogleCloudCertificateAuthority`, `GoogleCloudCertificate`, `DAISCertificateAuthorityTemplate` |
-| **Network Intelligence Center** | Network monitoring and diagnostics | `GoogleCloudConnectivityTest`, `Endpoint`, `GoogleCloudNetworkTopology`, `DAISNetworkIntelligenceTemplate` |
-| **Cloud Interconnect** | Dedicated and partner network connections | `GoogleCloudInterconnect`, `GoogleCloudInterconnectAttachment`, `GoogleCloudRouterForInterconnect`, `DAISInterconnectTemplate` |
-| **Cloud Healthcare API** | Healthcare data storage (FHIR, HL7v2, DICOM) | `GoogleCloudHealthcareDataset`, `GoogleCloudFHIRStore`, `GoogleCloudDICOMStore`, `DAISHealthcareTemplate` |
-| **Retail API** | Product catalog and recommendations | `GoogleCloudRetailCatalog`, `GoogleCloudRetailProduct`, `GoogleCloudRetailUserEvent`, `DAISRetailTemplate` |
-| **Media CDN** | Content delivery for streaming media | `GoogleCloudEdgeCacheService`, `GoogleCloudEdgeCacheOrigin`, `GoogleCloudEdgeCacheKeyset`, `DAISMediaCDNTemplate` |
-| **Anthos** | Hybrid and multi-cloud platform | `GoogleCloudAnthosMembership`, `GoogleCloudAnthosFeature`, `GoogleCloudAnthosConfigManagement`, `DAISAnthosTemplate` |
+| **Cloud Spanner** | Globally distributed relational database | `GoogleCloudSpannerInstance`, `GoogleCloudSpannerDatabase`, `GoogleCloudSpannerBackup`, `SpannerTemplate` |
+| **Firestore** | NoSQL document database | `GoogleCloudFirestoreDatabase`, `GoogleCloudFirestoreIndex`, `GoogleCloudFirestoreExport`, `FirestoreTemplate` |
+| **Vertex AI** | Machine learning platform | `GoogleCloudVertexAIModel`, `GoogleCloudVertexAIEndpoint`, `GoogleCloudVertexAICustomJob`, `VertexAITemplate` |
+| **Cloud Trace** | Distributed tracing | `GoogleCloudTraceSpan`, `GoogleCloudTraceSink`, `TraceOperations`, `TraceTemplate` |
+| **Cloud Profiler** | Continuous profiling | `GoogleCloudProfilerProfile`, `GoogleCloudProfilerAgentConfig`, `ProfilerOperations`, `ProfilerTemplate` |
+| **Error Reporting** | Error collection and analysis | `GoogleCloudErrorEvent`, `GoogleCloudErrorGroup`, `ErrorReportingOperations`, `ErrorReportingTemplate` |
+| **Cloud Bigtable** | Wide-column NoSQL database | `GoogleCloudBigtableInstance`, `GoogleCloudBigtableCluster`, `GoogleCloudBigtableTable`, `BigtableTemplate` |
+| **Dataproc** | Managed Spark and Hadoop | `GoogleCloudDataprocCluster`, `GoogleCloudDataprocJob`, `GoogleCloudDataprocBatch`, `DataprocTemplate` |
+| **Cloud Composer** | Managed Apache Airflow | `GoogleCloudComposerEnvironment`, `GoogleCloudComposerDAG`, `ComposerOperations`, `ComposerTemplate` |
+| **Document AI** | Intelligent document processing | `GoogleCloudDocumentAIProcessor`, `GoogleCloudDocument`, `DocumentAIOperations`, `DocumentAITemplate` |
+| **Vision AI** | Image analysis and understanding | `GoogleCloudVisionRequest`, `GoogleCloudVisionResponse`, `VisionOperations`, `VisionAITemplate` |
+| **Speech-to-Text** | Audio transcription | `GoogleCloudSpeechRecognitionRequest`, `GoogleCloudSpeechRecognizer`, `SpeechToTextOperations`, `SpeechToTextTemplate` |
+| **Text-to-Speech** | Speech synthesis | `GoogleCloudTextToSpeechRequest`, `GoogleCloudTextToSpeechVoice`, `SSMLBuilder`, `TextToSpeechTemplate` |
+| **Translation AI** | Text translation | `GoogleCloudTranslationRequest`, `GoogleCloudGlossary`, `LanguageCode`, `TranslationTemplate` |
+| **Cloud Batch** | Containerized batch processing | `GoogleCloudBatchJob`, `TaskGroup`, `AllocationPolicy`, `BatchTemplate` |
+| **Binary Authorization** | Container image security | `GoogleCloudBinaryAuthorizationPolicy`, `GoogleCloudAttestor`, `AdmissionRule`, `BinaryAuthorizationTemplate` |
+| **Certificate Authority Service** | Private CA management | `GoogleCloudCaPool`, `GoogleCloudCertificateAuthority`, `GoogleCloudCertificate`, `CertificateAuthorityTemplate` |
+| **Network Intelligence Center** | Network monitoring and diagnostics | `GoogleCloudConnectivityTest`, `Endpoint`, `GoogleCloudNetworkTopology`, `NetworkIntelligenceTemplate` |
+| **Cloud Interconnect** | Dedicated and partner network connections | `GoogleCloudInterconnect`, `GoogleCloudInterconnectAttachment`, `GoogleCloudRouterForInterconnect`, `InterconnectTemplate` |
+| **Cloud Healthcare API** | Healthcare data storage (FHIR, HL7v2, DICOM) | `GoogleCloudHealthcareDataset`, `GoogleCloudFHIRStore`, `GoogleCloudDICOMStore`, `HealthcareTemplate` |
+| **Retail API** | Product catalog and recommendations | `GoogleCloudRetailCatalog`, `GoogleCloudRetailProduct`, `GoogleCloudRetailUserEvent`, `RetailTemplate` |
+| **Media CDN** | Content delivery for streaming media | `GoogleCloudEdgeCacheService`, `GoogleCloudEdgeCacheOrigin`, `GoogleCloudEdgeCacheKeyset`, `MediaCDNTemplate` |
+| **Anthos** | Hybrid and multi-cloud platform | `GoogleCloudAnthosMembership`, `GoogleCloudAnthosFeature`, `GoogleCloudAnthosConfigManagement`, `AnthosTemplate` |
 | **Dataflow** | Batch and streaming data processing | `GoogleCloudDataflowJob`, `GoogleCloudDataflowFlexTemplate`, `GoogleCloudDataflowSQL`, `GoogleCloudDataflowSnapshot` |
 | **Cloud Deploy** | Continuous delivery to GKE/Cloud Run | `GoogleCloudDeliveryPipeline`, `GoogleCloudDeployTarget`, `GoogleCloudDeployRelease`, `GoogleCloudDeployRollout` |
 | **Cloud Workflows** | Serverless workflow orchestration | `GoogleCloudWorkflow`, `GoogleCloudWorkflowExecution`, `WorkflowStep`, `WorkflowConnectors` |
@@ -298,7 +298,7 @@ GoogleCloudSwift provides models for 60 Google Cloud services:
 | **Resource Manager** | Projects & folders | `GoogleCloudProject`, `GoogleCloudFolder` |
 | **Deployment Manager** | YAML/Jinja2 deployments (deprecated) | `GoogleCloudDeployment`, `GoogleCloudDeploymentType` |
 | **Infrastructure Manager** | Terraform-based deployments | `InfrastructureManagerDeployment`, `TerraformBlueprint` |
-| **DAIS Deployment** | Complete orchestration | `GoogleCloudDAISDeployment` |
+| **Compute Deployment** | Complete VM orchestration | `GoogleCloudComputeDeployment` |
 
 ### GoogleCloudProvider
 
@@ -310,18 +310,18 @@ let provider = GoogleCloudProvider(
     region: .usWest1,
     zone: "us-west1-a",  // Optional, defaults to region-a
     credentials: .applicationDefault,
-    serviceAccountEmail: "dais@my-project.iam.gserviceaccount.com",
+    serviceAccountEmail: "my-sa@my-project.iam.gserviceaccount.com",
     defaultLabels: ["environment": "production"]
 )
 ```
 
 ### GoogleCloudComputeInstance
 
-Configure Compute Engine VMs for DAIS nodes:
+Configure Compute Engine VMs:
 
 ```swift
 let instance = GoogleCloudComputeInstance(
-    name: "dais-node-1",
+    name: "app-node-1",
     machineType: .e2Medium,
     zone: "us-west1-a",
     bootDisk: .init(
@@ -329,7 +329,7 @@ let instance = GoogleCloudComputeInstance(
         sizeGB: 20,
         diskType: .pdBalanced
     ),
-    networkTags: ["dais-node", "allow-grpc"],
+    networkTags: ["app-node", "allow-grpc"],
     scheduling: .spot  // Use spot pricing for cost savings
 )
 ```
@@ -341,20 +341,20 @@ Store sensitive data in Secret Manager:
 ```swift
 // Create a secret reference
 let secret = GoogleCloudSecret(
-    name: "butteryai-certificate-master-key",
+    name: "app-certificate-master-key",
     projectID: "my-project"
 )
 
 // Use predefined templates
-let certKey = DAISSecretTemplate.certificateMasterKey(projectID: "my-project")
-let dbURL = DAISSecretTemplate.databaseURL(projectID: "my-project")
+let certKey = SecretTemplate.certificateMasterKey(projectID: "my-project")
+let dbURL = SecretTemplate.databaseURL(projectID: "my-project")
 
 // Get CLI commands
 print(secret.createCommand)
-// Output: gcloud secrets create butteryai-certificate-master-key --project=my-project --replication-policy=automatic
+// Output: gcloud secrets create app-certificate-master-key --project=my-project --replication-policy=automatic
 
 print(secret.accessCommand)
-// Output: gcloud secrets versions access latest --secret=butteryai-certificate-master-key --project=my-project
+// Output: gcloud secrets versions access latest --secret=app-certificate-master-key --project=my-project
 ```
 
 ### GoogleCloudStorageBucket
@@ -363,14 +363,14 @@ Configure Cloud Storage for backups:
 
 ```swift
 // Use predefined templates
-let backupBucket = DAISBucketTemplate.certificateBackups(
+let backupBucket = BucketTemplate.certificateBackups(
     projectID: "my-project",
     bucketSuffix: "prod-123"
 )
 
 // Custom configuration
 let logBucket = GoogleCloudStorageBucket(
-    name: "my-dais-logs",
+    name: "my-app-logs",
     projectID: "my-project",
     location: .usWest1,
     storageClass: .nearline,
@@ -428,22 +428,22 @@ let user = GoogleCloudSQLUser(
 print(user.createCommand)
 ```
 
-**DAIS PostgreSQL Templates:**
+**Cloud PostgreSQL Templates:**
 
 ```swift
-// Create a production-ready PostgreSQL instance for DAIS
-let instance = DAISSQLTemplate.postgresInstance(
-    name: "dais-db",
+// Create a production-ready PostgreSQL instance for Cloud
+let instance = SQLTemplate.postgresInstance(
+    name: "app-db",
     projectID: "my-project",
     region: "us-central1",
     highAvailability: true
 )
 
-let database = DAISSQLTemplate.daisDatabase(instanceName: "dais-db", projectID: "my-project")
-let user = DAISSQLTemplate.daisUser(instanceName: "dais-db", projectID: "my-project", password: "pass")
+let database = SQLTemplate.appDatabase(instanceName: "app-db", projectID: "my-project")
+let user = SQLTemplate.appUser(instanceName: "app-db", projectID: "my-project", password: "pass")
 
 // Generate complete setup script
-let script = DAISSQLTemplate.setupScript(instance: instance, database: database, appUser: user)
+let script = SQLTemplate.setupScript(instance: instance, database: database, appUser: user)
 ```
 
 **Supported Database Versions:**
@@ -469,17 +469,17 @@ Cloud Pub/Sub provides reliable, real-time messaging for event-driven systems an
 ```swift
 // Create a topic
 let topic = GoogleCloudPubSubTopic(
-    name: "dais-events",
+    name: "app-events",
     projectID: "my-project",
     messageRetentionDuration: "604800s",  // 7 days
-    labels: ["app": "dais", "environment": "production"]
+    labels: ["app": "my-app", "environment": "production"]
 )
 
 print(topic.createCommand)
-print(topic.resourceName)  // projects/my-project/topics/dais-events
+print(topic.resourceName)  // projects/my-project/topics/app-events
 
 // Publish a message
-print(topic.publishCommand(message: "Hello, DAIS!"))
+print(topic.publishCommand(message: "Hello, Cloud!"))
 ```
 
 **Subscriptions (Pull and Push):**
@@ -487,8 +487,8 @@ print(topic.publishCommand(message: "Hello, DAIS!"))
 ```swift
 // Pull subscription (default)
 let pullSubscription = GoogleCloudPubSubSubscription(
-    name: "dais-events-worker",
-    topicName: "dais-events",
+    name: "app-events-worker",
+    topicName: "app-events",
     projectID: "my-project",
     ackDeadlineSeconds: 60,
     enableExactlyOnceDelivery: true,
@@ -500,8 +500,8 @@ print(pullSubscription.pullCommand(maxMessages: 10))
 
 // Push subscription
 let pushSubscription = GoogleCloudPubSubSubscription(
-    name: "dais-events-webhook",
-    topicName: "dais-events",
+    name: "app-events-webhook",
+    topicName: "app-events",
     projectID: "my-project",
     type: .push(endpoint: "https://my-app.example.com/webhook"),
     ackDeadlineSeconds: 30
@@ -513,11 +513,11 @@ let pushSubscription = GoogleCloudPubSubSubscription(
 ```swift
 // Subscription with dead letter queue and retry policy
 let subscription = GoogleCloudPubSubSubscription(
-    name: "dais-events-reliable",
-    topicName: "dais-events",
+    name: "app-events-reliable",
+    topicName: "app-events",
     projectID: "my-project",
     deadLetterPolicy: GoogleCloudPubSubSubscription.DeadLetterPolicy(
-        deadLetterTopic: "projects/my-project/topics/dais-events-dead-letter",
+        deadLetterTopic: "projects/my-project/topics/app-events-dead-letter",
         maxDeliveryAttempts: 5
     ),
     retryPolicy: GoogleCloudPubSubSubscription.RetryPolicy(
@@ -533,7 +533,7 @@ let subscription = GoogleCloudPubSubSubscription(
 // Create a snapshot for replay
 let snapshot = GoogleCloudPubSubSnapshot(
     name: "events-snapshot-20260104",
-    subscriptionName: "dais-events-worker",
+    subscriptionName: "app-events-worker",
     projectID: "my-project"
 )
 print(snapshot.createCommand)
@@ -548,13 +548,13 @@ print(subscription.seekToSnapshotCommand(snapshotName: "events-snapshot-20260104
 ```swift
 // Create an Avro schema
 let schema = GoogleCloudPubSubSchema(
-    name: "dais-event-schema",
+    name: "app-event-schema",
     projectID: "my-project",
     type: .avro,
     definition: """
     {
       "type": "record",
-      "name": "DAISEvent",
+      "name": "Event",
       "fields": [
         {"name": "eventId", "type": "string"},
         {"name": "timestamp", "type": "long"},
@@ -570,35 +570,35 @@ let validatedTopic = GoogleCloudPubSubTopic(
     name: "validated-events",
     projectID: "my-project",
     schemaSettings: GoogleCloudPubSubTopic.SchemaSettings(
-        schemaName: "projects/my-project/schemas/dais-event-schema",
+        schemaName: "projects/my-project/schemas/app-event-schema",
         encoding: .json
     )
 )
 ```
 
-**DAIS Pub/Sub Templates:**
+**Cloud Pub/Sub Templates:**
 
 ```swift
-// Create topics for DAIS inter-node communication
-let eventsTopic = DAISPubSubTemplate.eventsTopic(
+// Create topics for inter-node communication
+let eventsTopic = PubSubTemplate.eventsTopic(
     projectID: "my-project",
     deploymentName: "production"
 )
 
-let commandsTopic = DAISPubSubTemplate.commandsTopic(
+let commandsTopic = PubSubTemplate.commandsTopic(
     projectID: "my-project",
     deploymentName: "production"
 )
 
 // Create node subscription with dead letter handling
-let nodeSubscription = DAISPubSubTemplate.nodeSubscription(
+let nodeSubscription = PubSubTemplate.nodeSubscription(
     projectID: "my-project",
     deploymentName: "production",
     nodeName: "node-1"
 )
 
 // Generate complete setup script
-let pubsubScript = DAISPubSubTemplate.setupScript(
+let pubsubScript = PubSubTemplate.setupScript(
     projectID: "my-project",
     deploymentName: "production",
     nodeCount: 3
@@ -728,11 +728,11 @@ print(schedulerJob.pauseCommand)
 print(schedulerJob.runCommand)  // Run immediately
 ```
 
-**DAIS Function Templates:**
+**Cloud Function Templates:**
 
 ```swift
 // Event processor for Pub/Sub messages
-let eventProcessor = DAISFunctionTemplate.eventProcessor(
+let eventProcessor = FunctionTemplate.eventProcessor(
     projectID: "my-project",
     region: "us-central1",
     deploymentName: "prod",
@@ -740,14 +740,14 @@ let eventProcessor = DAISFunctionTemplate.eventProcessor(
 )
 
 // Health check endpoint
-let healthCheck = DAISFunctionTemplate.healthCheck(
+let healthCheck = FunctionTemplate.healthCheck(
     projectID: "my-project",
     region: "us-central1",
     deploymentName: "prod"
 )
 
 // Scheduled maintenance function
-let (maintenanceFunc, scheduler) = DAISFunctionTemplate.scheduledMaintenance(
+let (maintenanceFunc, scheduler) = FunctionTemplate.scheduledMaintenance(
     projectID: "my-project",
     region: "us-central1",
     deploymentName: "prod",
@@ -756,7 +756,7 @@ let (maintenanceFunc, scheduler) = DAISFunctionTemplate.scheduledMaintenance(
 )
 
 // Generate complete setup script
-let script = DAISFunctionTemplate.setupScript(
+let script = FunctionTemplate.setupScript(
     projectID: "my-project",
     region: "us-central1",
     deploymentName: "prod",
@@ -885,42 +885,42 @@ let domainMapping = GoogleCloudRunDomainMapping(
 print(domainMapping.createCommand)
 ```
 
-**DAIS Cloud Run Templates:**
+**Cloud Run Templates:
 
 ```swift
 // gRPC service with always-allocated CPU
-let grpcService = DAISCloudRunTemplate.grpcService(
+let grpcService = CloudRunTemplate.grpcService(
     projectID: "my-project",
     region: "us-central1",
     deploymentName: "prod",
-    image: "gcr.io/my-project/dais-grpc:latest"
+    image: "gcr.io/my-project/app-grpc:latest"
 )
 
 // HTTP API with scale-to-zero
-let apiService = DAISCloudRunTemplate.httpAPI(
+let apiService = CloudRunTemplate.httpAPI(
     projectID: "my-project",
     region: "us-central1",
     deploymentName: "prod",
-    image: "gcr.io/my-project/dais-api:latest"
+    image: "gcr.io/my-project/app-api:latest"
 )
 
 // Background worker
-let worker = DAISCloudRunTemplate.worker(
+let worker = CloudRunTemplate.worker(
     projectID: "my-project",
     region: "us-central1",
     deploymentName: "prod",
-    image: "gcr.io/my-project/dais-worker:latest"
+    image: "gcr.io/my-project/app-worker:latest"
 )
 
 // Generate Dockerfile for Swift services
-let dockerfile = DAISCloudRunTemplate.dockerfile(
+let dockerfile = CloudRunTemplate.dockerfile(
     baseImage: "swift:5.10-jammy",
-    executableName: "dais-server",
+    executableName: "app-server",
     port: 8080
 )
 
 // Generate Cloud Build config for CI/CD
-let cloudbuild = DAISCloudRunTemplate.cloudbuildConfig(
+let cloudbuild = CloudRunTemplate.cloudbuildConfig(
     projectID: "my-project",
     region: "us-central1",
     serviceName: "my-service",
@@ -1139,16 +1139,16 @@ print(GKEOperations.getServerConfigCommand(projectID: "my-project", location: "u
 print(GKEOperations.enableAPICommand)
 ```
 
-**DAIS GKE Templates:**
+**Cloud GKE Templates:**
 
 ```swift
-// Production-ready templates for DAIS deployments
-let template = DAISGKETemplate(
+// Production-ready templates for cloud deployments
+let template = GKETemplate(
     projectID: "my-project",
     location: "us-central1",
-    clusterName: "dais-cluster",
-    network: "dais-vpc",
-    subnetwork: "dais-subnet"
+    clusterName: "app-cluster",
+    network: "app-vpc",
+    subnetwork: "app-subnet"
 )
 
 // Standard cluster with Workload Identity
@@ -1335,18 +1335,18 @@ let slowRequests = PredefinedLogFilter.slowRequests    // "httpRequest.latency >
 let cloudRun = PredefinedLogFilter.cloudRunRequests    // "resource.type = \"cloud_run_revision\""
 ```
 
-**DAIS Logging Templates:**
+**Cloud Logging Templates:**
 
 ```swift
-// Create error logs sink for DAIS deployment
-let errorSink = DAISLoggingTemplate.errorLogsSink(
+// Create error logs sink for cloud deployment
+let errorSink = LoggingTemplate.errorLogsSink(
     projectID: "my-project",
     deploymentName: "prod",
-    datasetID: "dais_errors"
+    datasetID: "app_errors"
 )
 
 // Create log bucket with extended retention
-let logBucket = DAISLoggingTemplate.logBucket(
+let logBucket = LoggingTemplate.logBucket(
     projectID: "my-project",
     deploymentName: "prod",
     location: "us-central1",
@@ -1354,19 +1354,19 @@ let logBucket = DAISLoggingTemplate.logBucket(
 )
 
 // Create error count metric
-let errorMetric = DAISLoggingTemplate.errorCountMetric(
+let errorMetric = LoggingTemplate.errorCountMetric(
     projectID: "my-project",
     deploymentName: "prod"
 )
 
 // Create gRPC latency metric
-let latencyMetric = DAISLoggingTemplate.grpcLatencyMetric(
+let latencyMetric = LoggingTemplate.grpcLatencyMetric(
     projectID: "my-project",
     deploymentName: "prod"
 )
 
 // Generate complete setup script
-let script = DAISLoggingTemplate.setupScript(
+let script = LoggingTemplate.setupScript(
     projectID: "my-project",
     deploymentName: "prod",
     location: "us-central1",
@@ -1575,7 +1575,7 @@ print(group.createCommand)
 ```swift
 // Create a dashboard
 let dashboard = GoogleCloudDashboard(
-    displayName: "DAIS Overview",
+    displayName: "Cloud Overview",
     projectID: "my-project",
     layout: .grid(columns: 3)
 )
@@ -1627,56 +1627,56 @@ let sqlConnections = PredefinedMetricFilter.sqlConnections
 let pubsubBacklog = PredefinedMetricFilter.pubsubSubscriptionBacklog
 ```
 
-**DAIS Monitoring Templates:**
+**Cloud Monitoring Templates:**
 
 ```swift
 // Create notification channels
-let emailChannel = DAISMonitoringTemplate.emailChannel(
+let emailChannel = MonitoringTemplate.emailChannel(
     projectID: "my-project",
     deploymentName: "prod",
     email: "alerts@example.com"
 )
 
 // Create alert policies
-let cpuAlert = DAISMonitoringTemplate.cpuAlertPolicy(
+let cpuAlert = MonitoringTemplate.cpuAlertPolicy(
     projectID: "my-project",
     deploymentName: "prod",
     threshold: 0.8
 )
 
-let memoryAlert = DAISMonitoringTemplate.memoryAlertPolicy(
+let memoryAlert = MonitoringTemplate.memoryAlertPolicy(
     projectID: "my-project",
     deploymentName: "prod",
     threshold: 0.85
 )
 
-let errorAlert = DAISMonitoringTemplate.errorRateAlertPolicy(
+let errorAlert = MonitoringTemplate.errorRateAlertPolicy(
     projectID: "my-project",
     deploymentName: "prod",
     threshold: 0.01
 )
 
 // Create uptime checks
-let httpCheck = DAISMonitoringTemplate.httpUptimeCheck(
+let httpCheck = MonitoringTemplate.httpUptimeCheck(
     projectID: "my-project",
     deploymentName: "prod",
     host: "api.example.com"
 )
 
-let grpcCheck = DAISMonitoringTemplate.grpcUptimeCheck(
+let grpcCheck = MonitoringTemplate.grpcUptimeCheck(
     projectID: "my-project",
     deploymentName: "prod",
     host: "grpc.example.com"
 )
 
 // Create custom metrics
-let latencyMetric = DAISMonitoringTemplate.requestLatencyMetric(
+let latencyMetric = MonitoringTemplate.requestLatencyMetric(
     projectID: "my-project",
     deploymentName: "prod"
 )
 
 // Generate complete setup script
-let script = DAISMonitoringTemplate.setupScript(
+let script = MonitoringTemplate.setupScript(
     projectID: "my-project",
     deploymentName: "prod",
     alertEmail: "alerts@example.com",
@@ -1895,69 +1895,69 @@ let gkeMaster = PredefinedCIDRRange.gkeMaster      // "172.16.0.0/28"
 let privateAccess = PredefinedCIDRRange.privateGoogleAccess  // "199.36.153.8/30"
 ```
 
-**DAIS VPC Templates:**
+**Cloud VPC Templates:**
 
 ```swift
 // Create VPC network
-let network = DAISVPCTemplate.network(
+let network = VPCTemplate.network(
     projectID: "my-project",
-    deploymentName: "dais-prod"
+    deploymentName: "app-prod"
 )
 
 // Create node subnet with flow logs
-let subnet = DAISVPCTemplate.nodeSubnet(
+let subnet = VPCTemplate.nodeSubnet(
     projectID: "my-project",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     region: "us-central1",
     cidrRange: "10.0.0.0/24"
 )
 
 // Firewall rules
-let grpcRule = DAISVPCTemplate.grpcFirewallRule(
+let grpcRule = VPCTemplate.grpcFirewallRule(
     projectID: "my-project",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     port: 9090
 )
 
-let healthCheckRule = DAISVPCTemplate.healthCheckFirewallRule(
+let healthCheckRule = VPCTemplate.healthCheckFirewallRule(
     projectID: "my-project",
-    deploymentName: "dais-prod"
+    deploymentName: "app-prod"
 )
 
-let sshRule = DAISVPCTemplate.sshFirewallRule(
+let sshRule = VPCTemplate.sshFirewallRule(
     projectID: "my-project",
-    deploymentName: "dais-prod"
+    deploymentName: "app-prod"
 )
 
-let internalRule = DAISVPCTemplate.internalFirewallRule(
+let internalRule = VPCTemplate.internalFirewallRule(
     projectID: "my-project",
-    deploymentName: "dais-prod"
+    deploymentName: "app-prod"
 )
 
 // Cloud Router and NAT
-let router = DAISVPCTemplate.router(
+let router = VPCTemplate.router(
     projectID: "my-project",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     region: "us-central1"
 )
 
-let nat = DAISVPCTemplate.natGateway(
+let nat = VPCTemplate.natGateway(
     projectID: "my-project",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     region: "us-central1"
 )
 
 // Complete setup and teardown scripts
-let setupScript = DAISVPCTemplate.setupScript(
+let setupScript = VPCTemplate.setupScript(
     projectID: "my-project",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     region: "us-central1",
     nodeSubnetCidr: "10.0.0.0/24"
 )
 
-let teardownScript = DAISVPCTemplate.teardownScript(
+let teardownScript = VPCTemplate.teardownScript(
     projectID: "my-project",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     region: "us-central1"
 )
 ```
@@ -2187,41 +2187,41 @@ print(DNSOperations.importCommand(
 print(DNSOperations.checkPropagationCommand(domain: "www.example.com", recordType: "A"))
 ```
 
-**DAIS DNS Templates:**
+**Cloud DNS Templates:**
 
 ```swift
-// Create managed zone for DAIS
-let zone = DAISDNSTemplate.managedZone(
+// Create managed zone for Cloud
+let zone = DNSTemplate.managedZone(
     projectID: "my-project",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     domain: "example.com"
 )
 
 // Private zone for internal services
-let privateZone = DAISDNSTemplate.privateZone(
+let privateZone = DNSTemplate.privateZone(
     projectID: "my-project",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     domain: "internal.example.com",
-    networks: ["dais-prod-vpc"]
+    networks: ["app-prod-vpc"]
 )
 
 // API and gRPC endpoint records
-let apiRecord = DAISDNSTemplate.apiRecord(domain: "example.com", ipAddress: "192.0.2.1")
-let grpcRecord = DAISDNSTemplate.grpcRecord(domain: "example.com", ipAddress: "192.0.2.2")
+let apiRecord = DNSTemplate.apiRecord(domain: "example.com", ipAddress: "192.0.2.1")
+let grpcRecord = DNSTemplate.grpcRecord(domain: "example.com", ipAddress: "192.0.2.2")
 
 // Complete setup script
-let setupScript = DAISDNSTemplate.setupScript(
+let setupScript = DNSTemplate.setupScript(
     projectID: "my-project",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     domain: "example.com",
     apiIP: "192.0.2.1",
     grpcIP: "192.0.2.2"
 )
 
 // Teardown script
-let teardownScript = DAISDNSTemplate.teardownScript(
+let teardownScript = DNSTemplate.teardownScript(
     projectID: "my-project",
-    deploymentName: "dais-prod"
+    deploymentName: "app-prod"
 )
 ```
 
@@ -2482,66 +2482,66 @@ let zonalNEG = GoogleCloudNetworkEndpointGroup(
 )
 ```
 
-**DAIS Load Balancing Templates:**
+**Cloud Load Balancing Templates:**
 
 ```swift
-// Complete HTTPS load balancer for DAIS
-let healthCheck = DAISLoadBalancingTemplate.httpHealthCheck(
+// Complete HTTPS load balancer for Cloud
+let healthCheck = LoadBalancingTemplate.httpHealthCheck(
     projectID: "my-project",
-    deploymentName: "dais-prod"
+    deploymentName: "app-prod"
 )
 
-let backendService = DAISLoadBalancingTemplate.httpBackendService(
+let backendService = LoadBalancingTemplate.httpBackendService(
     projectID: "my-project",
-    deploymentName: "dais-prod",
-    healthCheckName: "dais-prod-http-hc"
+    deploymentName: "app-prod",
+    healthCheckName: "app-prod-http-hc"
 )
 
-let urlMap = DAISLoadBalancingTemplate.urlMap(
+let urlMap = LoadBalancingTemplate.urlMap(
     projectID: "my-project",
-    deploymentName: "dais-prod",
-    defaultBackendService: "dais-prod-http-backend"
+    deploymentName: "app-prod",
+    defaultBackendService: "app-prod-http-backend"
 )
 
-let cert = DAISLoadBalancingTemplate.sslCertificate(
+let cert = LoadBalancingTemplate.sslCertificate(
     projectID: "my-project",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     domains: ["api.example.com"]
 )
 
-let sslPolicy = DAISLoadBalancingTemplate.sslPolicy(
+let sslPolicy = LoadBalancingTemplate.sslPolicy(
     projectID: "my-project",
-    deploymentName: "dais-prod"
+    deploymentName: "app-prod"
 )
 
-let proxy = DAISLoadBalancingTemplate.httpsTargetProxy(
+let proxy = LoadBalancingTemplate.httpsTargetProxy(
     projectID: "my-project",
-    deploymentName: "dais-prod",
-    urlMapName: "dais-prod-url-map",
-    sslCertificateName: "dais-prod-cert",
-    sslPolicyName: "dais-prod-ssl-policy"
+    deploymentName: "app-prod",
+    urlMapName: "app-prod-url-map",
+    sslCertificateName: "app-prod-cert",
+    sslPolicyName: "app-prod-ssl-policy"
 )
 
 // Serverless NEG for Cloud Run backend
-let neg = DAISLoadBalancingTemplate.cloudRunNEG(
+let neg = LoadBalancingTemplate.cloudRunNEG(
     projectID: "my-project",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     region: "us-central1",
-    cloudRunServiceName: "dais-api"
+    cloudRunServiceName: "app-api"
 )
 
 // Complete setup and teardown scripts
-let setupScript = DAISLoadBalancingTemplate.setupScript(
+let setupScript = LoadBalancingTemplate.setupScript(
     projectID: "my-project",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     domains: ["api.example.com"],
-    cloudRunServiceName: "dais-api",
+    cloudRunServiceName: "app-api",
     region: "us-central1"
 )
 
-let teardownScript = DAISLoadBalancingTemplate.teardownScript(
+let teardownScript = LoadBalancingTemplate.teardownScript(
     projectID: "my-project",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     region: "us-central1"
 )
 ```
@@ -2817,63 +2817,63 @@ print(ArtifactRegistryRole.writer.rawValue)   // roles/artifactregistry.writer
 print(ArtifactRegistryRole.reader.rawValue)   // roles/artifactregistry.reader
 ```
 
-**DAIS Artifact Registry Templates:**
+**Cloud Artifact Registry Templates:**
 
 ```swift
-// Docker repository with DAIS best practices
-let repo = DAISArtifactRegistryTemplate.dockerRepository(
+// Docker repository with Cloud best practices
+let repo = ArtifactRegistryTemplate.dockerRepository(
     projectID: "my-project",
     location: "us-central1",
-    deploymentName: "dais-prod"
+    deploymentName: "app-prod"
 )
 // Includes cleanup policies and vulnerability scanning
 
 // Pre-configured service images
-let apiImage = DAISArtifactRegistryTemplate.apiServiceImage(
+let apiImage = ArtifactRegistryTemplate.apiServiceImage(
     projectID: "my-project",
     location: "us-central1",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     tag: "v1.0.0"
 )
 
-let grpcImage = DAISArtifactRegistryTemplate.grpcServiceImage(
+let grpcImage = ArtifactRegistryTemplate.grpcServiceImage(
     projectID: "my-project",
     location: "us-central1",
-    deploymentName: "dais-prod"
+    deploymentName: "app-prod"
 )
 
-let workerImage = DAISArtifactRegistryTemplate.workerServiceImage(
+let workerImage = ArtifactRegistryTemplate.workerServiceImage(
     projectID: "my-project",
     location: "us-central1",
-    deploymentName: "dais-prod"
+    deploymentName: "app-prod"
 )
 
 // Generate Swift Dockerfile
-let dockerfile = DAISArtifactRegistryTemplate.swiftDockerfile(
-    executableName: "dais-server",
+let dockerfile = ArtifactRegistryTemplate.swiftDockerfile(
+    executableName: "app-server",
     port: 8080
 )
 
 // Cloud Build configuration for CI/CD
-let cloudbuildConfig = DAISArtifactRegistryTemplate.cloudbuildConfig(
+let cloudbuildConfig = ArtifactRegistryTemplate.cloudbuildConfig(
     projectID: "my-project",
     location: "us-central1",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     serviceName: "api-service",
     cloudRunRegion: "us-central1"
 )
 
 // Complete setup and teardown scripts
-let setupScript = DAISArtifactRegistryTemplate.setupScript(
+let setupScript = ArtifactRegistryTemplate.setupScript(
     projectID: "my-project",
     location: "us-central1",
-    deploymentName: "dais-prod"
+    deploymentName: "app-prod"
 )
 
-let cicdScript = DAISArtifactRegistryTemplate.cicdSetupScript(
+let cicdScript = ArtifactRegistryTemplate.cicdSetupScript(
     projectID: "my-project",
     location: "us-central1",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     repoOwner: "myorg",
     repoName: "my-repo"
 )
@@ -3104,30 +3104,30 @@ let multiService = CloudBuildConfigGenerator.multiServiceDeploy(
 )
 ```
 
-**DAIS Cloud Build Templates:**
+**Cloud Build Templates:
 
 ```swift
-// GitHub trigger for DAIS deployment
-let trigger = DAISCloudBuildTemplate.githubTrigger(
+// GitHub trigger for cloud deployment
+let trigger = CloudBuildTemplate.githubTrigger(
     projectID: "my-project",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     owner: "myorg",
-    repo: "dais-deployment"
+    repo: "app-deployment"
 )
 
 // PR preview environment trigger
-let prPreview = DAISCloudBuildTemplate.prPreviewTrigger(
+let prPreview = CloudBuildTemplate.prPreviewTrigger(
     projectID: "my-project",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     owner: "myorg",
-    repo: "dais-deployment"
+    repo: "app-deployment"
 )
 
 // Generate complete cloudbuild.yaml for multi-service deployment
-let yaml = DAISCloudBuildTemplate.cloudbuildYaml(
+let yaml = CloudBuildTemplate.cloudbuildYaml(
     projectID: "my-project",
     location: "us-central1",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     cloudRunRegion: "us-central1",
     services: [
         (name: "api", port: 8080),
@@ -3137,21 +3137,21 @@ let yaml = DAISCloudBuildTemplate.cloudbuildYaml(
 )
 
 // Complete CI/CD setup script
-let setupScript = DAISCloudBuildTemplate.setupScript(
+let setupScript = CloudBuildTemplate.setupScript(
     projectID: "my-project",
     location: "us-central1",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     githubOwner: "myorg",
-    githubRepo: "dais-deployment",
+    githubRepo: "app-deployment",
     cloudRunRegion: "us-central1"
 )
 
-// Private worker pool for DAIS builds
-let workerPool = DAISCloudBuildTemplate.workerPool(
+// Private worker pool for cloud builds
+let workerPool = CloudBuildTemplate.workerPool(
     projectID: "my-project",
     region: "us-central1",
-    deploymentName: "dais-prod",
-    vpcNetwork: "projects/my-project/global/networks/dais-vpc"
+    deploymentName: "app-prod",
+    vpcNetwork: "projects/my-project/global/networks/my-vpc"
 )
 ```
 
@@ -3182,7 +3182,7 @@ Protect your applications with Cloud Armor WAF and DDoS protection:
 ```swift
 // Create a security policy
 let policy = GoogleCloudSecurityPolicy(
-    name: "dais-waf-policy",
+    name: "app-waf-policy",
     projectID: "my-project",
     type: .cloudArmor,
     rules: [
@@ -3209,11 +3209,11 @@ let policy = GoogleCloudSecurityPolicy(
 )
 
 print(policy.createCommand)
-// Output: gcloud compute security-policies create dais-waf-policy --project=my-project --type=CLOUD_ARMOR
+// Output: gcloud compute security-policies create my-waf-policy --project=my-project --type=CLOUD_ARMOR
 
 // Add rules to policy
 for rule in policy.rules {
-    print(rule.addRuleCommand(policyName: "dais-waf-policy", projectID: "my-project"))
+    print(rule.addRuleCommand(policyName: "app-waf-policy", projectID: "my-project"))
 }
 ```
 
@@ -3236,7 +3236,7 @@ let rateLimitRule = SecurityPolicyRule(
 
 // Or use Cloud Armor Operations helper
 let rateLimitCmd = CloudArmorOperations.createRateLimitRule(
-    policyName: "dais-waf-policy",
+    policyName: "app-waf-policy",
     projectID: "my-project",
     priority: 500,
     requestsPerMinute: 100,
@@ -3249,7 +3249,7 @@ let rateLimitCmd = CloudArmorOperations.createRateLimitRule(
 ```swift
 // Add WAF protection
 let wafCmd = CloudArmorOperations.addWAFRule(
-    policyName: "dais-waf-policy",
+    policyName: "app-waf-policy",
     projectID: "my-project",
     wafRule: .sqli,
     priority: 2000
@@ -3267,42 +3267,42 @@ for rule in rules {
 ```swift
 // Attach policy to load balancer backend
 let attachCmd = CloudArmorOperations.attachToBackendService(
-    policyName: "dais-waf-policy",
-    backendServiceName: "dais-backend",
+    policyName: "app-waf-policy",
+    backendServiceName: "app-backend",
     projectID: "my-project"
 )
 ```
 
-**DAIS Templates:**
+**Cloud Templates:**
 
 ```swift
 // Complete security policy for production
-let policy = DAISCloudArmorTemplate.securityPolicy(
+let policy = CloudArmorTemplate.securityPolicy(
     projectID: "my-project",
-    deploymentName: "dais-prod"
+    deploymentName: "app-prod"
 )
 
 // Pre-configured protection rules
-let owaspRule = DAISCloudArmorTemplate.owaspProtectionRule(priority: 1000)
-let rceRule = DAISCloudArmorTemplate.rceProtectionRule(priority: 1100)
-let log4jRule = DAISCloudArmorTemplate.log4jProtectionRule(priority: 1200)
-let rateLimitRule = DAISCloudArmorTemplate.apiRateLimitRule(
+let owaspRule = CloudArmorTemplate.owaspProtectionRule(priority: 1000)
+let rceRule = CloudArmorTemplate.rceProtectionRule(priority: 1100)
+let log4jRule = CloudArmorTemplate.log4jProtectionRule(priority: 1200)
+let rateLimitRule = CloudArmorTemplate.apiRateLimitRule(
     priority: 500,
     pathPattern: "/api/v1/.*",
     requestsPerMinute: 100
 )
 
 // Geographic blocking
-let geoRule = DAISCloudArmorTemplate.geoBlockRule(
+let geoRule = CloudArmorTemplate.geoBlockRule(
     priority: 100,
     countryCodes: ["CN", "RU", "KP", "IR"]
 )
 
 // Complete setup script
-let setupScript = DAISCloudArmorTemplate.setupScript(
+let setupScript = CloudArmorTemplate.setupScript(
     projectID: "my-project",
-    deploymentName: "dais-prod",
-    backendServiceName: "dais-backend"
+    deploymentName: "app-prod",
+    backendServiceName: "app-backend"
 )
 ```
 
@@ -3422,26 +3422,26 @@ let ttlCmd = CDNOperations.setCacheTTL(
 )
 ```
 
-**DAIS Templates:**
+**Cloud Templates:**
 
 ```swift
 // Static assets bucket with CDN
-let assetsBucket = DAISCDNTemplate.staticAssetsBucket(
+let assetsBucket = CDNTemplate.staticAssetsBucket(
     projectID: "my-project",
-    deploymentName: "dais-prod",
-    storageBucket: "dais-static"
+    deploymentName: "app-prod",
+    storageBucket: "app-static"
 )
 
 // API cache policy (short TTL)
-let apiPolicy = DAISCDNTemplate.apiCachePolicy()
+let apiPolicy = CDNTemplate.apiCachePolicy()
 
 // Media streaming policy (long TTL)
-let mediaPolicy = DAISCDNTemplate.mediaCachePolicy()
+let mediaPolicy = CDNTemplate.mediaCachePolicy()
 
 // Edge security policy
-let edgePolicy = DAISCDNTemplate.edgeSecurityPolicy(
+let edgePolicy = CDNTemplate.edgeSecurityPolicy(
     projectID: "my-project",
-    deploymentName: "dais-prod"
+    deploymentName: "app-prod"
 )
 ```
 
@@ -3543,26 +3543,26 @@ let runCmd = TaskOperations.runTask(
 )
 ```
 
-**DAIS Templates:**
+**Cloud Templates:**
 
 ```swift
 // API processing queue (high throughput)
-let apiQueue = DAISTasksTemplate.apiProcessingQueue(
+let apiQueue = TasksTemplate.apiProcessingQueue(
     projectID: "my-project",
     location: "us-central1",
-    deploymentName: "dais-prod"
+    deploymentName: "app-prod"
 )
 
 // Background jobs queue (with retries)
-let bgQueue = DAISTasksTemplate.backgroundJobsQueue(
+let bgQueue = TasksTemplate.backgroundJobsQueue(
     projectID: "my-project",
     location: "us-central1",
-    deploymentName: "dais-prod"
+    deploymentName: "app-prod"
 )
 
 // Create Cloud Run task
-let cloudRunTask = DAISTasksTemplate.cloudRunTask(
-    queueName: "dais-prod-api-processing",
+let cloudRunTask = TasksTemplate.cloudRunTask(
+    queueName: "app-prod-api-processing",
     projectID: "my-project",
     location: "us-central1",
     cloudRunURL: "https://my-service.run.app",
@@ -3694,38 +3694,38 @@ print(version.destroyCommand)  // Schedule destruction (24h delay)
 print(version.getPublicKeyCommand)  // Get public key (asymmetric)
 ```
 
-**DAIS Templates:**
+**Cloud Templates:**
 
 ```swift
 // Key ring for deployment
-let keyRing = DAISKMSTemplate.keyRing(
+let keyRing = KMSTemplate.keyRing(
     projectID: "my-project",
     location: "us-central1",
-    deploymentName: "dais-prod"
+    deploymentName: "app-prod"
 )
 
 // Data encryption key with rotation
-let dataKey = DAISKMSTemplate.dataEncryptionKey(
+let dataKey = KMSTemplate.dataEncryptionKey(
     projectID: "my-project",
     location: "us-central1",
-    keyRing: "dais-prod-keyring",
-    deploymentName: "dais-prod"
+    keyRing: "app-prod-keyring",
+    deploymentName: "app-prod"
 )
 
 // HSM-protected key for sensitive data
-let hsmKey = DAISKMSTemplate.hsmEncryptionKey(
+let hsmKey = KMSTemplate.hsmEncryptionKey(
     projectID: "my-project",
     location: "us-central1",
-    keyRing: "dais-prod-keyring",
-    deploymentName: "dais-prod"
+    keyRing: "app-prod-keyring",
+    deploymentName: "app-prod"
 )
 
 // Signing key for JWT tokens
-let signingKey = DAISKMSTemplate.signingKey(
+let signingKey = KMSTemplate.signingKey(
     projectID: "my-project",
     location: "us-central1",
-    keyRing: "dais-prod-keyring",
-    deploymentName: "dais-prod"
+    keyRing: "app-prod-keyring",
+    deploymentName: "app-prod"
 )
 ```
 
@@ -3808,25 +3808,25 @@ let channel = GoogleCloudEventarcChannel(
 print(channel.createCommand)
 ```
 
-**DAIS Templates:**
+**Cloud Templates:**
 
 ```swift
 // Storage upload trigger
-let storageTrigger = DAISEventarcTemplate.storageUploadTrigger(
+let storageTrigger = EventarcTemplate.storageUploadTrigger(
     projectID: "my-project",
     location: "us-central1",
-    deploymentName: "dais-prod",
-    bucket: "dais-uploads",
-    destinationService: "dais-api",
+    deploymentName: "app-prod",
+    bucket: "app-uploads",
+    destinationService: "app-api",
     serviceAccountEmail: "sa@project.iam.gserviceaccount.com"
 )
 
 // Pub/Sub trigger
-let pubsubTrigger = DAISEventarcTemplate.pubsubMessageTrigger(
+let pubsubTrigger = EventarcTemplate.pubsubMessageTrigger(
     projectID: "my-project",
     location: "us-central1",
-    deploymentName: "dais-prod",
-    destinationService: "dais-api",
+    deploymentName: "app-prod",
+    destinationService: "app-api",
     serviceAccountEmail: "sa@project.iam.gserviceaccount.com"
 )
 ```
@@ -3895,29 +3895,29 @@ print(memcached.updateCommand(nodeCount: 5))
 print(memcached.applyParametersCommand(applyAll: true))
 ```
 
-**DAIS Memorystore Templates:**
+**Cloud Memorystore Templates:**
 
 ```swift
 // Create Redis for session caching
-let sessionCache = DAISMemorystoreTemplate.sessionCache(
+let sessionCache = MemorystoreTemplate.sessionCache(
     projectID: "my-project",
     region: "us-central1",
-    deploymentName: "dais-prod"
+    deploymentName: "app-prod"
 )
 
 // Create Redis for API caching
-let apiCache = DAISMemorystoreTemplate.apiCache(
+let apiCache = MemorystoreTemplate.apiCache(
     projectID: "my-project",
     region: "us-central1",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     memorySizeGB: 2
 )
 
 // Setup script for all caching infrastructure
-let script = DAISMemorystoreTemplate.setupScript(
+let script = MemorystoreTemplate.setupScript(
     projectID: "my-project",
     region: "us-central1",
-    deploymentName: "dais-prod"
+    deploymentName: "app-prod"
 )
 ```
 
@@ -3983,23 +3983,23 @@ let aiServices = RestrictedServices.aiML           // Vertex AI, Vision, Speech,
 let allServices = RestrictedServices.allCommon     // All commonly restricted services
 ```
 
-**DAIS VPC-SC Templates:**
+**Cloud VPC-SC Templates:**
 
 ```swift
-// Create comprehensive protection for DAIS
-let protectionPerimeter = DAISVPCServiceControlsTemplate.comprehensivePerimeter(
+// Create comprehensive protection for Cloud
+let protectionPerimeter = VPCServiceControlsTemplate.comprehensivePerimeter(
     policyID: "policy-123",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     projectNumbers: ["123456789"],
     allowBigQueryExport: true
 )
 
 // Setup script for VPC Service Controls
-let script = DAISVPCServiceControlsTemplate.setupScript(
+let script = VPCServiceControlsTemplate.setupScript(
     organizationID: "org-123",
     projectID: "my-project",
     projectNumber: "123456789",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     corporateCIDRs: ["10.0.0.0/8"]
 )
 ```
@@ -4090,28 +4090,28 @@ print(backup.restoreCommand(
 ))
 ```
 
-**DAIS Filestore Templates:**
+**Cloud Filestore Templates:**
 
 ```swift
 // Create shared storage for applications
-let shared = DAISFilestoreTemplate.sharedStorage(
+let shared = FilestoreTemplate.sharedStorage(
     projectID: "my-project",
     zone: "us-central1-a",
-    deploymentName: "dais-prod"
+    deploymentName: "app-prod"
 )
 
 // Generate fstab entry for persistent mount
-let fstab = DAISFilestoreTemplate.fstabEntry(
+let fstab = FilestoreTemplate.fstabEntry(
     filestoreIP: "10.0.0.2",
     fileShareName: "shared",
     mountPoint: "/mnt/filestore"
 )
 
 // Setup script for Filestore infrastructure
-let script = DAISFilestoreTemplate.setupScript(
+let script = FilestoreTemplate.setupScript(
     projectID: "my-project",
     zone: "us-central1-a",
-    deploymentName: "dais-prod"
+    deploymentName: "app-prod"
 )
 ```
 
@@ -4167,29 +4167,29 @@ print(tunnel.createCommand)
 | `twoIPs` | 2 | Two active-active devices |
 | `fourIPs` | 4 | Full HA deployment |
 
-**DAIS VPN Templates:**
+**Cloud VPN Templates:**
 
 ```swift
 // Create HA VPN infrastructure
-let haGateway = DAISVPNTemplate.haVPNGateway(
+let haGateway = VPNTemplate.haVPNGateway(
     projectID: "my-project",
     region: "us-central1",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     network: "prod-vpc"
 )
 
 // Create external peer gateway
-let peerGateway = DAISVPNTemplate.externalGateway(
+let peerGateway = VPNTemplate.externalGateway(
     projectID: "my-project",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     peerIPs: ["203.0.113.1", "203.0.113.2"]
 )
 
 // Generate complete HA VPN setup script with BGP
-let script = DAISVPNTemplate.setupScript(
+let script = VPNTemplate.setupScript(
     projectID: "my-project",
     region: "us-central1",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     network: "prod-vpc",
     peerASN: 65001,
     peerIPs: ["203.0.113.1"]
@@ -4322,41 +4322,41 @@ let previewCmd = BigQueryOperations.previewCommand(
 )
 ```
 
-**DAIS BigQuery Templates:**
+**Cloud BigQuery Templates:**
 
 ```swift
 // Create analytics dataset with best practices
-let analyticsDataset = DAISBigQueryTemplate.analyticsDataset(
+let analyticsDataset = BigQueryTemplate.analyticsDataset(
     projectID: "my-project",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     location: "US"
 )
 
 // Create logs dataset with automatic expiration
-let logsDataset = DAISBigQueryTemplate.logsDataset(
+let logsDataset = BigQueryTemplate.logsDataset(
     projectID: "my-project",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     expirationDays: 90
 )
 
 // Create events table with partitioning and clustering
-let eventsTable = DAISBigQueryTemplate.eventsTable(
+let eventsTable = BigQueryTemplate.eventsTable(
     projectID: "my-project",
-    datasetID: "dais_prod_analytics",
-    deploymentName: "dais-prod"
+    datasetID: "app_prod_analytics",
+    deploymentName: "app-prod"
 )
 
 // Create aggregation view
-let dailyView = DAISBigQueryTemplate.dailyAggregationView(
+let dailyView = BigQueryTemplate.dailyAggregationView(
     projectID: "my-project",
-    datasetID: "dais_prod_analytics",
-    deploymentName: "dais-prod"
+    datasetID: "app_prod_analytics",
+    deploymentName: "app-prod"
 )
 
 // Generate complete setup script
-let script = DAISBigQueryTemplate.setupScript(
+let script = BigQueryTemplate.setupScript(
     projectID: "my-project",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     location: "US"
 )
 ```
@@ -4492,13 +4492,13 @@ print(GoogleCloudSpannerInstanceConfig.listCommand(projectID: "my-project"))
 print(SpannerOperations.enableAPICommand)
 ```
 
-**DAIS Spanner Templates:**
+**Cloud Spanner Templates:**
 
 ```swift
-let template = DAISSpannerTemplate(
+let template = SpannerTemplate(
     projectID: "my-project",
-    instanceName: "dais-spanner",
-    databaseName: "dais-db"
+    instanceName: "app-spanner",
+    databaseName: "app-db"
 )
 
 // Development instance (100 processing units)
@@ -4507,7 +4507,7 @@ let devInstance = template.developmentInstance
 // Production instance (multi-region, 3 nodes)
 let prodInstance = template.productionInstance
 
-// Database with DAIS schema
+// Database with Cloud schema
 let mainDb = template.mainDatabase
 
 // PostgreSQL-compatible database
@@ -4632,10 +4632,10 @@ print(FirestoreOperations.listOperationsCommand(projectID: "my-project"))
 print(FirestoreOperations.startEmulatorCommand(port: 8080, projectID: "demo-project"))
 ```
 
-**DAIS Firestore Templates:**
+**Cloud Firestore Templates:**
 
 ```swift
-let template = DAISFirestoreTemplate(
+let template = FirestoreTemplate(
     projectID: "my-project",
     location: FirestoreLocation.nam5
 )
@@ -4646,7 +4646,7 @@ let mainDb = template.mainDatabase
 // Analytics database (no PITR for cost savings)
 let analyticsDb = template.analyticsDatabase
 
-// Indexes for common DAIS queries
+// Indexes for common Cloud queries
 let agentIndex = template.agentsByStatusIndex
 let taskIndex = template.tasksByAgentIndex
 let eventIndex = template.eventsCollectionGroupIndex
@@ -4783,10 +4783,10 @@ VertexAIOperations.PredictionContainers.pytorchCpu  // PyTorch serving
 VertexAIOperations.PredictionContainers.tensorflowCpu // TensorFlow Serving
 ```
 
-**DAIS Vertex AI Templates:**
+**Cloud Vertex AI Templates:**
 
 ```swift
-let template = DAISVertexAITemplate(
+let template = VertexAITemplate(
     projectID: "my-project",
     location: "us-central1",
     serviceAccount: "ml@my-project.iam.gserviceaccount.com"
@@ -4802,7 +4802,7 @@ let dataset = template.trainingDataset
 let job = template.customTrainingJob
 
 // Model with artifact
-let model = template.daisModel(artifactUri: "gs://bucket/model")
+let model = template.appModel(artifactUri: "gs://bucket/model")
 
 // Setup script
 print(template.setupScript)
@@ -4937,12 +4937,12 @@ let envVars = otelConfig.environmentVariables
 print(otelConfig.dockerRunCommand(image: "my-image:latest"))
 ```
 
-**DAIS Trace Templates:**
+**Cloud Trace Templates:**
 
 ```swift
-let template = DAISTraceTemplate(
+let template = TraceTemplate(
     projectID: "my-project",
-    serviceName: "dais-api",
+    serviceName: "app-api",
     serviceAccount: "sa@my-project.iam.gserviceaccount.com"
 )
 
@@ -5084,12 +5084,12 @@ let query = GoogleCloudProfilerQuery(
 print(query.queryString)
 ```
 
-**DAIS Profiler Templates:**
+**Cloud Profiler Templates:**
 
 ```swift
-let template = DAISProfilerTemplate(
+let template = ProfilerTemplate(
     projectID: "my-project",
-    service: "dais-api",
+    service: "app-api",
     serviceVersion: "1.0.0",
     serviceAccount: "sa@my-project.iam.gserviceaccount.com"
 )
@@ -5232,12 +5232,12 @@ let nodeConfig = ErrorReportingLanguageConfig.NodeJS(
 print(nodeConfig.initCode)
 ```
 
-**DAIS Error Reporting Templates:**
+**Cloud Error Reporting Templates:**
 
 ```swift
-let template = DAISErrorReportingTemplate(
+let template = ErrorReportingTemplate(
     projectID: "my-project",
-    service: "dais-api",
+    service: "app-api",
     serviceVersion: "1.0.0",
     serviceAccount: "sa@my-project.iam.gserviceaccount.com"
 )
@@ -5399,12 +5399,12 @@ print(BigtableOperations.addAdminRoleCommand(projectID: "my-project", member: "u
 print(BigtableOperations.addUserRoleCommand(projectID: "my-project", serviceAccount: "sa@my-project.iam.gserviceaccount.com"))
 ```
 
-**DAIS Bigtable Templates:**
+**Cloud Bigtable Templates:**
 
 ```swift
-let template = DAISBigtableTemplate(
+let template = BigtableTemplate(
     projectID: "my-project",
-    instanceName: "dais-bigtable",
+    instanceName: "app-bigtable",
     zone: "us-central1-a",
     serviceAccount: "sa@my-project.iam.gserviceaccount.com"
 )
@@ -5419,7 +5419,7 @@ let entitiesTable = template.entitiesTable      // profile, activity, preference
 
 // App profiles
 let defaultProfile = template.defaultAppProfile
-let txProfile = template.transactionalAppProfile(clusterID: "dais-bigtable-c1")
+let txProfile = template.transactionalAppProfile(clusterID: "app-bigtable-c1")
 
 // Setup and teardown scripts
 print(template.setupScript)
@@ -5612,13 +5612,13 @@ print(DataprocOperations.sshCommand(projectID: "my-project", region: "us-central
 print(DataprocOperations.diagnoseCommand(projectID: "my-project", region: "us-central1", clusterName: "my-cluster"))
 ```
 
-**DAIS Dataproc Templates:**
+**Cloud Dataproc Templates:**
 
 ```swift
-let template = DAISDataprocTemplate(
+let template = DataprocTemplate(
     projectID: "my-project",
     region: "us-central1",
-    clusterName: "dais-dataproc",
+    clusterName: "app-dataproc",
     serviceAccount: "sa@my-project.iam.gserviceaccount.com"
 )
 
@@ -5678,7 +5678,7 @@ Cloud Composer is a fully managed Apache Airflow service for workflow orchestrat
 ```swift
 // Create a Composer environment
 let environment = GoogleCloudComposerEnvironment(
-    name: "dais-workflows",
+    name: "app-workflows",
     projectID: "my-project",
     location: "us-central1",
     config: GoogleCloudComposerEnvironment.EnvironmentConfig(
@@ -5693,7 +5693,7 @@ let environment = GoogleCloudComposerEnvironment(
                 "pandas": ">=2.0.0"
             ],
             envVariables: [
-                "DAIS_ENV": "production"
+                "APP_ENV": "production"
             ]
         ),
         nodeConfig: GoogleCloudComposerEnvironment.NodeConfig(
@@ -5727,10 +5727,10 @@ let environment = GoogleCloudComposerEnvironment(
         ),
         environmentSize: .medium
     ),
-    labels: ["env": "production", "managed-by": "dais"]
+    labels: ["env": "production", "managed-by": "googlecloudswift"]
 )
 
-print(environment.resourceName)  // projects/my-project/locations/us-central1/environments/dais-workflows
+print(environment.resourceName)  // projects/my-project/locations/us-central1/environments/my-workflows
 print(environment.createCommand)
 print(environment.describeCommand)
 ```
@@ -5759,10 +5759,10 @@ print(environment.triggerDagCommand(dagID: "my_dag", runID: "manual-run-001"))
 ```swift
 // Create DAGs for Airflow
 let etlDag = GoogleCloudComposerDAG(
-    dagID: "dais_etl_pipeline",
+    dagID: "app_etl_pipeline",
     schedule: "0 2 * * *",  // Daily at 2 AM
     defaultArgs: GoogleCloudComposerDAG.DAGDefaultArgs(
-        owner: "dais-team",
+        owner: "app-team",
         startDate: "2024-01-01",
         retries: 3,
         retryDelay: 300,
@@ -5780,7 +5780,7 @@ from airflow import DAG
 from datetime import datetime, timedelta
 
 default_args = {
-    'owner': 'dais-team',
+    'owner': 'app-team',
     'start_date': datetime(2024, 1, 1),
     'retries': 3,
     'retry_delay': timedelta(seconds=300),
@@ -5789,7 +5789,7 @@ default_args = {
 }
 
 with DAG(
-    'dais_etl_pipeline',
+    'app_etl_pipeline',
     default_args=default_args,
     schedule_interval='0 2 * * *',
     catchup=False,
@@ -5815,18 +5815,18 @@ print(ComposerOperations.listEnvironmentsCommand(projectID: "my-project", locati
 print(ComposerOperations.airflowCommand(
     projectID: "my-project",
     location: "us-central1",
-    environmentName: "dais-workflows",
+    environmentName: "app-workflows",
     command: "dags list"
 ))
 ```
 
-**DAIS Composer Templates:**
+**Cloud Composer Templates:**
 
 ```swift
-let template = DAISComposerTemplate(
+let template = ComposerTemplate(
     projectID: "my-project",
     location: "us-central1",
-    environmentName: "dais-composer",
+    environmentName: "app-composer",
     serviceAccount: "sa@my-project.iam.gserviceaccount.com"
 )
 
@@ -6005,13 +6005,13 @@ print(DocumentAIOperations.addAdminRoleCommand(projectID: "my-project", member: 
 print(DocumentAIOperations.addEditorRoleCommand(projectID: "my-project", member: "user:editor@example.com"))
 ```
 
-**DAIS Document AI Template:**
+**Cloud Document AI Template:**
 
 ```swift
-let template = DAISDocumentAITemplate(
+let template = DocumentAITemplate(
     projectID: "my-project",
     location: "us",
-    processorPrefix: "dais",
+    processorPrefix: "app",
     serviceAccount: "sa@my-project.iam.gserviceaccount.com",
     documentBucket: "my-project-documents"
 )
@@ -6195,10 +6195,10 @@ print(VisionOperations.detectObjectsCommand(imageUri: "gs://bucket/img.jpg", pro
 print(VisionOperations.safeSearchCommand(imageUri: "gs://bucket/img.jpg", projectID: "my-project"))
 ```
 
-**DAIS Vision AI Template:**
+**Cloud Vision AI Template:**
 
 ```swift
-let template = DAISVisionAITemplate(
+let template = VisionAITemplate(
     projectID: "my-project",
     location: "us-central1",
     serviceAccount: "sa@my-project.iam.gserviceaccount.com",
@@ -6301,7 +6301,7 @@ let medicalConfig = GoogleCloudSpeechRecognitionConfig(
 ```swift
 // Boost recognition of specific phrases
 let context = GoogleCloudSpeechRecognitionConfig.SpeechContext(
-    phrases: ["DAIS", "distributed AI", "agent cluster"],
+    phrases: ["Cloud", "distributed AI", "agent cluster"],
     boost: 10.0
 )
 
@@ -6357,10 +6357,10 @@ print(SpeechToTextOperations.recognizeLongRunningCommand(
 ))
 ```
 
-**DAIS Speech-to-Text Template:**
+**Cloud Speech-to-Text Template:**
 
 ```swift
-let template = DAISSpeechToTextTemplate(
+let template = SpeechToTextTemplate(
     projectID: "my-project",
     location: "global",
     serviceAccount: "sa@my-project.iam.gserviceaccount.com",
@@ -6516,10 +6516,10 @@ print(ops.enableAPICommand)
 // gcloud services enable texttospeech.googleapis.com --project=my-project
 ```
 
-**DAIS Text-to-Speech Template:**
+**Cloud Text-to-Speech Template:**
 
 ```swift
-let template = DAISTextToSpeechTemplate(
+let template = TextToSpeechTemplate(
     projectID: "my-project",
     defaultVoice: .wavenet("D"),
     defaultAudioConfig: .mp3,
@@ -6689,10 +6689,10 @@ print(ops.listLanguagesCommand)
 print(ops.enableAPICommand)
 ```
 
-**DAIS Translation Template:**
+**Cloud Translation Template:**
 
 ```swift
-let template = DAISTranslationTemplate(
+let template = TranslationTemplate(
     projectID: "my-project",
     location: "us-central1",
     defaultSourceLanguage: .english,
@@ -6891,10 +6891,10 @@ print(ops.listTasksCommand(jobName: "data-processing-job", taskGroup: "group0"))
 print(ops.cancelJobCommand(jobName: "long-running-job"))
 ```
 
-**DAIS Batch Template:**
+**Cloud Batch Template:**
 
 ```swift
-let template = DAISBatchTemplate(
+let template = BatchTemplate(
     projectID: "my-project",
     location: "us-central1",
     defaultMachineType: "n1-standard-4"
@@ -7017,10 +7017,10 @@ print(ops.createAttestationCommand(
 ))
 ```
 
-**DAIS Binary Authorization Template:**
+**Cloud Binary Authorization Template:**
 
 ```swift
-let template = DAISBinaryAuthorizationTemplate(projectID: "my-project")
+let template = BinaryAuthorizationTemplate(projectID: "my-project")
 
 // Create a policy that requires attestation
 let policy = template.attestationRequiredPolicy(attestorNames: ["security-team", "qa-team"])
@@ -7157,10 +7157,10 @@ print(ops.listCertificatesCommand(pool: "production-pool"))
 print(ops.createCSRCommand(keyFile: "key.pem", csrFile: "csr.pem", subject: "CN=example.com,O=Example Inc"))
 ```
 
-**DAIS Certificate Authority Template:**
+**Cloud Certificate Authority Template:**
 
 ```swift
-let template = DAISCertificateAuthorityTemplate(
+let template = CertificateAuthorityTemplate(
     projectID: "my-project",
     location: "us-central1",
     organization: "Example Inc"
@@ -7331,10 +7331,10 @@ print(ops.addIAMBindingCommand(
 ))
 ```
 
-**DAIS Network Intelligence Template:**
+**Cloud Network Intelligence Template:**
 
 ```swift
-let template = DAISNetworkIntelligenceTemplate(projectID: "my-project")
+let template = NetworkIntelligenceTemplate(projectID: "my-project")
 
 // Create VM to VM test
 let vmTest = template.vmToVMTest(
@@ -7543,10 +7543,10 @@ print(ops.describeLocationCommand(location: "lax-loa9-1"))
 print(ops.getDiagnosticsCommand(interconnect: "dc-interconnect"))
 ```
 
-**DAIS Interconnect Template:**
+**Cloud Interconnect Template:**
 
 ```swift
-let template = DAISInterconnectTemplate(projectID: "my-project", region: "us-central1")
+let template = InterconnectTemplate(projectID: "my-project", region: "us-central1")
 
 // Create dedicated interconnect
 let interconnect = template.dedicatedInterconnect(
@@ -7762,10 +7762,10 @@ print(healthOps.addIAMBindingCommand(
 ))
 ```
 
-**DAIS Healthcare Template:**
+**Cloud Healthcare Template:**
 
 ```swift
-let template = DAISHealthcareTemplate(projectID: "my-project", location: "us-central1")
+let template = HealthcareTemplate(projectID: "my-project", location: "us-central1")
 
 // Create dataset
 let dataset = template.dataset(name: "ehr-data", timeZone: "America/Chicago")
@@ -7968,10 +7968,10 @@ print(ops.addIAMBindingCommand(
 ))
 ```
 
-**DAIS Retail Template:**
+**Cloud Retail Template:**
 
 ```swift
-let template = DAISRetailTemplate(projectID: "my-project")
+let template = RetailTemplate(projectID: "my-project")
 
 // Create products with consistent structure
 let headphones = template.product(
@@ -8144,10 +8144,10 @@ print(ops.addIAMBindingCommand(
 ))
 ```
 
-**DAIS Media CDN Template:**
+**Cloud Media CDN Template:**
 
 ```swift
-let template = DAISMediaCDNTemplate(projectID: "my-project")
+let template = MediaCDNTemplate(projectID: "my-project")
 
 // Create GCS origin
 let gcsOrigin = template.gcsOrigin(
@@ -8360,10 +8360,10 @@ print(ops.addIAMBindingCommand(
 ))
 ```
 
-**DAIS Anthos Template:**
+**Cloud Anthos Template:**
 
 ```swift
-let template = DAISAnthosTemplate(projectID: "my-project")
+let template = AnthosTemplate(projectID: "my-project")
 
 // Create GKE membership
 let gkeMembership = template.gkeMembership(
@@ -8542,35 +8542,35 @@ print(snapshot.createCommand)
 print(GoogleCloudDataflowSnapshot.listCommand(projectID: "my-project", region: "us-central1"))
 ```
 
-**DAIS Dataflow Templates:**
+**Cloud Dataflow Templates:**
 
 ```swift
 // Create streaming ETL pipeline
-let etlJob = DAISDataflowTemplate.streamingETLJob(
+let etlJob = DataflowTemplate.streamingETLJob(
     projectID: "my-project",
     region: "us-central1",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     inputTopic: "projects/my-project/topics/events",
     outputTable: "my-project:analytics.events",
-    tempBucket: "dais-prod-dataflow"
+    tempBucket: "app-prod-dataflow"
 )
 
 // Create batch export job
-let exportJob = DAISDataflowTemplate.batchExportJob(
+let exportJob = DataflowTemplate.batchExportJob(
     projectID: "my-project",
     region: "us-central1",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     sourceTable: "my-project:analytics.events",
-    destinationBucket: "dais-prod-exports",
-    tempBucket: "dais-prod-dataflow"
+    destinationBucket: "app-prod-exports",
+    tempBucket: "app-prod-dataflow"
 )
 
 // Generate setup script with IAM permissions
-let script = DAISDataflowTemplate.setupScript(
+let script = DataflowTemplate.setupScript(
     projectID: "my-project",
     region: "us-central1",
-    deploymentName: "dais-prod",
-    tempBucket: "dais-prod-dataflow",
+    deploymentName: "app-prod",
+    tempBucket: "app-prod-dataflow",
     serviceAccountEmail: "dataflow@my-project.iam.gserviceaccount.com"
 )
 ```
@@ -8701,14 +8701,14 @@ print(rollout.rejectCommand)   // Reject the rollout
 print(rollout.cancelCommand)   // Cancel in-progress rollout
 ```
 
-**DAIS Cloud Deploy Templates:**
+**Cloud Deploy Templates:
 
 ```swift
 // Create a multi-stage pipeline
-let pipeline = DAISCloudDeployTemplate.cloudRunPipeline(
+let pipeline = CloudDeployTemplate.cloudRunPipeline(
     projectID: "my-project",
     location: "us-central1",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     stages: [
         (name: "dev", runLocation: "us-central1", requireApproval: false),
         (name: "staging", runLocation: "us-central1", requireApproval: false),
@@ -8717,10 +8717,10 @@ let pipeline = DAISCloudDeployTemplate.cloudRunPipeline(
 )
 
 // Generate setup script
-let script = DAISCloudDeployTemplate.setupScript(
+let script = CloudDeployTemplate.setupScript(
     projectID: "my-project",
     location: "us-central1",
-    deploymentName: "dais-prod",
+    deploymentName: "app-prod",
     environments: [
         (name: "dev", runLocation: "us-central1", requireApproval: false),
         (name: "prod", runLocation: "us-central1", requireApproval: true)
@@ -8814,11 +8814,11 @@ let secretStep = WorkflowConnectors.SecretManager.accessSecret(
 )
 ```
 
-**DAIS Workflow Templates:**
+**Cloud Workflow Templates:**
 
 ```swift
-// Create DAIS workflow templates
-let template = DAISWorkflowsTemplate(
+// Create Cloud workflow templates
+let template = WorkflowsTemplate(
     projectID: "my-project",
     location: "us-central1",
     serviceAccountEmail: "workflow-sa@my-project.iam.gserviceaccount.com"
@@ -8960,16 +8960,16 @@ builder.addPath("/users/{id}", method: "GET", operation: OpenAPISpecBuilder.Oper
 let spec = builder.build()
 ```
 
-**DAIS API Gateway Templates:**
+**Cloud API Gateway Templates:**
 
 ```swift
-// Create DAIS API Gateway template
-let template = DAISAPIGatewayTemplate(
+// Create Cloud API Gateway template
+let template = APIGatewayTemplate(
     projectID: "my-project",
     location: "us-central1",
-    apiName: "dais-api",
+    apiName: "app-api",
     serviceAccountEmail: "api-sa@my-project.iam.gserviceaccount.com",
-    backendURL: "https://dais-backend.run.app"
+    backendURL: "https://app-backend.run.app"
 )
 
 // Get resources
@@ -9117,11 +9117,11 @@ print(trigger.activateCommand)
 print(trigger.pauseCommand)
 ```
 
-**DAIS DLP Templates:**
+**Cloud DLP Templates:**
 
 ```swift
-// Create DAIS DLP templates
-let template = DAISDLPTemplate(projectID: "my-project")
+// Create Cloud DLP templates
+let template = DLPTemplate(projectID: "my-project")
 
 // Get pre-configured inspection configs
 let piiConfig = template.piiInspectConfig
@@ -9192,13 +9192,13 @@ let service = GoogleCloudAPI.secretManager.service(projectID: "my-project")
 // Batch enable required services
 let batch = GoogleCloudServiceBatch(
     projectID: "my-project",
-    services: DAISServiceTemplate.required.map { $0.rawValue }
+    services: ServiceTemplate.required.map { $0.rawValue }
 )
 print(batch.batchEnableCommand)
 
 // Or use templates directly
-let enableCmd = DAISServiceTemplate.enableCommand(
-    for: DAISServiceTemplate.production,
+let enableCmd = ServiceTemplate.enableCommand(
+    for: ServiceTemplate.production,
     projectID: "my-project"
 )
 ```
@@ -9218,23 +9218,23 @@ Create and manage service accounts:
 ```swift
 // Create a service account
 let serviceAccount = GoogleCloudServiceAccount(
-    name: "dais-node",
+    name: "app-node",
     projectID: "my-project",
-    displayName: "DAIS Node Service Account",
-    description: "Service account for DAIS compute nodes"
+    displayName: "Cloud Node Service Account",
+    description: "Service account for compute nodes"
 )
 
 print(serviceAccount.email)
-// Output: dais-node@my-project.iam.gserviceaccount.com
+// Output: app-node@my-project.iam.gserviceaccount.com
 
 print(serviceAccount.createCommand)
-// Output: gcloud iam service-accounts create dais-node --project=my-project --display-name="DAIS Node Service Account" ...
+// Output: gcloud iam service-accounts create app-node --project=my-project --display-name="Cloud Node Service Account" ...
 
 // Create a key
 print(serviceAccount.createKeyCommand(outputPath: "/tmp/key.json"))
 
 // Use predefined templates
-let nodeSA = DAISServiceAccountTemplate.nodeServiceAccount(
+let nodeSA = ServiceAccountTemplate.nodeServiceAccount(
     projectID: "my-project",
     deploymentName: "prod"
 )
@@ -9290,38 +9290,38 @@ Manage projects, folders, and organizations:
 ```swift
 // Create a project
 let project = GoogleCloudProject(
-    projectID: "my-dais-project",
-    name: "My DAIS Project",
+    projectID: "my-app-project",
+    name: "My Cloud Project",
     parent: .folder(id: "123456789"),
     labels: ["environment": "production", "team": "platform"]
 )
 
 print(project.createCommand)
-// Output: gcloud projects create my-dais-project --name="My DAIS Project" --folder=123456789 --labels=...
+// Output: gcloud projects create my-app-project --name="My Cloud Project" --folder=123456789 --labels=...
 
 // Use predefined templates
-let devProject = DAISProjectTemplate.development(
-    projectID: "dais-dev",
-    name: "DAIS Development"
+let devProject = ProjectTemplate.development(
+    projectID: "app-dev",
+    name: "Cloud Development"
 )
 
-let prodProject = DAISProjectTemplate.production(
-    projectID: "dais-prod",
-    name: "DAIS Production"
+let prodProject = ProjectTemplate.production(
+    projectID: "app-prod",
+    name: "Cloud Production"
 )
 
 // Create folders
 let folder = GoogleCloudFolder(
     folderID: "new-folder",
-    displayName: "DAIS Projects",
+    displayName: "Cloud Projects",
     parent: .organization(id: "123456789")
 )
 
 // Protect production projects from deletion
 let lien = GoogleCloudLien(
-    projectID: "dais-prod",
-    reason: "Production DAIS deployment",
-    origin: "dais-deployment"
+    projectID: "app-prod",
+    reason: "Production Cloud deployment",
+    origin: "app-deployment"
 )
 print(lien.createCommand)
 ```
@@ -9350,12 +9350,12 @@ print(deployment.deleteCommand)
 print(deployment.describeCommand)
 ```
 
-**DAIS Deployment Manager Templates:**
+**Cloud Deployment Manager Templates:**
 
 ```swift
-// Generate YAML configuration for DAIS
-let config = DAISDeploymentManagerTemplate.completeDeploymentConfig(
-    deploymentName: "production-dais",
+// Generate YAML configuration for Cloud
+let config = DeploymentManagerTemplate.completeDeploymentConfig(
+    deploymentName: "production-app",
     nodeCount: 3,
     machineType: .n2Standard2,
     zone: "us-central1-a",
@@ -9387,7 +9387,7 @@ let deployment = InfrastructureManagerDeployment(
     projectID: "my-project",
     location: "us-central1",
     serviceAccount: "infra@my-project.iam.gserviceaccount.com",
-    labels: ["app": "dais", "env": "production"]
+    labels: ["app": "my-app", "env": "production"]
 )
 
 print(deployment.createCommand)
@@ -9445,12 +9445,12 @@ print(deployment.unlockCommand)
 print(deployment.exportStateCommand)
 ```
 
-**DAIS Infrastructure Manager Templates:**
+**Cloud Infrastructure Manager Templates:**
 
 ```swift
 // Generate complete Terraform configuration
-let terraformConfig = DAISInfrastructureTemplate.terraformConfig(
-    deploymentName: "prod-dais",
+let terraformConfig = InfrastructureTemplate.terraformConfig(
+    deploymentName: "prod-app",
     projectID: "my-project",
     region: "us-central1",
     zone: "us-central1-a",
@@ -9461,11 +9461,11 @@ let terraformConfig = DAISInfrastructureTemplate.terraformConfig(
 )
 
 // Create deployment with predefined settings
-let daisDeployment = DAISInfrastructureTemplate.deployment(
+let myDeployment = InfrastructureTemplate.deployment(
     name: "prod-infra",
     projectID: "my-project",
     location: "us-central1",
-    gitRepo: "https://github.com/example/dais-infra",
+    gitRepo: "https://github.com/example/my-infra",
     gitRef: "v1.0.0"
 )
 ```
@@ -9493,7 +9493,7 @@ let daisDeployment = DAISInfrastructureTemplate.deployment(
 Save up to 70% with spot/preemptible instances:
 
 ```swift
-let deployment = GoogleCloudDAISDeployment(
+let deployment = GoogleCloudDeployment(
     name: "dev",
     provider: provider,
     nodeCount: 2,
@@ -9531,38 +9531,38 @@ let bucket = GoogleCloudStorageBucket(
 
 ```bash
 # Store the certificate master key
-openssl rand -hex 32 | gcloud secrets create butteryai-certificate-master-key --data-file=-
+openssl rand -hex 32 | gcloud secrets create app-certificate-master-key --data-file=-
 
 # Access in your application
-export CERTIFICATE_MASTER_KEY=$(gcloud secrets versions access latest --secret=butteryai-certificate-master-key)
+export CERTIFICATE_MASTER_KEY=$(gcloud secrets versions access latest --secret=app-certificate-master-key)
 ```
 
 ### 2. Use Service Accounts
 
 ```bash
-# Create a service account for DAIS
-gcloud iam service-accounts create dais-node \
-    --display-name="DAIS Node Service Account"
+# Create a service account for Cloud
+gcloud iam service-accounts create app-node \
+    --display-name="Cloud Node Service Account"
 
 # Grant Secret Manager access
-gcloud secrets add-iam-policy-binding butteryai-certificate-master-key \
-    --member="serviceAccount:dais-node@MY_PROJECT.iam.gserviceaccount.com" \
+gcloud secrets add-iam-policy-binding app-certificate-master-key \
+    --member="serviceAccount:app-node@MY_PROJECT.iam.gserviceaccount.com" \
     --role="roles/secretmanager.secretAccessor"
 
 # Grant Storage access
-gsutil iam ch serviceAccount:dais-node@MY_PROJECT.iam.gserviceaccount.com:objectViewer gs://my-bucket
+gsutil iam ch serviceAccount:app-node@MY_PROJECT.iam.gserviceaccount.com:objectViewer gs://my-bucket
 ```
 
 ### 3. Configure Firewall Rules
 
 The deployment automatically creates:
-- Internal gRPC communication between DAIS nodes
+- Internal gRPC communication between nodes
 - External HTTP API access
 - External gRPC access (configurable)
 
 ```bash
 # View firewall rules
-gcloud compute firewall-rules list --filter="name~dais"
+gcloud compute firewall-rules list --filter="name~my-app"
 ```
 
 ## Deployment Workflow
@@ -9571,7 +9571,7 @@ gcloud compute firewall-rules list --filter="name~dais"
 
 ```swift
 // 1. Create deployment configuration
-let deployment = GoogleCloudDAISDeployment(
+let deployment = GoogleCloudDeployment(
     name: "production",
     provider: GoogleCloudProvider(
         projectID: "my-project",
@@ -9587,13 +9587,13 @@ let deployment = GoogleCloudDAISDeployment(
 let script = deployment.setupScript
 // Save to file and run
 
-// 3. Upload DAIS executable
-// gcloud compute scp ./dais-executable production-dais-node-1:/opt/dais/
+// 3. Upload Cloud executable
+// gcloud compute scp ./app-executable production-app-node-1:/opt/app/
 
-// 4. SSH and start DAIS
-// gcloud compute ssh production-dais-node-1
-// source /etc/profile.d/dais.sh
-// /opt/dais/dais-executable
+// 4. SSH and start Cloud
+// gcloud compute ssh production-app-node-1
+// source /etc/profile.d/app-env.sh
+// /opt/app/app-executable
 ```
 
 ### Teardown
@@ -9610,7 +9610,7 @@ The deployment sets up these environment variables on each instance:
 | Variable | Description | Source |
 |----------|-------------|--------|
 | `CERTIFICATE_MASTER_KEY` | Encryption key for certificates | Secret Manager |
-| `CERTIFICATE_STORAGE_PATH` | Path for certificate storage | `/var/butteryai/certificates` |
+| `CERTIFICATE_STORAGE_PATH` | Path for certificate storage | `/var/app/certificates` |
 | `GRPC_PORT` | Port for gRPC service | Configured (default: 9090) |
 | `HTTP_PORT` | Port for HTTP API | Configured (default: 8080) |
 
@@ -9636,13 +9636,13 @@ GoogleCloudRegion.allCases.forEach { region in
 
 ```bash
 # SSH to instance
-gcloud compute ssh my-dais-node-1 --zone=us-west1-a
+gcloud compute ssh my-app-node-1 --zone=us-west1-a
 
-# View DAIS logs
-tail -f /var/log/dais/dais.log
+# View Cloud logs
+tail -f /var/log/app/app.log
 
 # View startup logs
-cat /var/log/dais/startup.log
+cat /var/log/app/startup.log
 ```
 
 ### Cloud Monitoring
@@ -9661,7 +9661,7 @@ gcloud services enable monitoring.googleapis.com
 
 ```bash
 # Check IAM permissions
-gcloud secrets get-iam-policy butteryai-certificate-master-key
+gcloud secrets get-iam-policy app-certificate-master-key
 
 # Verify service account
 gcloud compute instances describe my-instance --zone=us-west1-a --format="get(serviceAccounts)"
@@ -9684,7 +9684,7 @@ gcloud compute ssh my-instance --zone=us-west1-a --command="sudo journalctl -u g
 gcloud compute ssh my-instance --zone=us-west1-a --command="curl -v localhost:8080/health"
 
 # Check firewall rules
-gcloud compute firewall-rules list --filter="name~dais"
+gcloud compute firewall-rules list --filter="name~my-app"
 ```
 
 ## Example: Complete Production Setup
@@ -9693,10 +9693,10 @@ gcloud compute firewall-rules list --filter="name~dais"
 import GoogleCloudSwift
 
 // Production deployment with 3 nodes
-let production = GoogleCloudDAISDeployment(
+let production = GoogleCloudDeployment(
     name: "prod",
     provider: GoogleCloudProvider(
-        projectID: "butteryai-production",
+        projectID: "app-production",
         region: .usWest1,
         credentials: .applicationDefault,
         defaultLabels: [

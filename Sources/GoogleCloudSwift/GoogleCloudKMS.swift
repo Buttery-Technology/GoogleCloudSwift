@@ -479,12 +479,12 @@ public enum KMSRole: String, Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - DAIS KMS Templates
+// MARK: - Cloud KMS Templates
 
-/// DAIS-specific KMS configurations
-public enum DAISKMSTemplate {
+/// Cloud-specific KMS configurations
+public enum KMSTemplate {
 
-    /// Key ring for DAIS deployment
+    /// Key ring for Cloud deployment
     public static func keyRing(
         projectID: String,
         location: String,
@@ -579,7 +579,7 @@ public enum DAISKMSTemplate {
         )
     }
 
-    /// Setup script for DAIS KMS
+    /// Setup script for Cloud KMS
     public static func setupScript(
         projectID: String,
         location: String,
@@ -587,7 +587,7 @@ public enum DAISKMSTemplate {
     ) -> String {
         """
         #!/bin/bash
-        # DAIS Cloud KMS Setup Script
+        # Cloud Cloud KMS Setup Script
         set -e
 
         PROJECT_ID="\(projectID)"
@@ -625,7 +625,7 @@ public enum DAISKMSTemplate {
         """
     }
 
-    /// Teardown script for DAIS KMS
+    /// Teardown script for Cloud KMS
     public static func teardownScript(
         projectID: String,
         location: String,
@@ -633,7 +633,7 @@ public enum DAISKMSTemplate {
     ) -> String {
         """
         #!/bin/bash
-        # DAIS Cloud KMS Teardown Script
+        # Cloud Cloud KMS Teardown Script
         # WARNING: Key destruction is permanent after 24 hours!
         set -e
 

@@ -456,10 +456,10 @@ public enum CDNOperations {
     }
 }
 
-// MARK: - DAIS CDN Templates
+// MARK: - Cloud CDN Templates
 
-/// DAIS-specific CDN configurations
-public enum DAISCDNTemplate {
+/// Cloud-specific CDN configurations
+public enum CDNTemplate {
 
     /// Static assets backend bucket
     public static func staticAssetsBucket(
@@ -471,7 +471,7 @@ public enum DAISCDNTemplate {
             name: "\(deploymentName)-static-assets",
             projectID: projectID,
             bucketName: storageBucket,
-            description: "DAIS static assets CDN backend",
+            description: "Cloud static assets CDN backend",
             enableCDN: true,
             cdnPolicy: CDNCachePolicy(
                 cacheMode: .cacheAllStatic,
@@ -544,7 +544,7 @@ public enum DAISCDNTemplate {
         CDNEdgeSecurityPolicy(
             name: "\(deploymentName)-cdn-edge-policy",
             projectID: projectID,
-            description: "DAIS CDN edge security policy"
+            description: "Cloud CDN edge security policy"
         )
     }
 
@@ -565,7 +565,7 @@ public enum DAISCDNTemplate {
         )
     }
 
-    /// Setup script for DAIS CDN
+    /// Setup script for Cloud CDN
     public static func setupScript(
         projectID: String,
         deploymentName: String,
@@ -574,7 +574,7 @@ public enum DAISCDNTemplate {
     ) -> String {
         """
         #!/bin/bash
-        # DAIS CDN Setup Script
+        # Cloud CDN Setup Script
         set -e
 
         PROJECT_ID="\(projectID)"
@@ -606,14 +606,14 @@ public enum DAISCDNTemplate {
         """
     }
 
-    /// Teardown script for DAIS CDN
+    /// Teardown script for Cloud CDN
     public static func teardownScript(
         projectID: String,
         deploymentName: String
     ) -> String {
         """
         #!/bin/bash
-        # DAIS CDN Teardown Script
+        # Cloud CDN Teardown Script
         set -e
 
         PROJECT_ID="\(projectID)"

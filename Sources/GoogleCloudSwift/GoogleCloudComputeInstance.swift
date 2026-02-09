@@ -7,12 +7,12 @@
 
 import Foundation
 
-/// Represents a Google Compute Engine instance configuration for running DAIS nodes.
+/// Represents a Google Compute Engine instance configuration for running Cloud nodes.
 ///
-/// This model provides configuration options for deploying DAIS executables
+/// This model provides configuration options for deploying Cloud executables
 /// on Google Cloud Compute Engine virtual machines.
 ///
-/// ## Cost-Effective Options for DAIS
+/// ## Cost-Effective Options for Cloud
 /// - **e2-micro**: Free tier eligible (1 per month in us-west1, us-central1, us-east1)
 /// - **e2-small**: ~$12/month - good for light workloads
 /// - **e2-medium**: ~$24/month - balanced performance
@@ -21,15 +21,15 @@ import Foundation
 /// ## Example Usage
 /// ```swift
 /// let instance = GoogleCloudComputeInstance(
-///     name: "dais-node-1",
+///     name: "app-node-1",
 ///     machineType: .e2Medium,
 ///     zone: "us-west1-a",
 ///     bootDisk: .init(
 ///         image: .ubuntuLTS,
 ///         sizeGB: 20
 ///     ),
-///     networkTags: ["dais-node", "allow-grpc"],
-///     startupScript: "#!/bin/bash\n./dais-executable --config /etc/dais/config.json"
+///     networkTags: ["app-node", "allow-grpc"],
+///     startupScript: "#!/bin/bash\n./app-executable --config /etc/app/config.json"
 /// )
 /// ```
 public struct GoogleCloudComputeInstance: Codable, Sendable, Equatable {
@@ -123,9 +123,9 @@ extension GoogleCloudComputeInstance {
         }
     }
 
-    /// Available OS images for DAIS deployment
+    /// Available OS images for Cloud deployment
     public enum OSImage: String, Codable, Sendable, CaseIterable {
-        /// Ubuntu 22.04 LTS - Recommended for DAIS
+        /// Ubuntu 22.04 LTS - Recommended for Cloud
         case ubuntuLTS = "projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts"
 
         /// Ubuntu 24.04 LTS
@@ -261,7 +261,7 @@ extension GoogleCloudComputeInstance {
             self.scopes = scopes
         }
 
-        /// Default scopes for DAIS nodes
+        /// Default scopes for Cloud nodes
         public static let defaultScopes: [String] = [
             "https://www.googleapis.com/auth/cloud-platform",
         ]
@@ -425,9 +425,9 @@ public enum GoogleCloudMachineType: String, Codable, Sendable, CaseIterable {
         self == .e2Micro
     }
 
-    /// Recommended for DAIS development/testing
+    /// Recommended for Cloud development/testing
     public static let developmentRecommended: GoogleCloudMachineType = .e2Small
 
-    /// Recommended for DAIS production
+    /// Recommended for Cloud production
     public static let productionRecommended: GoogleCloudMachineType = .n2Standard2
 }

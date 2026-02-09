@@ -888,10 +888,10 @@ public struct NetworkIntelligenceOperations: Sendable {
     }
 }
 
-// MARK: - DAIS Network Intelligence Template
+// MARK: - Cloud Network Intelligence Template
 
-/// DAIS template for Network Intelligence configurations
-public struct DAISNetworkIntelligenceTemplate: Sendable {
+/// Cloud template for Network Intelligence configurations
+public struct NetworkIntelligenceTemplate: Sendable {
     public let projectID: String
 
     public init(projectID: String) {

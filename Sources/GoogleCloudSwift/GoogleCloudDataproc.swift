@@ -788,10 +788,10 @@ public struct DataprocOperations: Sendable {
     }
 }
 
-// MARK: - DAIS Dataproc Template
+// MARK: - Cloud Dataproc Template
 
-/// Production-ready Dataproc templates for DAIS systems
-public struct DAISDataprocTemplate: Sendable {
+/// Production-ready Dataproc templates for Cloud systems
+public struct DataprocTemplate: Sendable {
     public let projectID: String
     public let region: String
     public let clusterName: String
@@ -800,7 +800,7 @@ public struct DAISDataprocTemplate: Sendable {
     public init(
         projectID: String,
         region: String = "us-central1",
-        clusterName: String = "dais-dataproc",
+        clusterName: String = "app-dataproc",
         serviceAccount: String? = nil
     ) {
         self.projectID = projectID
@@ -840,7 +840,7 @@ public struct DAISDataprocTemplate: Sendable {
                     GoogleCloudDataprocCluster.GceClusterConfig(serviceAccount: $0)
                 }
             ),
-            labels: ["env": "production", "managed-by": "dais"]
+            labels: ["env": "production", "managed-by": "googlecloudswift"]
         )
     }
 
@@ -868,7 +868,7 @@ public struct DAISDataprocTemplate: Sendable {
                     imageVersion: DataprocOperations.ImageVersions.latest
                 )
             ),
-            labels: ["env": "production", "type": "batch", "managed-by": "dais"]
+            labels: ["env": "production", "type": "batch", "managed-by": "googlecloudswift"]
         )
     }
 
@@ -903,7 +903,7 @@ public struct DAISDataprocTemplate: Sendable {
                     ]
                 )
             ),
-            labels: ["env": "production", "type": "highmem", "managed-by": "dais"]
+            labels: ["env": "production", "type": "highmem", "managed-by": "googlecloudswift"]
         )
     }
 
@@ -916,7 +916,7 @@ public struct DAISDataprocTemplate: Sendable {
             jobType: .pyspark,
             mainFile: "gs://\(projectID)-dataproc/scripts/etl_job.py",
             args: ["--input", "gs://\(projectID)-dataproc/input", "--output", "gs://\(projectID)-dataproc/output"],
-            labels: ["managed-by": "dais"]
+            labels: ["managed-by": "googlecloudswift"]
         )
     }
 
@@ -927,25 +927,25 @@ public struct DAISDataprocTemplate: Sendable {
             region: region,
             clusterName: clusterName,
             jobType: .spark,
-            mainClass: "com.dais.analytics.MainJob",
+            mainClass: "com.myapp.analytics.MainJob",
             jarFiles: ["gs://\(projectID)-dataproc/jars/analytics.jar"],
             properties: [
                 "spark.executor.memory": "4g",
                 "spark.driver.memory": "2g"
             ],
-            labels: ["managed-by": "dais"]
+            labels: ["managed-by": "googlecloudswift"]
         )
     }
 
     /// Sample serverless PySpark batch
     public var serverlessBatch: GoogleCloudDataprocBatch {
         GoogleCloudDataprocBatch(
-            batchID: "dais-batch-\(Int(Date().timeIntervalSince1970))",
+            batchID: "app-batch-\(Int(Date().timeIntervalSince1970))",
             projectID: projectID,
             region: region,
             batchType: .pyspark,
             mainFile: "gs://\(projectID)-dataproc/scripts/batch_job.py",
-            labels: ["managed-by": "dais"],
+            labels: ["managed-by": "googlecloudswift"],
             runtimeConfig: GoogleCloudDataprocBatch.RuntimeConfig(
                 version: "2.0"
             )
@@ -1004,7 +1004,7 @@ public struct DAISDataprocTemplate: Sendable {
         \(analyticsCluster.createCommand)
 
         echo ""
-        echo "DAIS Dataproc setup complete!"
+        echo "Cloud Dataproc setup complete!"
         echo ""
         echo "Cluster: $CLUSTER_NAME"
         echo "Region: $REGION"

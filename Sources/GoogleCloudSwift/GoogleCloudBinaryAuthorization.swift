@@ -671,10 +671,10 @@ public struct BinaryAuthorizationOperations: Sendable {
     }
 }
 
-// MARK: - DAIS Binary Authorization Template
+// MARK: - Cloud Binary Authorization Template
 
-/// DAIS template for Binary Authorization configurations
-public struct DAISBinaryAuthorizationTemplate: Sendable {
+/// Cloud template for Binary Authorization configurations
+public struct BinaryAuthorizationTemplate: Sendable {
     public let projectID: String
     public let defaultAttestorLocation: String
 

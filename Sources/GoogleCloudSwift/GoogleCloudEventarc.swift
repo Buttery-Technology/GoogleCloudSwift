@@ -364,10 +364,10 @@ public enum EventarcOperations {
     }
 }
 
-// MARK: - DAIS Eventarc Templates
+// MARK: - Cloud Eventarc Templates
 
-/// DAIS-specific Eventarc configurations
-public enum DAISEventarcTemplate {
+/// Cloud-specific Eventarc configurations
+public enum EventarcTemplate {
 
     /// Storage upload trigger
     public static func storageUploadTrigger(
@@ -472,7 +472,7 @@ public enum DAISEventarcTemplate {
         )
     }
 
-    /// Setup script for DAIS Eventarc
+    /// Setup script for Cloud Eventarc
     public static func setupScript(
         projectID: String,
         location: String,
@@ -481,7 +481,7 @@ public enum DAISEventarcTemplate {
     ) -> String {
         """
         #!/bin/bash
-        # DAIS Eventarc Setup Script
+        # Cloud Eventarc Setup Script
         set -e
 
         PROJECT_ID="\(projectID)"
@@ -513,7 +513,7 @@ public enum DAISEventarcTemplate {
     ) -> String {
         """
         #!/bin/bash
-        # DAIS Eventarc Teardown Script
+        # Cloud Eventarc Teardown Script
         set -e
 
         PROJECT_ID="\(projectID)"
