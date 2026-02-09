@@ -658,10 +658,10 @@ public struct SpeechToTextOperations: Sendable {
     }
 }
 
-// MARK: - DAIS Speech-to-Text Template
+// MARK: - Cloud Speech-to-Text Template
 
-/// DAIS template for Speech-to-Text
-public struct DAISSpeechToTextTemplate: Sendable {
+/// Cloud template for Speech-to-Text
+public struct SpeechToTextTemplate: Sendable {
     /// Project ID
     public let projectID: String
 
@@ -748,10 +748,10 @@ public struct DAISSpeechToTextTemplate: Sendable {
         )
     }
 
-    /// Sample speech context for DAIS domain
-    public var daisSpeechContext: GoogleCloudSpeechRecognitionConfig.SpeechContext {
+    /// Sample speech context for Cloud domain
+    public var appSpeechContext: GoogleCloudSpeechRecognitionConfig.SpeechContext {
         GoogleCloudSpeechRecognitionConfig.SpeechContext(
-            phrases: ["DAIS", "distributed AI", "agent", "node", "cluster", "orchestration"],
+            phrases: ["Cloud", "distributed AI", "agent", "node", "cluster", "orchestration"],
             boost: 10.0
         )
     }
@@ -759,10 +759,10 @@ public struct DAISSpeechToTextTemplate: Sendable {
     /// Sample recognizer
     public var recognizer: GoogleCloudSpeechRecognizer {
         GoogleCloudSpeechRecognizer(
-            name: "dais-recognizer",
+            name: "app-recognizer",
             projectID: projectID,
             location: location,
-            displayName: "DAIS Speech Recognizer",
+            displayName: "Cloud Speech Recognizer",
             model: "latest_long",
             languageCodes: ["en-US"]
         )
@@ -771,12 +771,12 @@ public struct DAISSpeechToTextTemplate: Sendable {
     /// Sample phrase set
     public var phraseSet: GoogleCloudSpeechPhraseSet {
         GoogleCloudSpeechPhraseSet(
-            name: "dais-phrases",
+            name: "app-phrases",
             projectID: projectID,
             location: location,
-            displayName: "DAIS Domain Phrases",
+            displayName: "Cloud Domain Phrases",
             phrases: [
-                GoogleCloudSpeechPhraseSet.Phrase(value: "DAIS", boost: 10.0),
+                GoogleCloudSpeechPhraseSet.Phrase(value: "Cloud", boost: 10.0),
                 GoogleCloudSpeechPhraseSet.Phrase(value: "distributed AI system", boost: 8.0),
                 GoogleCloudSpeechPhraseSet.Phrase(value: "agent cluster", boost: 6.0)
             ],

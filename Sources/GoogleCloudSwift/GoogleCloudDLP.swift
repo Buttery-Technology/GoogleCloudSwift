@@ -1210,10 +1210,10 @@ public struct DLPOperations: Sendable {
     }
 }
 
-// MARK: - DAIS DLP Template
+// MARK: - Cloud DLP Template
 
-/// Production-ready DLP templates for DAIS systems
-public struct DAISDLPTemplate: Sendable {
+/// Production-ready DLP templates for Cloud systems
+public struct DLPTemplate: Sendable {
     public let projectID: String
     public let location: String
 
@@ -1291,10 +1291,10 @@ public struct DAISDLPTemplate: Sendable {
     /// PII inspect template
     public var piiInspectTemplate: GoogleCloudDLPInspectTemplate {
         GoogleCloudDLPInspectTemplate(
-            name: "dais-pii-inspect",
+            name: "app-pii-inspect",
             projectID: projectID,
             location: location,
-            displayName: "DAIS PII Inspection Template",
+            displayName: "Cloud PII Inspection Template",
             description: "Inspects for common PII including SSN, credit cards, emails, and phone numbers",
             inspectConfig: piiInspectConfig
         )
@@ -1303,10 +1303,10 @@ public struct DAISDLPTemplate: Sendable {
     /// Redaction de-identify template
     public var redactionDeidentifyTemplate: GoogleCloudDLPDeidentifyTemplate {
         GoogleCloudDLPDeidentifyTemplate(
-            name: "dais-redaction-deidentify",
+            name: "app-redaction-deidentify",
             projectID: projectID,
             location: location,
-            displayName: "DAIS Redaction Template",
+            displayName: "Cloud Redaction Template",
             description: "Redacts all sensitive data findings",
             deidentifyConfig: redactionDeidentifyConfig
         )
@@ -1315,10 +1315,10 @@ public struct DAISDLPTemplate: Sendable {
     /// Masking de-identify template
     public var maskingDeidentifyTemplate: GoogleCloudDLPDeidentifyTemplate {
         GoogleCloudDLPDeidentifyTemplate(
-            name: "dais-masking-deidentify",
+            name: "app-masking-deidentify",
             projectID: projectID,
             location: location,
-            displayName: "DAIS Masking Template",
+            displayName: "Cloud Masking Template",
             description: "Masks credit cards, SSNs, and replaces other PII with info type names",
             deidentifyConfig: maskingDeidentifyConfig
         )

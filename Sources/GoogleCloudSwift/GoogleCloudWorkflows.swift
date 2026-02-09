@@ -591,10 +591,10 @@ public struct WorkflowConnectors: Sendable {
     }
 }
 
-// MARK: - DAIS Workflow Template
+// MARK: - Cloud Workflow Template
 
-/// Production-ready workflow templates for DAIS systems
-public struct DAISWorkflowsTemplate: Sendable {
+/// Production-ready workflow templates for Cloud systems
+public struct WorkflowsTemplate: Sendable {
     public let projectID: String
     public let location: String
     public let serviceAccountEmail: String?
@@ -653,11 +653,11 @@ public struct DAISWorkflowsTemplate: Sendable {
         """
 
         return GoogleCloudWorkflow(
-            name: "dais-data-processing",
+            name: "app-data-processing",
             projectID: projectID,
             location: location,
-            description: "DAIS data processing workflow",
-            labels: ["app": "dais", "component": "data-processing"],
+            description: "Cloud data processing workflow",
+            labels: ["app": "my-app", "component": "data-processing"],
             serviceAccount: serviceAccountEmail,
             sourceContents: yaml,
             callLogLevel: .logErrorsOnly
@@ -716,11 +716,11 @@ public struct DAISWorkflowsTemplate: Sendable {
         """
 
         return GoogleCloudWorkflow(
-            name: "dais-storage-event-handler",
+            name: "app-storage-event-handler",
             projectID: projectID,
             location: location,
-            description: "DAIS storage event handler workflow",
-            labels: ["app": "dais", "component": "event-handler"],
+            description: "Cloud storage event handler workflow",
+            labels: ["app": "my-app", "component": "event-handler"],
             serviceAccount: serviceAccountEmail,
             sourceContents: yaml,
             callLogLevel: .logAllCalls
@@ -770,11 +770,11 @@ public struct DAISWorkflowsTemplate: Sendable {
         """
 
         return GoogleCloudWorkflow(
-            name: "dais-batch-processing",
+            name: "app-batch-processing",
             projectID: projectID,
             location: location,
-            description: "DAIS batch processing workflow with parallel execution",
-            labels: ["app": "dais", "component": "batch-processing"],
+            description: "Cloud batch processing workflow with parallel execution",
+            labels: ["app": "my-app", "component": "batch-processing"],
             serviceAccount: serviceAccountEmail,
             sourceContents: yaml,
             callLogLevel: .logErrorsOnly
@@ -847,11 +847,11 @@ public struct DAISWorkflowsTemplate: Sendable {
         """
 
         return GoogleCloudWorkflow(
-            name: "dais-retry-workflow",
+            name: "app-retry-workflow",
             projectID: projectID,
             location: location,
-            description: "DAIS retry workflow with exponential backoff",
-            labels: ["app": "dais", "component": "retry"],
+            description: "Cloud retry workflow with exponential backoff",
+            labels: ["app": "my-app", "component": "retry"],
             serviceAccount: serviceAccountEmail,
             sourceContents: yaml,
             callLogLevel: .logAllCalls
@@ -918,18 +918,18 @@ public struct DAISWorkflowsTemplate: Sendable {
         """
 
         return GoogleCloudWorkflow(
-            name: "dais-approval-workflow",
+            name: "app-approval-workflow",
             projectID: projectID,
             location: location,
-            description: "DAIS human-in-the-loop approval workflow",
-            labels: ["app": "dais", "component": "approval"],
+            description: "Cloud human-in-the-loop approval workflow",
+            labels: ["app": "my-app", "component": "approval"],
             serviceAccount: serviceAccountEmail,
             sourceContents: yaml,
             callLogLevel: .logAllCalls
         )
     }
 
-    /// Setup script to deploy all DAIS workflows
+    /// Setup script to deploy all Cloud workflows
     public var setupScript: String {
         """
         #!/bin/bash
@@ -943,73 +943,73 @@ public struct DAISWorkflowsTemplate: Sendable {
         gcloud services enable workflows.googleapis.com --project=$PROJECT_ID
         gcloud services enable workflowexecutions.googleapis.com --project=$PROJECT_ID
 
-        echo "Creating DAIS data processing workflow..."
+        echo "Creating Cloud data processing workflow..."
         cat > /tmp/data-processing-workflow.yaml << 'WORKFLOW_EOF'
         \(dataProcessingWorkflow.sourceContents ?? "")
         WORKFLOW_EOF
 
-        gcloud workflows deploy dais-data-processing \\
+        gcloud workflows deploy app-data-processing \\
             --location=$LOCATION \\
             --source=/tmp/data-processing-workflow.yaml \\
-            --description="DAIS data processing workflow" \\
-            --labels=app=dais,component=data-processing \\
+            --description="Cloud data processing workflow" \\
+            --labels=app=my-app,component=data-processing \\
             \(serviceAccountEmail.map { "--service-account=\($0)" } ?? "") \\
             --project=$PROJECT_ID
 
-        echo "Creating DAIS storage event handler workflow..."
+        echo "Creating Cloud storage event handler workflow..."
         cat > /tmp/storage-event-workflow.yaml << 'WORKFLOW_EOF'
         \(storageEventWorkflow.sourceContents ?? "")
         WORKFLOW_EOF
 
-        gcloud workflows deploy dais-storage-event-handler \\
+        gcloud workflows deploy app-storage-event-handler \\
             --location=$LOCATION \\
             --source=/tmp/storage-event-workflow.yaml \\
-            --description="DAIS storage event handler workflow" \\
-            --labels=app=dais,component=event-handler \\
+            --description="Cloud storage event handler workflow" \\
+            --labels=app=my-app,component=event-handler \\
             \(serviceAccountEmail.map { "--service-account=\($0)" } ?? "") \\
             --project=$PROJECT_ID
 
-        echo "Creating DAIS batch processing workflow..."
+        echo "Creating Cloud batch processing workflow..."
         cat > /tmp/batch-processing-workflow.yaml << 'WORKFLOW_EOF'
         \(batchProcessingWorkflow.sourceContents ?? "")
         WORKFLOW_EOF
 
-        gcloud workflows deploy dais-batch-processing \\
+        gcloud workflows deploy app-batch-processing \\
             --location=$LOCATION \\
             --source=/tmp/batch-processing-workflow.yaml \\
-            --description="DAIS batch processing workflow with parallel execution" \\
-            --labels=app=dais,component=batch-processing \\
+            --description="Cloud batch processing workflow with parallel execution" \\
+            --labels=app=my-app,component=batch-processing \\
             \(serviceAccountEmail.map { "--service-account=\($0)" } ?? "") \\
             --project=$PROJECT_ID
 
-        echo "Creating DAIS retry workflow..."
+        echo "Creating Cloud retry workflow..."
         cat > /tmp/retry-workflow.yaml << 'WORKFLOW_EOF'
         \(retryWorkflow.sourceContents ?? "")
         WORKFLOW_EOF
 
-        gcloud workflows deploy dais-retry-workflow \\
+        gcloud workflows deploy app-retry-workflow \\
             --location=$LOCATION \\
             --source=/tmp/retry-workflow.yaml \\
-            --description="DAIS retry workflow with exponential backoff" \\
-            --labels=app=dais,component=retry \\
+            --description="Cloud retry workflow with exponential backoff" \\
+            --labels=app=my-app,component=retry \\
             \(serviceAccountEmail.map { "--service-account=\($0)" } ?? "") \\
             --project=$PROJECT_ID
 
-        echo "Creating DAIS approval workflow..."
+        echo "Creating Cloud approval workflow..."
         cat > /tmp/approval-workflow.yaml << 'WORKFLOW_EOF'
         \(approvalWorkflow.sourceContents ?? "")
         WORKFLOW_EOF
 
-        gcloud workflows deploy dais-approval-workflow \\
+        gcloud workflows deploy app-approval-workflow \\
             --location=$LOCATION \\
             --source=/tmp/approval-workflow.yaml \\
-            --description="DAIS human-in-the-loop approval workflow" \\
-            --labels=app=dais,component=approval \\
+            --description="Cloud human-in-the-loop approval workflow" \\
+            --labels=app=my-app,component=approval \\
             \(serviceAccountEmail.map { "--service-account=\($0)" } ?? "") \\
             --project=$PROJECT_ID
 
         echo ""
-        echo "DAIS Workflows setup complete!"
+        echo "Cloud Workflows setup complete!"
         echo ""
         echo "Deployed workflows:"
         gcloud workflows list --location=$LOCATION --project=$PROJECT_ID

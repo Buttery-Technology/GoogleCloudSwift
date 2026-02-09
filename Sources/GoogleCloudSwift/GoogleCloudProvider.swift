@@ -7,18 +7,18 @@
 
 import Foundation
 
-/// Represents a Google Cloud Platform configuration for running DAIS nodes.
+/// Represents a Google Cloud Platform configuration for running Cloud nodes.
 ///
-/// Use this to configure your DAIS deployment on Google Cloud Platform.
+/// Use this to configure your Cloud deployment on Google Cloud Platform.
 /// Google Cloud offers a generous free tier and cost-effective pricing for:
-/// - Compute Engine (VMs for running DAIS nodes)
+/// - Compute Engine (VMs for running Cloud nodes)
 /// - Secret Manager (storing encryption keys - free tier: 6 active secret versions)
 /// - Cloud Storage (backups and artifacts)
 ///
 /// ## Example Usage
 /// ```swift
 /// let provider = GoogleCloudProvider(
-///     projectID: "my-butteryai-project",
+///     projectID: "my-app-project",
 ///     region: .usWest1,
 ///     credentials: .serviceAccount(path: "/path/to/service-account.json")
 /// )

@@ -725,10 +725,10 @@ public struct GKEOperations: Sendable {
     }
 }
 
-// MARK: - DAIS GKE Template
+// MARK: - Cloud GKE Template
 
-/// Production-ready GKE templates for DAIS systems
-public struct DAISGKETemplate: Sendable {
+/// Production-ready GKE templates for Cloud systems
+public struct GKETemplate: Sendable {
     public let projectID: String
     public let location: String
     public let clusterName: String
@@ -738,7 +738,7 @@ public struct DAISGKETemplate: Sendable {
     public init(
         projectID: String,
         location: String = "us-central1",
-        clusterName: String = "dais-cluster",
+        clusterName: String = "app-cluster",
         network: String? = nil,
         subnetwork: String? = nil
     ) {
@@ -749,13 +749,13 @@ public struct DAISGKETemplate: Sendable {
         self.subnetwork = subnetwork
     }
 
-    /// Standard GKE cluster for DAIS workloads
+    /// Standard GKE cluster for Cloud workloads
     public var standardCluster: GoogleCloudGKECluster {
         GoogleCloudGKECluster(
             name: clusterName,
             projectID: projectID,
             location: location,
-            description: "DAIS GKE cluster for distributed AI workloads",
+            description: "Cloud GKE cluster for distributed AI workloads",
             initialNodeCount: 3,
             nodeConfig: GoogleCloudGKECluster.NodeConfig(
                 machineType: "e2-standard-4",
@@ -779,7 +779,7 @@ public struct DAISGKETemplate: Sendable {
             workloadIdentityConfig: GoogleCloudGKECluster.WorkloadIdentityConfig(
                 workloadPool: "\(projectID).svc.id.goog"
             ),
-            labels: ["app": "dais", "managed-by": "googlecloudswift"]
+            labels: ["app": "my-app", "managed-by": "googlecloudswift"]
         )
     }
 
@@ -789,7 +789,7 @@ public struct DAISGKETemplate: Sendable {
             name: "\(clusterName)-autopilot",
             projectID: projectID,
             location: location,
-            description: "DAIS Autopilot GKE cluster",
+            description: "Cloud Autopilot GKE cluster",
             networkConfig: GoogleCloudGKECluster.NetworkConfig(
                 network: network,
                 subnetwork: subnetwork
@@ -799,7 +799,7 @@ public struct DAISGKETemplate: Sendable {
             workloadIdentityConfig: GoogleCloudGKECluster.WorkloadIdentityConfig(
                 workloadPool: "\(projectID).svc.id.goog"
             ),
-            labels: ["app": "dais", "type": "autopilot"]
+            labels: ["app": "my-app", "type": "autopilot"]
         )
     }
 
@@ -809,7 +809,7 @@ public struct DAISGKETemplate: Sendable {
             name: "\(clusterName)-private",
             projectID: projectID,
             location: location,
-            description: "DAIS private GKE cluster",
+            description: "Cloud private GKE cluster",
             initialNodeCount: 3,
             nodeConfig: GoogleCloudGKECluster.NodeConfig(
                 machineType: "e2-standard-4",
@@ -830,7 +830,7 @@ public struct DAISGKETemplate: Sendable {
             workloadIdentityConfig: GoogleCloudGKECluster.WorkloadIdentityConfig(
                 workloadPool: "\(projectID).svc.id.goog"
             ),
-            labels: ["app": "dais", "type": "private"]
+            labels: ["app": "my-app", "type": "private"]
         )
     }
 
@@ -899,7 +899,7 @@ public struct DAISGKETemplate: Sendable {
         )
     }
 
-    /// Setup script to deploy DAIS GKE infrastructure
+    /// Setup script to deploy Cloud GKE infrastructure
     public var setupScript: String {
         """
         #!/bin/bash
@@ -912,7 +912,7 @@ public struct DAISGKETemplate: Sendable {
         echo "Enabling GKE API..."
         gcloud services enable container.googleapis.com --project=$PROJECT_ID
 
-        echo "Creating DAIS GKE cluster..."
+        echo "Creating Cloud GKE cluster..."
         \(standardCluster.createCommand)
 
         echo "Waiting for cluster to be ready..."
@@ -925,7 +925,7 @@ public struct DAISGKETemplate: Sendable {
         \(spotNodePool.createCommand)
 
         echo ""
-        echo "DAIS GKE setup complete!"
+        echo "Cloud GKE setup complete!"
         echo ""
         echo "Cluster endpoint:"
         gcloud container clusters describe $CLUSTER_NAME --region=$LOCATION --project=$PROJECT_ID --format='value(endpoint)'
@@ -945,7 +945,7 @@ public struct DAISGKETemplate: Sendable {
         LOCATION="\(location)"
         CLUSTER_NAME="\(clusterName)"
 
-        echo "Deleting DAIS GKE cluster..."
+        echo "Deleting Cloud GKE cluster..."
         \(standardCluster.deleteCommand)
 
         echo "GKE teardown complete!"

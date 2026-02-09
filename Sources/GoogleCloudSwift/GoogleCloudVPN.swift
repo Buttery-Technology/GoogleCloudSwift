@@ -384,10 +384,10 @@ public struct VPNOperations {
     }
 }
 
-// MARK: - DAIS VPN Template
+// MARK: - Cloud VPN Template
 
-/// VPN templates for DAIS deployments
-public struct DAISVPNTemplate {
+/// VPN templates for Cloud deployments
+public struct VPNTemplate {
 
     /// Create an HA VPN gateway
     public static func haVPNGateway(

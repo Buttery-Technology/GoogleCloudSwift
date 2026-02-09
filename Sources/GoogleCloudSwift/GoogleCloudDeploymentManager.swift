@@ -285,17 +285,17 @@ public enum GoogleCloudDeploymentType: String, Codable, Sendable, CaseIterable {
     }
 }
 
-// MARK: - DAIS Deployment Templates
+// MARK: - Cloud Deployment Templates
 
-/// Predefined Deployment Manager configurations for DAIS
+/// Predefined Deployment Manager configurations for Cloud
 @available(*, deprecated, message: "Cloud Deployment Manager reaches end of support on March 31, 2026. Use GoogleCloudInfrastructureManager (Terraform-based) instead.")
-public enum DAISDeploymentManagerTemplate {
-    /// Generate a YAML configuration for a DAIS compute instance
+public enum DeploymentManagerTemplate {
+    /// Generate a YAML configuration for a Cloud compute instance
     public static func instanceConfig(
         name: String,
         machineType: GoogleCloudMachineType,
         zone: String,
-        networkTags: [String] = ["dais-node"]
+        networkTags: [String] = ["app-node"]
     ) -> String {
         """
         resources:
@@ -322,7 +322,7 @@ public enum DAISDeploymentManagerTemplate {
         """
     }
 
-    /// Generate a complete DAIS deployment configuration
+    /// Generate a complete Cloud deployment configuration
     public static func completeDeploymentConfig(
         deploymentName: String,
         nodeCount: Int,
@@ -346,7 +346,7 @@ public enum DAISDeploymentManagerTemplate {
             sourceRanges:
             - "0.0.0.0/0"
             targetTags:
-            - \(deploymentName)-dais
+            - \(deploymentName)-app
         """)
 
         resources.append("""
@@ -361,7 +361,7 @@ public enum DAISDeploymentManagerTemplate {
             sourceRanges:
             - "0.0.0.0/0"
             targetTags:
-            - \(deploymentName)-dais
+            - \(deploymentName)-app
         """)
 
         // Add instances
@@ -387,7 +387,7 @@ public enum DAISDeploymentManagerTemplate {
                 type: ONE_TO_ONE_NAT
             tags:
               items:
-              - \(deploymentName)-dais
+              - \(deploymentName)-app
             metadata:
               items:
               - key: startup-script
@@ -395,9 +395,9 @@ public enum DAISDeploymentManagerTemplate {
                   #!/bin/bash
                   apt-get update
                   apt-get install -y curl wget
-                  mkdir -p /opt/dais
-                  mkdir -p /var/butteryai/certificates
-                  echo "DAIS node \(i) ready"
+                  mkdir -p /opt/app
+                  mkdir -p /var/app/certificates
+                  echo "Cloud node \(i) ready"
         """)
         }
 

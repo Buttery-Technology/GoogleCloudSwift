@@ -815,10 +815,10 @@ public struct GoogleCloudTranslationOperations: Sendable {
     ]
 }
 
-// MARK: - DAIS Template
+// MARK: - Cloud Template
 
-/// DAIS template for Translation
-public struct DAISTranslationTemplate: Codable, Sendable, Equatable {
+/// Cloud template for Translation
+public struct TranslationTemplate: Codable, Sendable, Equatable {
     /// Project ID
     public let projectID: String
 
@@ -983,7 +983,7 @@ public struct DAISTranslationTemplate: Codable, Sendable, Equatable {
     public var setupScript: String {
         """
         #!/bin/bash
-        # DAIS Translation Setup
+        # Cloud Translation Setup
 
         PROJECT_ID="\(projectID)"
 
@@ -1014,7 +1014,7 @@ public struct DAISTranslationTemplate: Codable, Sendable, Equatable {
     public var teardownScript: String {
         """
         #!/bin/bash
-        # DAIS Translation Teardown
+        # Cloud Translation Teardown
 
         PROJECT_ID="\(projectID)"
 

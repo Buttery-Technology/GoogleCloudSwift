@@ -521,10 +521,10 @@ public struct VertexAIOperations: Sendable {
     }
 }
 
-// MARK: - DAIS Vertex AI Template
+// MARK: - Cloud Vertex AI Template
 
-/// Production-ready Vertex AI templates for DAIS systems
-public struct DAISVertexAITemplate: Sendable {
+/// Production-ready Vertex AI templates for Cloud systems
+public struct VertexAITemplate: Sendable {
     public let projectID: String
     public let location: String
     public let serviceAccount: String?
@@ -539,35 +539,35 @@ public struct DAISVertexAITemplate: Sendable {
         self.serviceAccount = serviceAccount
     }
 
-    /// Training dataset for DAIS models
+    /// Training dataset for Cloud models
     public var trainingDataset: GoogleCloudVertexAIDataset {
         GoogleCloudVertexAIDataset(
-            name: "dais-training-dataset",
+            name: "app-training-dataset",
             projectID: projectID,
             location: location,
-            displayName: "DAIS Training Dataset",
-            labels: ["app": "dais", "type": "training"]
+            displayName: "Cloud Training Dataset",
+            labels: ["app": "my-app", "type": "training"]
         )
     }
 
     /// Prediction endpoint
     public var predictionEndpoint: GoogleCloudVertexAIEndpoint {
         GoogleCloudVertexAIEndpoint(
-            name: "dais-prediction",
+            name: "app-prediction",
             projectID: projectID,
             location: location,
-            displayName: "DAIS Prediction Endpoint",
-            labels: ["app": "dais", "type": "prediction"]
+            displayName: "Cloud Prediction Endpoint",
+            labels: ["app": "my-app", "type": "prediction"]
         )
     }
 
     /// Custom training job template
     public var customTrainingJob: GoogleCloudVertexAICustomJob {
         GoogleCloudVertexAICustomJob(
-            name: "dais-training",
+            name: "app-training",
             projectID: projectID,
             location: location,
-            displayName: "DAIS Custom Training Job",
+            displayName: "Cloud Custom Training Job",
             workerPoolSpecs: [
                 GoogleCloudVertexAICustomJob.WorkerPoolSpec(
                     machineSpec: GoogleCloudVertexAICustomJob.WorkerPoolSpec.MachineSpec(
@@ -583,24 +583,24 @@ public struct DAISVertexAITemplate: Sendable {
                 )
             ],
             serviceAccount: serviceAccount,
-            labels: ["app": "dais"]
+            labels: ["app": "my-app"]
         )
     }
 
-    /// Model configuration for DAIS
-    public func daisModel(artifactUri: String) -> GoogleCloudVertexAIModel {
+    /// Model configuration for Cloud
+    public func appModel(artifactUri: String) -> GoogleCloudVertexAIModel {
         GoogleCloudVertexAIModel(
-            name: "dais-model",
+            name: "app-model",
             projectID: projectID,
             location: location,
-            displayName: "DAIS Model",
+            displayName: "Cloud Model",
             artifactUri: artifactUri,
             containerSpec: GoogleCloudVertexAIModel.ContainerSpec(
                 imageUri: VertexAIOperations.PredictionContainers.pytorchCpu,
                 predictRoute: "/predict",
                 healthRoute: "/health"
             ),
-            labels: ["app": "dais"]
+            labels: ["app": "my-app"]
         )
     }
 
@@ -620,9 +620,9 @@ public struct DAISVertexAITemplate: Sendable {
         \(predictionEndpoint.createCommand)
 
         echo ""
-        echo "DAIS Vertex AI setup complete!"
+        echo "Cloud Vertex AI setup complete!"
         echo ""
-        echo "Endpoint: dais-prediction"
+        echo "Endpoint: app-prediction"
         echo "Location: $LOCATION"
         echo ""
         echo "To upload a model:"

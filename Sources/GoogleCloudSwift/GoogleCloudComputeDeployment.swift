@@ -1,5 +1,5 @@
 //
-//  GoogleCloudDAISDeployment.swift
+//  GoogleCloudComputeDeployment.swift
 //  GoogleCloudSwift
 //
 //  Created by Jonathan Holland on 12/9/25.
@@ -7,20 +7,20 @@
 
 import Foundation
 
-/// Complete deployment configuration for running DAIS on Google Cloud Platform.
+/// Complete deployment configuration for running Cloud on Google Cloud Platform.
 ///
-/// This struct combines all Google Cloud resources needed for a DAIS deployment:
-/// - Compute Engine instances for running DAIS nodes
+/// This struct combines all Google Cloud resources needed for a Cloud deployment:
+/// - Compute Engine instances for running Cloud nodes
 /// - Secret Manager for secure credential storage
 /// - Cloud Storage for backups and artifacts
 /// - Firewall rules for gRPC communication
 ///
 /// ## Example Usage
 /// ```swift
-/// let deployment = GoogleCloudDAISDeployment(
+/// let deployment = GoogleCloudComputeDeployment(
 ///     name: "production",
 ///     provider: GoogleCloudProvider(
-///         projectID: "my-butteryai-project",
+///         projectID: "my-app-project",
 ///         region: .usWest1
 ///     ),
 ///     nodeCount: 3,
@@ -30,14 +30,14 @@ import Foundation
 /// // Generate setup script
 /// print(deployment.setupScript)
 /// ```
-public struct GoogleCloudDAISDeployment: Codable, Sendable, Equatable {
+public struct GoogleCloudComputeDeployment: Codable, Sendable, Equatable {
     /// Deployment name (used as prefix for resources)
     public let name: String
 
     /// Google Cloud provider configuration
     public let provider: GoogleCloudProvider
 
-    /// Number of DAIS nodes to deploy
+    /// Number of Cloud nodes to deploy
     public let nodeCount: Int
 
     /// Machine type for nodes
@@ -52,7 +52,7 @@ public struct GoogleCloudDAISDeployment: Codable, Sendable, Equatable {
     /// Storage bucket for backups
     public let backupBucket: GoogleCloudStorageBucket
 
-    /// gRPC port for DAIS communication
+    /// gRPC port for Cloud communication
     public let grpcPort: Int
 
     /// HTTP port for API
@@ -80,7 +80,7 @@ public struct GoogleCloudDAISDeployment: Codable, Sendable, Equatable {
 
         // Generate instance configuration
         self.instanceConfig = GoogleCloudComputeInstance(
-            name: "\(name)-dais-node",
+            name: "\(name)-app-node",
             machineType: machineType,
             zone: provider.zone ?? provider.region.defaultZone,
             bootDisk: .init(
@@ -88,21 +88,21 @@ public struct GoogleCloudDAISDeployment: Codable, Sendable, Equatable {
                 sizeGB: 20,
                 diskType: .pdBalanced
             ),
-            networkTags: ["\(name)-dais", "allow-grpc", "allow-http"],
+            networkTags: ["\(name)-app", "allow-grpc", "allow-http"],
             labels: [
-                "app": "butteryai",
+                "app": "my-app",
                 "deployment": name,
-                "component": "dais-node"
+                "component": "app-node"
             ],
             scheduling: useSpotInstances ? .spot : .standard
         )
 
         // Generate secret configuration
-        self.certificateSecret = DAISSecretTemplate.certificateMasterKey(projectID: provider.projectID)
+        self.certificateSecret = SecretTemplate.certificateMasterKey(projectID: provider.projectID)
 
         // Generate backup bucket (use project ID as suffix for uniqueness)
         let bucketSuffix = provider.projectID.prefix(20).lowercased().replacingOccurrences(of: "_", with: "-")
-        self.backupBucket = DAISBucketTemplate.certificateBackups(
+        self.backupBucket = BucketTemplate.certificateBackups(
             projectID: provider.projectID,
             bucketSuffix: bucketSuffix
         )
@@ -119,7 +119,7 @@ public struct GoogleCloudDAISDeployment: Codable, Sendable, Equatable {
 
 // MARK: - Firewall Rules
 
-extension GoogleCloudDAISDeployment {
+extension GoogleCloudComputeDeployment {
     /// Firewall rule configuration
     public struct FirewallRule: Codable, Sendable, Equatable {
         public let name: String
@@ -150,17 +150,17 @@ extension GoogleCloudDAISDeployment {
         }
     }
 
-    /// Firewall rules for DAIS deployment
+    /// Firewall rules for Cloud deployment
     public var firewallRules: [FirewallRule] {
         [
-            // Allow gRPC between DAIS nodes
+            // Allow gRPC between Cloud nodes
             FirewallRule(
                 name: "\(name)-allow-grpc-internal",
                 network: "default",
                 direction: "INGRESS",
                 priority: 1000,
-                targetTags: ["\(name)-dais"],
-                sourceTags: ["\(name)-dais"],
+                targetTags: ["\(name)-app"],
+                sourceTags: ["\(name)-app"],
                 sourceRanges: nil,
                 allowedPorts: ["\(grpcPort)"],
                 protocol_: "tcp"
@@ -195,7 +195,7 @@ extension GoogleCloudDAISDeployment {
 
 // MARK: - Setup Script Generation
 
-extension GoogleCloudDAISDeployment {
+extension GoogleCloudComputeDeployment {
     /// Service account flags for gcloud command
     private var serviceAccountFlags: String {
         guard let sa = instanceConfig.serviceAccount else {
@@ -236,7 +236,7 @@ extension GoogleCloudDAISDeployment {
     public var setupScript: String {
         """
         #!/bin/bash
-        # DAIS Deployment Setup Script for Google Cloud Platform
+        # Cloud Deployment Setup Script for Google Cloud Platform
         # Deployment: \(name)
         # Project: \(provider.projectID)
         # Region: \(provider.region.rawValue)
@@ -245,7 +245,7 @@ extension GoogleCloudDAISDeployment {
         set -e
 
         echo "========================================"
-        echo "DAIS Google Cloud Deployment Setup"
+        echo "Cloud Google Cloud Deployment Setup"
         echo "========================================"
 
         # Configuration
@@ -298,9 +298,9 @@ extension GoogleCloudDAISDeployment {
         }.joined(separator: "\n"))
 
         # Create compute instances
-        echo "Creating DAIS node instances..."
+        echo "Creating Cloud node instances..."
         for i in $(seq 1 \(nodeCount)); do
-            INSTANCE_NAME="${DEPLOYMENT_NAME}-dais-node-${i}"
+            INSTANCE_NAME="${DEPLOYMENT_NAME}-app-node-${i}"
 
             if ! gcloud compute instances describe $INSTANCE_NAME --zone=$ZONE 2>/dev/null; then
                 gcloud compute instances create $INSTANCE_NAME \\
@@ -326,19 +326,19 @@ extension GoogleCloudDAISDeployment {
         apt-get update
         apt-get install -y curl wget
 
-        # Create DAIS directory
-        mkdir -p /opt/dais
-        mkdir -p /var/butteryai/certificates
+        # Create Cloud directory
+        mkdir -p /opt/app
+        mkdir -p /var/app/certificates
 
         # Set up environment
-        cat > /etc/profile.d/dais.sh << EOF
+        cat > /etc/profile.d/app-env.sh << EOF
         export CERTIFICATE_MASTER_KEY=\\$(gcloud secrets versions access latest --secret=\(certificateSecret.name))
-        export CERTIFICATE_STORAGE_PATH=/var/butteryai/certificates
+        export CERTIFICATE_STORAGE_PATH=/var/app/certificates
         export GRPC_PORT=\(grpcPort)
         export HTTP_PORT=\(httpPort)
         EOF
 
-        echo "DAIS node setup complete. Deploy your DAIS executable to /opt/dais/"
+        echo "Cloud node setup complete. Deploy your Cloud executable to /opt/app/"
         '
                 echo "Created instance: $INSTANCE_NAME"
             else
@@ -352,13 +352,13 @@ extension GoogleCloudDAISDeployment {
         echo "========================================"
         echo ""
         echo "Next steps:"
-        echo "1. Upload your DAIS executable to each instance:"
-        echo "   gcloud compute scp ./dais-executable ${DEPLOYMENT_NAME}-dais-node-1:/opt/dais/ --zone=$ZONE"
+        echo "1. Upload your Cloud executable to each instance:"
+        echo "   gcloud compute scp ./app-executable ${DEPLOYMENT_NAME}-app-node-1:/opt/app/ --zone=$ZONE"
         echo ""
-        echo "2. SSH to an instance and run DAIS:"
-        echo "   gcloud compute ssh ${DEPLOYMENT_NAME}-dais-node-1 --zone=$ZONE"
-        echo "   source /etc/profile.d/dais.sh"
-        echo "   /opt/dais/dais-executable"
+        echo "2. SSH to an instance and run Cloud:"
+        echo "   gcloud compute ssh ${DEPLOYMENT_NAME}-app-node-1 --zone=$ZONE"
+        echo "   source /etc/profile.d/app-env.sh"
+        echo "   /opt/app/app-executable"
         echo ""
         echo "3. Access Secret Manager key:"
         echo "   \(certificateSecret.accessCommand)"
@@ -371,7 +371,7 @@ extension GoogleCloudDAISDeployment {
     public var teardownScript: String {
         """
         #!/bin/bash
-        # DAIS Deployment Teardown Script
+        # Cloud Deployment Teardown Script
         # Deployment: \(name)
         # WARNING: This will delete all resources!
 
@@ -381,7 +381,7 @@ extension GoogleCloudDAISDeployment {
         ZONE="\(provider.zone ?? provider.region.defaultZone)"
         DEPLOYMENT_NAME="\(name)"
 
-        echo "WARNING: This will delete all DAIS deployment resources!"
+        echo "WARNING: This will delete all Cloud deployment resources!"
         read -p "Are you sure? (yes/no): " confirm
         if [ "$confirm" != "yes" ]; then
             echo "Aborted."
@@ -391,7 +391,7 @@ extension GoogleCloudDAISDeployment {
         # Delete instances
         echo "Deleting compute instances..."
         for i in $(seq 1 \(nodeCount)); do
-            INSTANCE_NAME="${DEPLOYMENT_NAME}-dais-node-${i}"
+            INSTANCE_NAME="${DEPLOYMENT_NAME}-app-node-${i}"
             gcloud compute instances delete $INSTANCE_NAME --zone=$ZONE --quiet || true
         done
 
@@ -418,46 +418,46 @@ extension GoogleCloudDAISDeployment {
 
 // MARK: - Instance Startup Script
 
-extension GoogleCloudDAISDeployment {
-    /// Generate a startup script for DAIS instances
+extension GoogleCloudComputeDeployment {
+    /// Generate a startup script for Cloud instances
     public func startupScript(
-        daisExecutablePath: String = "/opt/dais/dais-executable",
-        configPath: String = "/etc/dais/config.json"
+        executablePath: String = "/opt/app/app-executable",
+        configPath: String = "/etc/app/config.json"
     ) -> String {
         """
         #!/bin/bash
-        # DAIS Node Startup Script
+        # Cloud Node Startup Script
         # Auto-generated for deployment: \(name)
 
         set -e
 
         # Load environment variables
-        source /etc/profile.d/dais.sh
+        source /etc/profile.d/app-env.sh
 
         # Fetch certificate master key from Secret Manager
         export CERTIFICATE_MASTER_KEY=$(gcloud secrets versions access latest --secret=\(certificateSecret.name))
 
         # Set up paths
-        export CERTIFICATE_STORAGE_PATH=/var/butteryai/certificates
-        export DAIS_CONFIG_PATH=\(configPath)
+        export CERTIFICATE_STORAGE_PATH=/var/app/certificates
+        export Cloud_CONFIG_PATH=\(configPath)
 
         # Ensure directories exist
-        mkdir -p /var/butteryai/certificates
-        mkdir -p /var/log/dais
+        mkdir -p /var/app/certificates
+        mkdir -p /var/log/app
 
         # Log startup
-        echo "$(date): Starting DAIS node..." >> /var/log/dais/startup.log
+        echo "$(date): Starting Cloud node..." >> /var/log/app/startup.log
 
-        # Run DAIS executable
-        cd /opt/dais
-        if [ -f "\(daisExecutablePath)" ]; then
-            chmod +x \(daisExecutablePath)
-            \(daisExecutablePath) \\
+        # Run Cloud executable
+        cd /opt/app
+        if [ -f "\(executablePath)" ]; then
+            chmod +x \(executablePath)
+            \(executablePath) \\
                 --grpc-port \(grpcPort) \\
                 --http-port \(httpPort) \\
-                >> /var/log/dais/dais.log 2>&1
+                >> /var/log/app/app.log 2>&1
         else
-            echo "ERROR: DAIS executable not found at \(daisExecutablePath)" >> /var/log/dais/startup.log
+            echo "ERROR: Cloud executable not found at \(executablePath)" >> /var/log/app/startup.log
             exit 1
         fi
         """

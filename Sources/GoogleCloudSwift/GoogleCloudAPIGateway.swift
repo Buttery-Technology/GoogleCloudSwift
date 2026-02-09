@@ -749,10 +749,10 @@ public struct APIGatewayOperations: Sendable {
     }
 }
 
-// MARK: - DAIS API Gateway Template
+// MARK: - Cloud API Gateway Template
 
-/// Production-ready API Gateway templates for DAIS systems
-public struct DAISAPIGatewayTemplate: Sendable {
+/// Production-ready API Gateway templates for Cloud systems
+public struct APIGatewayTemplate: Sendable {
     public let projectID: String
     public let location: String
     public let apiName: String
@@ -762,7 +762,7 @@ public struct DAISAPIGatewayTemplate: Sendable {
     public init(
         projectID: String,
         location: String = "us-central1",
-        apiName: String = "dais-api",
+        apiName: String = "app-api",
         serviceAccountEmail: String? = nil,
         backendURL: String
     ) {
@@ -778,8 +778,8 @@ public struct DAISAPIGatewayTemplate: Sendable {
         GoogleCloudAPIGatewayAPI(
             name: apiName,
             projectID: projectID,
-            displayName: "DAIS API",
-            labels: ["app": "dais", "managed-by": "googlecloudswift"]
+            displayName: "Cloud API",
+            labels: ["app": "my-app", "managed-by": "googlecloudswift"]
         )
     }
 
@@ -789,7 +789,7 @@ public struct DAISAPIGatewayTemplate: Sendable {
             name: "\(apiName)-config-\(version)",
             apiName: apiName,
             projectID: projectID,
-            displayName: "DAIS API Config \(version)",
+            displayName: "Cloud API Config \(version)",
             gatewayServiceAccount: serviceAccountEmail,
             labels: ["version": version]
         )
@@ -802,15 +802,15 @@ public struct DAISAPIGatewayTemplate: Sendable {
             projectID: projectID,
             location: location,
             apiConfig: "projects/\(projectID)/locations/global/apis/\(apiName)/configs/\(apiName)-config-\(configVersion)",
-            displayName: "DAIS API Gateway",
-            labels: ["app": "dais"]
+            displayName: "Cloud API Gateway",
+            labels: ["app": "my-app"]
         )
     }
 
-    /// Generate OpenAPI spec for DAIS API
+    /// Generate OpenAPI spec for Cloud API
     public var openAPISpec: String {
         var builder = OpenAPISpecBuilder(
-            title: "DAIS API",
+            title: "Cloud API",
             description: "API for Distributed AI Systems",
             version: "1.0.0"
         )
@@ -844,14 +844,14 @@ public struct DAISAPIGatewayTemplate: Sendable {
         // Protected endpoints
         builder.addPath("/api/v1/nodes", method: "GET", operation: OpenAPISpecBuilder.Operation(
             operationId: "listNodes",
-            summary: "List all DAIS nodes",
+            summary: "List all Cloud nodes",
             security: [["google_id_token": []]],
             backendAddress: backendURL + "/api/v1/nodes"
         ))
 
         builder.addPath("/api/v1/nodes/{nodeId}", method: "GET", operation: OpenAPISpecBuilder.Operation(
             operationId: "getNode",
-            summary: "Get a specific DAIS node",
+            summary: "Get a specific Cloud node",
             parameters: [
                 OpenAPISpecBuilder.Parameter(name: "nodeId", in: .path, required: true, type: "string")
             ],
@@ -897,7 +897,7 @@ public struct DAISAPIGatewayTemplate: Sendable {
     /// Generate OpenAPI spec with API key authentication
     public var openAPISpecWithAPIKey: String {
         var builder = OpenAPISpecBuilder(
-            title: "DAIS API",
+            title: "Cloud API",
             description: "API for Distributed AI Systems",
             version: "1.0.0"
         )
@@ -915,7 +915,7 @@ public struct DAISAPIGatewayTemplate: Sendable {
         // Protected endpoints with API key
         builder.addPath("/api/v1/nodes", method: "GET", operation: OpenAPISpecBuilder.Operation(
             operationId: "listNodes",
-            summary: "List all DAIS nodes",
+            summary: "List all Cloud nodes",
             security: [["api_key": []]],
             backendAddress: backendURL + "/api/v1/nodes"
         ))
@@ -950,8 +950,8 @@ public struct DAISAPIGatewayTemplate: Sendable {
         echo "Creating API definition..."
         gcloud api-gateway apis create $API_NAME \\
             --project=$PROJECT_ID \\
-            --display-name="DAIS API" \\
-            --labels=app=dais,managed-by=googlecloudswift || true
+            --display-name="Cloud API" \\
+            --labels=app=my-app,managed-by=googlecloudswift || true
 
         echo "Creating OpenAPI spec..."
         cat > /tmp/openapi-spec.yaml << 'SPEC_EOF'
@@ -965,7 +965,7 @@ public struct DAISAPIGatewayTemplate: Sendable {
             --openapi-spec=/tmp/openapi-spec.yaml \\
             --project=$PROJECT_ID \\
             ${SERVICE_ACCOUNT:+--backend-auth-service-account=$SERVICE_ACCOUNT} \\
-            --display-name="DAIS API Config v1" || true
+            --display-name="Cloud API Config v1" || true
 
         echo "Creating gateway..."
         GATEWAY_NAME="$API_NAME-gateway"
@@ -974,8 +974,8 @@ public struct DAISAPIGatewayTemplate: Sendable {
             --api=$API_NAME \\
             --location=$LOCATION \\
             --project=$PROJECT_ID \\
-            --display-name="DAIS API Gateway" \\
-            --labels=app=dais
+            --display-name="Cloud API Gateway" \\
+            --labels=app=my-app
 
         echo ""
         echo "API Gateway setup complete!"

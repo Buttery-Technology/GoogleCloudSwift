@@ -12,7 +12,7 @@ import Foundation
 /// The Service Usage API enables services that consumers want to use on Google Cloud Platform,
 /// lists available or enabled services, and disables services that are no longer needed.
 ///
-/// ## Common APIs for DAIS Deployment
+/// ## Common APIs for Cloud Deployment
 /// - `compute.googleapis.com` - Compute Engine
 /// - `storage.googleapis.com` - Cloud Storage
 /// - `secretmanager.googleapis.com` - Secret Manager
@@ -259,11 +259,11 @@ public enum GoogleCloudAPI: String, Codable, Sendable, CaseIterable {
     }
 }
 
-// MARK: - DAIS Required Services
+// MARK: - Cloud Required Services
 
 /// Predefined service sets for common use cases
-public enum DAISServiceTemplate {
-    /// Minimum required services for DAIS deployment
+public enum ServiceTemplate {
+    /// Minimum required services for Cloud deployment
     public static let required: [GoogleCloudAPI] = [
         .compute,
         .storage,

@@ -437,10 +437,10 @@ public struct FilestoreOperations {
     }
 }
 
-// MARK: - DAIS Filestore Template
+// MARK: - Cloud Filestore Template
 
-/// Filestore templates for DAIS deployments
-public struct DAISFilestoreTemplate {
+/// Filestore templates for Cloud deployments
+public struct FilestoreTemplate {
 
     /// Create a shared storage instance for applications
     public static func sharedStorage(

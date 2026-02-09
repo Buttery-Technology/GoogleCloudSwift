@@ -20,9 +20,9 @@ import Foundation
 /// ## Example Usage
 /// ```swift
 /// let serviceAccount = GoogleCloudServiceAccount(
-///     name: "dais-node",
+///     name: "app-node",
 ///     projectID: "my-project",
-///     displayName: "DAIS Node Service Account"
+///     displayName: "Cloud Node Service Account"
 /// )
 /// print(serviceAccount.createCommand)
 /// ```
@@ -392,31 +392,31 @@ public struct IAMCondition: Codable, Sendable, Equatable {
     )
 }
 
-// MARK: - DAIS Service Account Templates
+// MARK: - Cloud Service Account Templates
 
-/// Predefined service account configurations for DAIS
-public enum DAISServiceAccountTemplate {
-    /// Service account for DAIS compute nodes
+/// Predefined service account configurations for Cloud
+public enum ServiceAccountTemplate {
+    /// Service account for Cloud compute nodes
     public static func nodeServiceAccount(projectID: String, deploymentName: String) -> GoogleCloudServiceAccount {
         GoogleCloudServiceAccount(
-            name: "\(deploymentName)-dais-node",
+            name: "\(deploymentName)-app-node",
             projectID: projectID,
-            displayName: "DAIS Node Service Account",
-            description: "Service account for DAIS compute node instances"
+            displayName: "Cloud Node Service Account",
+            description: "Service account for Cloud compute node instances"
         )
     }
 
-    /// Service account for DAIS deployment automation
+    /// Service account for Cloud deployment automation
     public static func deploymentServiceAccount(projectID: String) -> GoogleCloudServiceAccount {
         GoogleCloudServiceAccount(
-            name: "dais-deployment",
+            name: "app-deployment",
             projectID: projectID,
-            displayName: "DAIS Deployment Service Account",
-            description: "Service account for DAIS deployment automation"
+            displayName: "Cloud Deployment Service Account",
+            description: "Service account for Cloud deployment automation"
         )
     }
 
-    /// Roles required for a DAIS node service account
+    /// Roles required for a Cloud node service account
     public static let nodeRoles: [GoogleCloudPredefinedRole] = [
         .secretManagerAccessor,
         .storageObjectViewer,
@@ -432,7 +432,7 @@ public enum DAISServiceAccountTemplate {
         .iamServiceAccountAdmin
     ]
 
-    /// Generate IAM bindings for a DAIS node service account
+    /// Generate IAM bindings for a Cloud node service account
     public static func nodeBindings(
         projectID: String,
         serviceAccount: GoogleCloudServiceAccount
@@ -446,7 +446,7 @@ public enum DAISServiceAccountTemplate {
         }
     }
 
-    /// Generate a setup script for creating a DAIS service account with roles
+    /// Generate a setup script for creating a Cloud service account with roles
     public static func setupScript(
         projectID: String,
         serviceAccount: GoogleCloudServiceAccount,
@@ -462,7 +462,7 @@ public enum DAISServiceAccountTemplate {
 
         return """
         #!/bin/bash
-        # Create DAIS Service Account and Assign Roles
+        # Create Cloud Service Account and Assign Roles
         # Project: \(projectID)
 
         set -e

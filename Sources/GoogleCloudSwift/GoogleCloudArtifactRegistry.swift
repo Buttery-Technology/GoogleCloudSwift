@@ -759,11 +759,11 @@ public enum ArtifactRegistryOperations {
     }
 }
 
-// MARK: - DAIS Artifact Registry Templates
+// MARK: - Cloud Artifact Registry Templates
 
-/// Pre-configured Artifact Registry templates for DAIS deployments
-public enum DAISArtifactRegistryTemplate {
-    /// Create a Docker repository for DAIS images
+/// Pre-configured Artifact Registry templates for Cloud deployments
+public enum ArtifactRegistryTemplate {
+    /// Create a Docker repository for Cloud images
     public static func dockerRepository(
         projectID: String,
         location: String,
@@ -775,7 +775,7 @@ public enum DAISArtifactRegistryTemplate {
             location: location,
             format: .docker,
             description: "Docker images for \(deploymentName)",
-            labels: ["app": "dais", "deployment": deploymentName],
+            labels: ["app": "my-app", "deployment": deploymentName],
             cleanupPolicies: [
                 .init(
                     id: "delete-untagged",
@@ -792,7 +792,7 @@ public enum DAISArtifactRegistryTemplate {
         )
     }
 
-    /// Create an npm repository for DAIS packages
+    /// Create an npm repository for Cloud packages
     public static func npmRepository(
         projectID: String,
         location: String,
@@ -804,11 +804,11 @@ public enum DAISArtifactRegistryTemplate {
             location: location,
             format: .npm,
             description: "npm packages for \(deploymentName)",
-            labels: ["app": "dais", "deployment": deploymentName]
+            labels: ["app": "my-app", "deployment": deploymentName]
         )
     }
 
-    /// Create a Python repository for DAIS packages
+    /// Create a Python repository for Cloud packages
     public static func pythonRepository(
         projectID: String,
         location: String,
@@ -820,11 +820,11 @@ public enum DAISArtifactRegistryTemplate {
             location: location,
             format: .python,
             description: "Python packages for \(deploymentName)",
-            labels: ["app": "dais", "deployment": deploymentName]
+            labels: ["app": "my-app", "deployment": deploymentName]
         )
     }
 
-    /// Create a Docker image reference for DAIS services
+    /// Create a Docker image reference for Cloud services
     public static func dockerImage(
         projectID: String,
         location: String,
@@ -894,7 +894,7 @@ public enum DAISArtifactRegistryTemplate {
         ArtifactRegistryDockerAuth(location: location)
     }
 
-    /// Generate Dockerfile for Swift DAIS services
+    /// Generate Dockerfile for Swift Cloud services
     public static func swiftDockerfile(
         baseImage: String = "swift:5.10-jammy",
         executableName: String,
@@ -985,7 +985,7 @@ public enum DAISArtifactRegistryTemplate {
         #!/bin/bash
         set -e
 
-        # DAIS Artifact Registry Setup Script
+        # Cloud Artifact Registry Setup Script
         # Project: \(projectID)
         # Deployment: \(deploymentName)
         # Location: \(location)
@@ -1035,7 +1035,7 @@ public enum DAISArtifactRegistryTemplate {
         #!/bin/bash
         set -e
 
-        # DAIS Artifact Registry Teardown Script
+        # Cloud Artifact Registry Teardown Script
         # WARNING: This will delete all images in the repository!
 
         echo "Deleting Docker repository..."
@@ -1061,7 +1061,7 @@ public enum DAISArtifactRegistryTemplate {
         #!/bin/bash
         set -e
 
-        # DAIS CI/CD Setup Script
+        # Cloud CI/CD Setup Script
         # Sets up Cloud Build triggers for automatic deployment
 
         echo "Enabling Cloud Build API..."

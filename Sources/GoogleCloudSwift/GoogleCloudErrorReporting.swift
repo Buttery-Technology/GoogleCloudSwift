@@ -512,10 +512,10 @@ public struct ErrorReportingLanguageConfig: Sendable {
     }
 }
 
-// MARK: - DAIS Error Reporting Template
+// MARK: - Cloud Error Reporting Template
 
-/// Production-ready Cloud Error Reporting templates for DAIS systems
-public struct DAISErrorReportingTemplate: Sendable {
+/// Production-ready Cloud Error Reporting templates for Cloud systems
+public struct ErrorReportingTemplate: Sendable {
     public let projectID: String
     public let service: String
     public let serviceVersion: String
@@ -523,7 +523,7 @@ public struct DAISErrorReportingTemplate: Sendable {
 
     public init(
         projectID: String,
-        service: String = "dais-service",
+        service: String = "app-service",
         serviceVersion: String = "1.0.0",
         serviceAccount: String? = nil
     ) {
@@ -620,7 +620,7 @@ public struct DAISErrorReportingTemplate: Sendable {
 
         script += """
         echo ""
-        echo "DAIS Cloud Error Reporting setup complete!"
+        echo "Cloud Cloud Error Reporting setup complete!"
         echo ""
         echo "Service: $SERVICE_NAME"
         echo "Version: $SERVICE_VERSION"

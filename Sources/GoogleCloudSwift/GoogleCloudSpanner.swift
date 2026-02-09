@@ -399,10 +399,10 @@ public struct SpannerOperations: Sendable {
     }
 }
 
-// MARK: - DAIS Spanner Template
+// MARK: - Cloud Spanner Template
 
-/// Production-ready Spanner templates for DAIS systems
-public struct DAISSpannerTemplate: Sendable {
+/// Production-ready Spanner templates for Cloud systems
+public struct SpannerTemplate: Sendable {
     public let projectID: String
     public let instanceName: String
     public let databaseName: String
@@ -410,8 +410,8 @@ public struct DAISSpannerTemplate: Sendable {
 
     public init(
         projectID: String,
-        instanceName: String = "dais-spanner",
-        databaseName: String = "dais-db",
+        instanceName: String = "app-spanner",
+        databaseName: String = "app-db",
         config: String = GoogleCloudSpannerInstanceConfig.regionalUSCentral1
     ) {
         self.projectID = projectID
@@ -425,10 +425,10 @@ public struct DAISSpannerTemplate: Sendable {
         GoogleCloudSpannerInstance(
             name: instanceName,
             projectID: projectID,
-            displayName: "DAIS Development Instance",
+            displayName: "Cloud Development Instance",
             config: config,
             processingUnits: 100,  // Minimum for development
-            labels: ["environment": "development", "app": "dais"]
+            labels: ["environment": "development", "app": "my-app"]
         )
     }
 
@@ -437,20 +437,20 @@ public struct DAISSpannerTemplate: Sendable {
         GoogleCloudSpannerInstance(
             name: "\(instanceName)-prod",
             projectID: projectID,
-            displayName: "DAIS Production Instance",
+            displayName: "Cloud Production Instance",
             config: GoogleCloudSpannerInstanceConfig.nam3,  // Multi-region for HA
             nodeCount: 3,
-            labels: ["environment": "production", "app": "dais"]
+            labels: ["environment": "production", "app": "my-app"]
         )
     }
 
-    /// Main DAIS database with schema
+    /// Main Cloud database with schema
     public var mainDatabase: GoogleCloudSpannerDatabase {
         GoogleCloudSpannerDatabase(
             name: databaseName,
             instanceName: instanceName,
             projectID: projectID,
-            ddl: daisSchema,
+            ddl: appSchema,
             enableDropProtection: true
         )
     }
@@ -466,8 +466,8 @@ public struct DAISSpannerTemplate: Sendable {
         )
     }
 
-    /// Default DAIS schema for Spanner
-    public var daisSchema: [String] {
+    /// Default Cloud schema for Spanner
+    public var appSchema: [String] {
         [
             """
             CREATE TABLE agents (
@@ -529,7 +529,7 @@ public struct DAISSpannerTemplate: Sendable {
         let dateStr = String(formatter.string(from: Date()).prefix(10))
 
         return GoogleCloudSpannerBackup(
-            name: "dais-backup-\(dateStr)",
+            name: "app-backup-\(dateStr)",
             instanceName: instanceName,
             projectID: projectID,
             databaseName: databaseName
@@ -559,7 +559,7 @@ public struct DAISSpannerTemplate: Sendable {
         \(mainDatabase.createCommand)
 
         echo ""
-        echo "DAIS Spanner setup complete!"
+        echo "Cloud Spanner setup complete!"
         echo ""
         echo "Instance: $INSTANCE_NAME"
         echo "Database: $DATABASE_NAME"

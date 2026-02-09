@@ -1578,10 +1578,10 @@ public struct GoogleCloudNetworkEndpointGroup: Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - DAIS Load Balancing Templates
+// MARK: - Cloud Load Balancing Templates
 
-/// Predefined load balancing configurations for DAIS deployments.
-public enum DAISLoadBalancingTemplate {
+/// Predefined load balancing configurations for Cloud deployments.
+public enum LoadBalancingTemplate {
     /// Create a health check for HTTP services
     public static func httpHealthCheck(
         projectID: String,
@@ -1816,14 +1816,14 @@ public enum DAISLoadBalancingTemplate {
 
         return """
         #!/bin/bash
-        # DAIS Load Balancer Setup Script
+        # Cloud Load Balancer Setup Script
         # Deployment: \(deploymentName)
         # Domains: \(domains.joined(separator: ", "))
 
         set -e
 
         echo "========================================"
-        echo "DAIS Load Balancer Configuration"
+        echo "Cloud Load Balancer Configuration"
         echo "========================================"
 
         # Reserve static IP
@@ -1908,7 +1908,7 @@ public enum DAISLoadBalancingTemplate {
     ) -> String {
         """
         #!/bin/bash
-        # DAIS Load Balancer Teardown Script
+        # Cloud Load Balancer Teardown Script
         # WARNING: This will delete the entire load balancer configuration!
 
         set -e

@@ -9,7 +9,7 @@ import Foundation
 
 /// Models for Google Cloud Storage configuration.
 ///
-/// Cloud Storage is used for DAIS to store:
+/// Cloud Storage is used for Cloud to store:
 /// - Certificate backups
 /// - Log archives
 /// - Model artifacts
@@ -343,14 +343,14 @@ extension GoogleCloudStorageBucket {
     }
 }
 
-// MARK: - DAIS Bucket Templates
+// MARK: - Cloud Bucket Templates
 
-/// Predefined bucket configurations for DAIS
-public enum DAISBucketTemplate {
+/// Predefined bucket configurations for Cloud
+public enum BucketTemplate {
     /// Bucket for certificate backups
     public static func certificateBackups(projectID: String, bucketSuffix: String) -> GoogleCloudStorageBucket {
         GoogleCloudStorageBucket(
-            name: "butteryai-cert-backups-\(bucketSuffix)",
+            name: "app-cert-backups-\(bucketSuffix)",
             projectID: projectID,
             location: .usWest1,
             storageClass: .standard,
@@ -360,7 +360,7 @@ public enum DAISBucketTemplate {
                 .moveToArchiveAfter365Days
             ],
             labels: [
-                "app": "butteryai",
+                "app": "my-app",
                 "component": "certificates",
                 "purpose": "backups"
             ]
@@ -370,7 +370,7 @@ public enum DAISBucketTemplate {
     /// Bucket for log archives
     public static func logArchives(projectID: String, bucketSuffix: String) -> GoogleCloudStorageBucket {
         GoogleCloudStorageBucket(
-            name: "butteryai-logs-\(bucketSuffix)",
+            name: "app-logs-\(bucketSuffix)",
             projectID: projectID,
             location: .usWest1,
             storageClass: .nearline,
@@ -380,17 +380,17 @@ public enum DAISBucketTemplate {
                 .deleteAfter7Years
             ],
             labels: [
-                "app": "butteryai",
+                "app": "my-app",
                 "component": "logging",
                 "purpose": "archives"
             ]
         )
     }
 
-    /// Bucket for DAIS artifacts (executables, configs)
+    /// Bucket for Cloud artifacts (executables, configs)
     public static func artifacts(projectID: String, bucketSuffix: String) -> GoogleCloudStorageBucket {
         GoogleCloudStorageBucket(
-            name: "butteryai-artifacts-\(bucketSuffix)",
+            name: "app-artifacts-\(bucketSuffix)",
             projectID: projectID,
             location: .usWest1,
             storageClass: .standard,
@@ -399,7 +399,7 @@ public enum DAISBucketTemplate {
                 .deleteOldVersionsAfter30Days
             ],
             labels: [
-                "app": "butteryai",
+                "app": "my-app",
                 "component": "deployment",
                 "purpose": "artifacts"
             ]

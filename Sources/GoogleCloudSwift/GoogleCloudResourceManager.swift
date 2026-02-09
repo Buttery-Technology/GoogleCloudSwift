@@ -23,8 +23,8 @@ import Foundation
 /// ## Example Usage
 /// ```swift
 /// let project = GoogleCloudProject(
-///     projectID: "my-dais-project",
-///     name: "My DAIS Project",
+///     projectID: "my-app-project",
+///     name: "My Cloud Project",
 ///     labels: ["environment": "production"]
 /// )
 /// print(project.createCommand)
@@ -360,7 +360,7 @@ public struct GoogleCloudLien: Codable, Sendable, Equatable {
     /// Reason for the lien
     public let reason: String
 
-    /// Origin of the lien (e.g., "dais-deployment")
+    /// Origin of the lien (e.g., "app-deployment")
     public let origin: String
 
     /// Restrictions this lien enforces
@@ -396,10 +396,10 @@ public struct GoogleCloudLien: Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - DAIS Project Templates
+// MARK: - Cloud Project Templates
 
-/// Predefined project configurations for DAIS
-public enum DAISProjectTemplate {
+/// Predefined project configurations for Cloud
+public enum ProjectTemplate {
     /// Create a development project configuration
     public static func development(
         projectID: String,
@@ -412,8 +412,8 @@ public enum DAISProjectTemplate {
             parent: parent,
             labels: [
                 "environment": "development",
-                "app": "butteryai",
-                "managed-by": "dais"
+                "app": "my-app",
+                "managed-by": "googlecloudswift"
             ]
         )
     }
@@ -430,20 +430,20 @@ public enum DAISProjectTemplate {
             parent: parent,
             labels: [
                 "environment": "production",
-                "app": "butteryai",
-                "managed-by": "dais",
+                "app": "my-app",
+                "managed-by": "googlecloudswift",
                 "criticality": "high"
             ]
         )
     }
 
-    /// Standard folder structure for DAIS deployments
+    /// Standard folder structure for Cloud deployments
     public static func folderStructure(organizationID: String) -> [String] {
         [
-            "DAIS",
-            "DAIS/Development",
-            "DAIS/Staging",
-            "DAIS/Production"
+            "Cloud",
+            "Cloud/Development",
+            "Cloud/Staging",
+            "Cloud/Production"
         ]
     }
 
@@ -451,7 +451,7 @@ public enum DAISProjectTemplate {
     public static func setupScript(project: GoogleCloudProject, enableAPIs: [GoogleCloudAPI]) -> String {
         """
         #!/bin/bash
-        # DAIS Project Setup Script
+        # Cloud Project Setup Script
         # Project: \(project.projectID)
 
         set -e
@@ -470,7 +470,7 @@ public enum DAISProjectTemplate {
 
         # Enable required APIs
         echo "Enabling required APIs..."
-        \(DAISServiceTemplate.enableCommand(for: enableAPIs, projectID: project.projectID))
+        \(ServiceTemplate.enableCommand(for: enableAPIs, projectID: project.projectID))
 
         # Verify project
         echo "Project setup complete."

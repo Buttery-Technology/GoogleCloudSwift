@@ -210,11 +210,11 @@ import Testing
     let secret = GoogleCloudSecret(
         name: "test-secret",
         projectID: "test-project",
-        labels: ["env": "prod", "app": "dais"]
+        labels: ["env": "prod", "app": "my-app"]
     )
 
     #expect(secret.createCommand.contains("--labels="))
-    #expect(secret.createCommand.contains("env=prod") || secret.createCommand.contains("app=dais"))
+    #expect(secret.createCommand.contains("env=prod") || secret.createCommand.contains("app=my-app"))
 }
 
 @Test func testSecretAccessCommand() {
@@ -243,13 +243,13 @@ import Testing
     #expect(GoogleCloudSecretVersion.VersionState.destroyed.rawValue == "DESTROYED")
 }
 
-@Test func testDAISSecretTemplates() {
-    let masterKey = DAISSecretTemplate.certificateMasterKey(projectID: "test-project")
-    #expect(masterKey.name == "butteryai-certificate-master-key")
+@Test func testSecretTemplates() {
+    let masterKey = SecretTemplate.certificateMasterKey(projectID: "test-project")
+    #expect(masterKey.name == "app-certificate-master-key")
     #expect(masterKey.labels["sensitivity"] == "critical")
 
-    let dbURL = DAISSecretTemplate.databaseURL(projectID: "test-project")
-    #expect(dbURL.name == "butteryai-database-url")
+    let dbURL = SecretTemplate.databaseURL(projectID: "test-project")
+    #expect(dbURL.name == "app-database-url")
     #expect(dbURL.labels["component"] == "database")
 }
 
@@ -383,25 +383,25 @@ import Testing
     #expect(bucket.lifecycleCommand == nil)
 }
 
-@Test func testDAISBucketTemplates() {
-    let certBucket = DAISBucketTemplate.certificateBackups(projectID: "test", bucketSuffix: "abc")
-    #expect(certBucket.name == "butteryai-cert-backups-abc")
+@Test func testBucketTemplates() {
+    let certBucket = BucketTemplate.certificateBackups(projectID: "test", bucketSuffix: "abc")
+    #expect(certBucket.name == "app-cert-backups-abc")
     #expect(certBucket.versioning == true)
     #expect(certBucket.lifecycleRules.count == 2)
 
-    let logBucket = DAISBucketTemplate.logArchives(projectID: "test", bucketSuffix: "abc")
+    let logBucket = BucketTemplate.logArchives(projectID: "test", bucketSuffix: "abc")
     #expect(logBucket.storageClass == .nearline)
     #expect(logBucket.versioning == false)
 
-    let artifactBucket = DAISBucketTemplate.artifacts(projectID: "test", bucketSuffix: "abc")
+    let artifactBucket = BucketTemplate.artifacts(projectID: "test", bucketSuffix: "abc")
     #expect(artifactBucket.storageClass == .standard)
 }
 
-// MARK: - DAIS Deployment Tests
+// MARK: - Cloud Deployment Tests
 
-@Test func testDAISDeploymentBasic() {
+@Test func testDeploymentBasic() {
     let provider = GoogleCloudProvider(projectID: "test-project", region: .usWest1)
-    let deployment = GoogleCloudDAISDeployment(
+    let deployment = GoogleCloudComputeDeployment(
         name: "test-deployment",
         provider: provider
     )
@@ -414,9 +414,9 @@ import Testing
     #expect(deployment.useSpotInstances == false)
 }
 
-@Test func testDAISDeploymentCustom() {
+@Test func testDeploymentCustom() {
     let provider = GoogleCloudProvider(projectID: "test-project", region: .usCentral1)
-    let deployment = GoogleCloudDAISDeployment(
+    let deployment = GoogleCloudComputeDeployment(
         name: "prod",
         provider: provider,
         nodeCount: 3,
@@ -433,10 +433,10 @@ import Testing
     #expect(deployment.useSpotInstances == true)
 }
 
-@Test func testDAISDeploymentEstimatedCost() {
+@Test func testDeploymentEstimatedCost() {
     let provider = GoogleCloudProvider(projectID: "test-project", region: .usWest1)
 
-    let standardDeployment = GoogleCloudDAISDeployment(
+    let standardDeployment = GoogleCloudComputeDeployment(
         name: "standard",
         provider: provider,
         nodeCount: 2,
@@ -446,7 +446,7 @@ import Testing
     // e2Medium = $24/month * 2 nodes + $5 storage = $53
     #expect(standardDeployment.estimatedMonthlyCostUSD == 53)
 
-    let spotDeployment = GoogleCloudDAISDeployment(
+    let spotDeployment = GoogleCloudComputeDeployment(
         name: "spot",
         provider: provider,
         nodeCount: 2,
@@ -457,9 +457,9 @@ import Testing
     #expect(spotDeployment.estimatedMonthlyCostUSD == 19.4)
 }
 
-@Test func testDAISDeploymentFirewallRules() {
+@Test func testDeploymentFirewallRules() {
     let provider = GoogleCloudProvider(projectID: "test-project", region: .usWest1)
-    let deployment = GoogleCloudDAISDeployment(
+    let deployment = GoogleCloudComputeDeployment(
         name: "test",
         provider: provider,
         grpcPort: 9090,
@@ -473,7 +473,7 @@ import Testing
     let internalGrpc = rules.first { $0.name == "test-allow-grpc-internal" }
     #expect(internalGrpc != nil)
     #expect(internalGrpc?.allowedPorts == ["9090"])
-    #expect(internalGrpc?.sourceTags == ["test-dais"])
+    #expect(internalGrpc?.sourceTags == ["test-app"])
 
     // Check HTTP rule
     let httpRule = rules.first { $0.name == "test-allow-http" }
@@ -483,7 +483,7 @@ import Testing
 }
 
 @Test func testFirewallRuleCreateCommand() {
-    let rule = GoogleCloudDAISDeployment.FirewallRule(
+    let rule = GoogleCloudComputeDeployment.FirewallRule(
         name: "test-rule",
         network: "default",
         direction: "INGRESS",
@@ -503,9 +503,9 @@ import Testing
     #expect(cmd.contains("--source-ranges=10.0.0.0/8"))
 }
 
-@Test func testDAISDeploymentSetupScript() {
+@Test func testDeploymentSetupScript() {
     let provider = GoogleCloudProvider(projectID: "test-project", region: .usWest1)
-    let deployment = GoogleCloudDAISDeployment(
+    let deployment = GoogleCloudComputeDeployment(
         name: "test",
         provider: provider
     )
@@ -519,9 +519,9 @@ import Testing
     #expect(script.contains("gcloud compute instances create"))
 }
 
-@Test func testDAISDeploymentTeardownScript() {
+@Test func testDeploymentTeardownScript() {
     let provider = GoogleCloudProvider(projectID: "test-project", region: .usWest1)
-    let deployment = GoogleCloudDAISDeployment(
+    let deployment = GoogleCloudComputeDeployment(
         name: "test",
         provider: provider,
         nodeCount: 2
@@ -534,9 +534,9 @@ import Testing
     #expect(script.contains("for i in $(seq 1 2)"))
 }
 
-@Test func testDAISDeploymentInstanceConfig() {
+@Test func testDeploymentInstanceConfig() {
     let provider = GoogleCloudProvider(projectID: "test-project", region: .usWest1)
-    let deployment = GoogleCloudDAISDeployment(
+    let deployment = GoogleCloudComputeDeployment(
         name: "myapp",
         provider: provider,
         machineType: .n2Standard2,
@@ -544,11 +544,11 @@ import Testing
     )
 
     let instance = deployment.instanceConfig
-    #expect(instance.name == "myapp-dais-node")
+    #expect(instance.name == "myapp-app-node")
     #expect(instance.machineType == .n2Standard2)
     #expect(instance.scheduling.spot == true)
-    #expect(instance.networkTags.contains("myapp-dais"))
-    #expect(instance.labels["app"] == "butteryai")
+    #expect(instance.networkTags.contains("myapp-app"))
+    #expect(instance.labels["app"] == "my-app")
 }
 
 // MARK: - Codable Tests
@@ -652,16 +652,16 @@ import Testing
     #expect(service.projectID == "test-project")
 }
 
-@Test func testDAISServiceTemplateRequired() {
-    let required = DAISServiceTemplate.required
+@Test func testServiceTemplateRequired() {
+    let required = ServiceTemplate.required
     #expect(required.contains(.compute))
     #expect(required.contains(.storage))
     #expect(required.contains(.secretManager))
     #expect(required.contains(.iam))
 }
 
-@Test func testDAISServiceTemplateEnableCommand() {
-    let cmd = DAISServiceTemplate.enableCommand(for: [.compute, .storage], projectID: "test-project")
+@Test func testServiceTemplateEnableCommand() {
+    let cmd = ServiceTemplate.enableCommand(for: [.compute, .storage], projectID: "test-project")
     #expect(cmd.contains("gcloud services enable"))
     #expect(cmd.contains("compute.googleapis.com"))
     #expect(cmd.contains("storage.googleapis.com"))
@@ -671,13 +671,13 @@ import Testing
 
 @Test func testGoogleCloudServiceAccount() {
     let sa = GoogleCloudServiceAccount(
-        name: "dais-node",
+        name: "app-node",
         projectID: "test-project",
-        displayName: "DAIS Node"
+        displayName: "Cloud Node"
     )
 
-    #expect(sa.email == "dais-node@test-project.iam.gserviceaccount.com")
-    #expect(sa.memberString == "serviceAccount:dais-node@test-project.iam.gserviceaccount.com")
+    #expect(sa.email == "app-node@test-project.iam.gserviceaccount.com")
+    #expect(sa.memberString == "serviceAccount:app-node@test-project.iam.gserviceaccount.com")
     #expect(sa.resourceName.contains("projects/test-project/serviceAccounts"))
 }
 
@@ -769,12 +769,12 @@ import Testing
     #expect(condition.asString.contains("expression="))
 }
 
-@Test func testDAISServiceAccountTemplate() {
-    let sa = DAISServiceAccountTemplate.nodeServiceAccount(projectID: "test-project", deploymentName: "prod")
-    #expect(sa.name == "prod-dais-node")
-    #expect(sa.displayName == "DAIS Node Service Account")
+@Test func testServiceAccountTemplate() {
+    let sa = ServiceAccountTemplate.nodeServiceAccount(projectID: "test-project", deploymentName: "prod")
+    #expect(sa.name == "prod-app-node")
+    #expect(sa.displayName == "Cloud Node Service Account")
 
-    let roles = DAISServiceAccountTemplate.nodeRoles
+    let roles = ServiceAccountTemplate.nodeRoles
     #expect(roles.contains(.secretManagerAccessor))
     #expect(roles.contains(.loggingLogWriter))
 }
@@ -783,12 +783,12 @@ import Testing
 
 @Test func testGoogleCloudProject() {
     let project = GoogleCloudProject(
-        projectID: "my-dais-project",
-        name: "My DAIS Project"
+        projectID: "my-cloud-project",
+        name: "My Cloud Project"
     )
 
-    #expect(project.projectID == "my-dais-project")
-    #expect(project.resourceName == "projects/my-dais-project")
+    #expect(project.projectID == "my-cloud-project")
+    #expect(project.resourceName == "projects/my-cloud-project")
     #expect(project.state == .active)
 }
 
@@ -868,7 +868,7 @@ import Testing
     let lien = GoogleCloudLien(
         projectID: "protected-project",
         reason: "Production deployment",
-        origin: "dais-deployment"
+        origin: "app-deployment"
     )
 
     #expect(lien.createCommand.contains("gcloud resource-manager liens create"))
@@ -876,18 +876,18 @@ import Testing
     #expect(lien.restrictions.contains("resourcemanager.projects.delete"))
 }
 
-@Test func testDAISProjectTemplateDevelopment() {
-    let project = DAISProjectTemplate.development(
+@Test func testProjectTemplateDevelopment() {
+    let project = ProjectTemplate.development(
         projectID: "dev-project",
         name: "Dev Project"
     )
 
     #expect(project.labels["environment"] == "development")
-    #expect(project.labels["app"] == "butteryai")
+    #expect(project.labels["app"] == "my-app")
 }
 
-@Test func testDAISProjectTemplateProduction() {
-    let project = DAISProjectTemplate.production(
+@Test func testProjectTemplateProduction() {
+    let project = ProjectTemplate.production(
         projectID: "prod-project",
         name: "Prod Project"
     )
@@ -1057,24 +1057,24 @@ import Testing
     #expect(GoogleCloudDeploymentType.bucket.displayName == "Storage Bucket")
 }
 
-@Test func testDAISDeploymentManagerTemplateInstanceConfig() {
-    let config = DAISDeploymentManagerTemplate.instanceConfig(
-        name: "dais-node-1",
+@Test func testDeploymentManagerTemplateInstanceConfig() {
+    let config = DeploymentManagerTemplate.instanceConfig(
+        name: "app-node-1",
         machineType: .e2Medium,
         zone: "us-west1-a",
-        networkTags: ["dais-node", "allow-grpc"]
+        networkTags: ["app-node", "allow-grpc"]
     )
 
-    #expect(config.contains("name: dais-node-1"))
+    #expect(config.contains("name: app-node-1"))
     #expect(config.contains("type: compute.v1.instance"))
     #expect(config.contains("machineType: zones/us-west1-a/machineTypes/e2-medium"))
-    #expect(config.contains("- dais-node"))
+    #expect(config.contains("- app-node"))
     #expect(config.contains("- allow-grpc"))
 }
 
-@Test func testDAISDeploymentManagerTemplateCompleteConfig() {
-    let config = DAISDeploymentManagerTemplate.completeDeploymentConfig(
-        deploymentName: "test-dais",
+@Test func testDeploymentManagerTemplateCompleteConfig() {
+    let config = DeploymentManagerTemplate.completeDeploymentConfig(
+        deploymentName: "test-app",
         nodeCount: 2,
         machineType: .n2Standard2,
         zone: "us-central1-a",
@@ -1083,10 +1083,10 @@ import Testing
     )
 
     #expect(config.contains("resources:"))
-    #expect(config.contains("test-dais-allow-grpc"))
-    #expect(config.contains("test-dais-allow-http"))
-    #expect(config.contains("test-dais-node-1"))
-    #expect(config.contains("test-dais-node-2"))
+    #expect(config.contains("test-app-allow-grpc"))
+    #expect(config.contains("test-app-allow-http"))
+    #expect(config.contains("test-app-node-1"))
+    #expect(config.contains("test-app-node-2"))
     #expect(config.contains("\"9090\""))
     #expect(config.contains("\"8080\""))
 }
@@ -1124,7 +1124,7 @@ import Testing
         name: "labeled-infra",
         projectID: "test-project",
         location: "us-central1",
-        labels: ["env": "prod", "app": "dais"]
+        labels: ["env": "prod", "app": "my-app"]
     )
 
     #expect(deployment.createCommand.contains("--labels="))
@@ -1270,9 +1270,9 @@ import Testing
     #expect(InfrastructureManagerPreview.PreviewState.failed.rawValue == "FAILED")
 }
 
-@Test func testDAISInfrastructureTemplateTerraformConfig() {
-    let config = DAISInfrastructureTemplate.terraformConfig(
-        deploymentName: "test-dais",
+@Test func testInfrastructureTemplateTerraformConfig() {
+    let config = InfrastructureTemplate.terraformConfig(
+        deploymentName: "test-app",
         projectID: "my-project",
         region: "us-west1",
         zone: "us-west1-a",
@@ -1287,15 +1287,15 @@ import Testing
     #expect(config.contains("project = \"my-project\""))
     #expect(config.contains("region  = \"us-west1\""))
     #expect(config.contains("google_compute_firewall"))
-    #expect(config.contains("test-dais-allow-grpc"))
-    #expect(config.contains("test-dais-allow-http"))
+    #expect(config.contains("test-app-allow-grpc"))
+    #expect(config.contains("test-app-allow-http"))
     #expect(config.contains("google_compute_instance"))
     #expect(config.contains("count        = 3"))
     #expect(config.contains("n2-standard-2"))
 }
 
-@Test func testDAISInfrastructureTemplateDeployment() {
-    let deployment = DAISInfrastructureTemplate.deployment(
+@Test func testInfrastructureTemplateDeployment() {
+    let deployment = InfrastructureTemplate.deployment(
         name: "prod-infra",
         projectID: "my-project",
         location: "us-central1",
@@ -1305,19 +1305,19 @@ import Testing
     )
 
     #expect(deployment.name == "prod-infra")
-    #expect(deployment.labels["app"] == "butteryai")
-    #expect(deployment.labels["managed-by"] == "dais")
+    #expect(deployment.labels["app"] == "my-app")
+    #expect(deployment.labels["managed-by"] == "googlecloudswift")
     #expect(deployment.serviceAccount == "infra@my-project.iam.gserviceaccount.com")
 }
 
-@Test func testDAISInfrastructureTemplateSetupScript() {
+@Test func testInfrastructureTemplateSetupScript() {
     let deployment = InfrastructureManagerDeployment(
         name: "test-infra",
         projectID: "my-project",
         location: "us-central1"
     )
 
-    let terraformConfig = DAISInfrastructureTemplate.terraformConfig(
+    let terraformConfig = InfrastructureTemplate.terraformConfig(
         deploymentName: "test",
         projectID: "my-project",
         region: "us-central1",
@@ -1326,14 +1326,14 @@ import Testing
         machineType: .e2Medium
     )
 
-    let script = DAISInfrastructureTemplate.setupScript(
+    let script = InfrastructureTemplate.setupScript(
         deployment: deployment,
         terraformConfig: terraformConfig
     )
 
     #expect(script.contains("#!/bin/bash"))
     #expect(script.contains("gcloud services enable config.googleapis.com"))
-    #expect(script.contains("mkdir -p /tmp/dais-terraform"))
+    #expect(script.contains("mkdir -p /tmp/app-terraform"))
     #expect(script.contains("TERRAFORM_EOF"))
 }
 
@@ -1703,9 +1703,9 @@ import Testing
     #expect(replicaCmd.contains("--region=us-west1"))
 }
 
-@Test func testDAISSQLTemplatePostgres() {
-    let instance = DAISSQLTemplate.postgresInstance(
-        name: "dais-db",
+@Test func testSQLTemplatePostgres() {
+    let instance = SQLTemplate.postgresInstance(
+        name: "app-db",
         projectID: "test-project",
         region: "us-central1",
         highAvailability: true
@@ -1714,65 +1714,65 @@ import Testing
     #expect(instance.databaseVersion == .postgres16)
     #expect(instance.availabilityType == .regional)
     #expect(instance.deletionProtection == true)
-    #expect(instance.labels["app"] == "butteryai")
+    #expect(instance.labels["app"] == "my-app")
     #expect(instance.databaseFlags["max_connections"] == "200")
 }
 
-@Test func testDAISSQLTemplateDatabase() {
-    let database = DAISSQLTemplate.daisDatabase(
-        instanceName: "dais-db",
+@Test func testSQLTemplateDatabase() {
+    let database = SQLTemplate.appDatabase(
+        instanceName: "app-db",
         projectID: "test-project"
     )
 
-    #expect(database.name == "dais")
+    #expect(database.name == "app")
     #expect(database.charset == "UTF8")
     #expect(database.collation == "en_US.UTF8")
 }
 
-@Test func testDAISSQLTemplateUser() {
-    let user = DAISSQLTemplate.daisUser(
-        instanceName: "dais-db",
+@Test func testSQLTemplateUser() {
+    let user = SQLTemplate.appUser(
+        instanceName: "app-db",
         projectID: "test-project",
         password: "secret123"
     )
 
-    #expect(user.name == "dais_app")
+    #expect(user.name == "app_app")
     #expect(user.password == "secret123")
 }
 
-@Test func testDAISSQLTemplateConnectionString() {
+@Test func testSQLTemplateConnectionString() {
     let instance = GoogleCloudSQLInstance(
-        name: "dais-db",
+        name: "app-db",
         projectID: "test-project",
         region: "us-central1",
         databaseVersion: .postgres16
     )
     let database = GoogleCloudSQLDatabase(
-        name: "dais",
-        instanceName: "dais-db",
+        name: "app",
+        instanceName: "app-db",
         projectID: "test-project"
     )
     let user = GoogleCloudSQLUser(
-        name: "dais_app",
-        instanceName: "dais-db",
+        name: "app_app",
+        instanceName: "app-db",
         projectID: "test-project"
     )
 
-    let proxyConnStr = DAISSQLTemplate.connectionString(instance: instance, database: database, user: user, useProxy: true)
-    #expect(proxyConnStr.contains("postgresql://dais_app@localhost:5432/dais"))
-    #expect(proxyConnStr.contains("test-project:us-central1:dais-db"))
+    let proxyConnStr = SQLTemplate.connectionString(instance: instance, database: database, user: user, useProxy: true)
+    #expect(proxyConnStr.contains("postgresql://app_app@localhost:5432/app"))
+    #expect(proxyConnStr.contains("test-project:us-central1:app-db"))
 }
 
-@Test func testDAISSQLTemplateSetupScript() {
-    let instance = DAISSQLTemplate.postgresInstance(
-        name: "dais-db",
+@Test func testSQLTemplateSetupScript() {
+    let instance = SQLTemplate.postgresInstance(
+        name: "app-db",
         projectID: "test-project",
         region: "us-central1"
     )
-    let database = DAISSQLTemplate.daisDatabase(instanceName: "dais-db", projectID: "test-project")
-    let user = DAISSQLTemplate.daisUser(instanceName: "dais-db", projectID: "test-project", password: "pass")
+    let database = SQLTemplate.appDatabase(instanceName: "app-db", projectID: "test-project")
+    let user = SQLTemplate.appUser(instanceName: "app-db", projectID: "test-project", password: "pass")
 
-    let script = DAISSQLTemplate.setupScript(instance: instance, database: database, appUser: user)
+    let script = SQLTemplate.setupScript(instance: instance, database: database, appUser: user)
     #expect(script.contains("#!/bin/bash"))
     #expect(script.contains("gcloud services enable sqladmin.googleapis.com"))
     #expect(script.contains("gcloud sql instances create"))
@@ -2167,21 +2167,21 @@ import Testing
     #expect(PubSubRole.publisher.displayName == "Pub/Sub Publisher")
 }
 
-@Test func testDAISPubSubTemplateEventsTopic() {
-    let topic = DAISPubSubTemplate.eventsTopic(
-        name: "dais-events",
+@Test func testPubSubTemplateEventsTopic() {
+    let topic = PubSubTemplate.eventsTopic(
+        name: "app-events",
         projectID: "test-project"
     )
 
-    #expect(topic.name == "dais-events")
+    #expect(topic.name == "app-events")
     #expect(topic.messageRetentionDuration == "7d")
-    #expect(topic.labels["app"] == "butteryai")
+    #expect(topic.labels["app"] == "my-app")
     #expect(topic.labels["type"] == "events")
 }
 
-@Test func testDAISPubSubTemplateCommandsTopic() {
-    let topic = DAISPubSubTemplate.commandsTopic(
-        name: "dais-commands",
+@Test func testPubSubTemplateCommandsTopic() {
+    let topic = PubSubTemplate.commandsTopic(
+        name: "app-commands",
         projectID: "test-project"
     )
 
@@ -2189,8 +2189,8 @@ import Testing
     #expect(topic.labels["type"] == "commands")
 }
 
-@Test func testDAISPubSubTemplateNodeSubscription() {
-    let subscription = DAISPubSubTemplate.nodeSubscription(
+@Test func testPubSubTemplateNodeSubscription() {
+    let subscription = PubSubTemplate.nodeSubscription(
         nodeName: "node-1",
         topicName: "events",
         projectID: "test-project"
@@ -2202,19 +2202,19 @@ import Testing
     #expect(subscription.labels["node"] == "node-1")
 }
 
-@Test func testDAISPubSubTemplateDeadLetterTopic() {
-    let topic = DAISPubSubTemplate.deadLetterTopic(
-        baseName: "dais",
+@Test func testPubSubTemplateDeadLetterTopic() {
+    let topic = PubSubTemplate.deadLetterTopic(
+        baseName: "app",
         projectID: "test-project"
     )
 
-    #expect(topic.name == "dais-dead-letter")
+    #expect(topic.name == "app-dead-letter")
     #expect(topic.messageRetentionDuration == "14d")
     #expect(topic.labels["type"] == "dead-letter")
 }
 
-@Test func testDAISPubSubTemplateSubscriptionWithDeadLetter() {
-    let subscription = DAISPubSubTemplate.subscriptionWithDeadLetter(
+@Test func testPubSubTemplateSubscriptionWithDeadLetter() {
+    let subscription = PubSubTemplate.subscriptionWithDeadLetter(
         name: "main-sub",
         topicName: "main-topic",
         deadLetterTopicName: "dead-letter",
@@ -2227,8 +2227,8 @@ import Testing
     #expect(subscription.retryPolicy != nil)
 }
 
-@Test func testDAISPubSubTemplateSetupScript() {
-    let script = DAISPubSubTemplate.setupScript(
+@Test func testPubSubTemplateSetupScript() {
+    let script = PubSubTemplate.setupScript(
         deploymentName: "prod",
         projectID: "test-project",
         nodeCount: 2
@@ -2790,10 +2790,10 @@ import Testing
     #expect(cmd.contains("--quiet"))
 }
 
-// MARK: - DAIS Function Template Tests
+// MARK: - Cloud Function Template Tests
 
-@Test func testDAISFunctionTemplateEventProcessor() {
-    let function = DAISFunctionTemplate.eventProcessor(
+@Test func testFunctionTemplateEventProcessor() {
+    let function = FunctionTemplate.eventProcessor(
         projectID: "test-project",
         region: "us-central1",
         deploymentName: "prod",
@@ -2805,13 +2805,13 @@ import Testing
     #expect(function.entryPoint == "process_event")
     #expect(function.memoryMB == 512)
     #expect(function.timeoutSeconds == 120)
-    #expect(function.labels["app"] == "butteryai")
+    #expect(function.labels["app"] == "my-app")
     #expect(function.labels["deployment"] == "prod")
     #expect(function.labels["component"] == "event-processor")
 }
 
-@Test func testDAISFunctionTemplateHealthCheck() {
-    let function = DAISFunctionTemplate.healthCheck(
+@Test func testFunctionTemplateHealthCheck() {
+    let function = FunctionTemplate.healthCheck(
         projectID: "test-project",
         region: "us-central1",
         deploymentName: "prod"
@@ -2829,8 +2829,8 @@ import Testing
     }
 }
 
-@Test func testDAISFunctionTemplateWebhook() {
-    let function = DAISFunctionTemplate.webhookHandler(
+@Test func testFunctionTemplateWebhook() {
+    let function = FunctionTemplate.webhookHandler(
         projectID: "test-project",
         region: "us-central1",
         deploymentName: "prod",
@@ -2842,8 +2842,8 @@ import Testing
     #expect(function.memoryMB == 256)
 }
 
-@Test func testDAISFunctionTemplateScheduledMaintenance() {
-    let (function, scheduler) = DAISFunctionTemplate.scheduledMaintenance(
+@Test func testFunctionTemplateScheduledMaintenance() {
+    let (function, scheduler) = FunctionTemplate.scheduledMaintenance(
         projectID: "test-project",
         region: "us-central1",
         deploymentName: "prod",
@@ -2860,8 +2860,8 @@ import Testing
     #expect(scheduler.timezone == "America/New_York")
 }
 
-@Test func testDAISFunctionTemplateStorageProcessor() {
-    let function = DAISFunctionTemplate.storageProcessor(
+@Test func testFunctionTemplateStorageProcessor() {
+    let function = FunctionTemplate.storageProcessor(
         projectID: "test-project",
         region: "us-central1",
         deploymentName: "prod",
@@ -2880,8 +2880,8 @@ import Testing
     }
 }
 
-@Test func testDAISFunctionTemplateEventProcessorCode() {
-    let code = DAISFunctionTemplate.eventProcessorCode()
+@Test func testFunctionTemplateEventProcessorCode() {
+    let code = FunctionTemplate.eventProcessorCode()
 
     #expect(code.contains("def process_event(event, context):"))
     #expect(code.contains("base64.b64decode"))
@@ -2889,16 +2889,16 @@ import Testing
     #expect(code.contains("return 'OK'"))
 }
 
-@Test func testDAISFunctionTemplateHealthCheckCode() {
-    let code = DAISFunctionTemplate.healthCheckCode()
+@Test func testFunctionTemplateHealthCheckCode() {
+    let code = FunctionTemplate.healthCheckCode()
 
     #expect(code.contains("def health_check(request):"))
     #expect(code.contains("'status': 'healthy'"))
     #expect(code.contains("application/json"))
 }
 
-@Test func testDAISFunctionTemplateSetupScript() {
-    let script = DAISFunctionTemplate.setupScript(
+@Test func testFunctionTemplateSetupScript() {
+    let script = FunctionTemplate.setupScript(
         projectID: "test-project",
         region: "us-central1",
         deploymentName: "prod",
@@ -3439,14 +3439,14 @@ import Testing
     #expect(cmd.contains("--role=roles/run.invoker"))
 }
 
-// MARK: - DAIS Cloud Run Template Tests
+// MARK: - Cloud Cloud Run Template Tests
 
-@Test func testDAISCloudRunTemplateGRPCService() {
-    let service = DAISCloudRunTemplate.grpcService(
+@Test func testCloudRunTemplateGRPCService() {
+    let service = CloudRunTemplate.grpcService(
         projectID: "test-project",
         region: "us-central1",
         deploymentName: "prod",
-        image: "gcr.io/test-project/dais-grpc:latest"
+        image: "gcr.io/test-project/app-grpc:latest"
     )
 
     #expect(service.name == "prod-grpc")
@@ -3455,16 +3455,16 @@ import Testing
     #expect(service.cpu == "2")
     #expect(service.minInstances == 1)
     #expect(service.cpuAllocationType == .alwaysAllocated)
-    #expect(service.labels["app"] == "butteryai")
+    #expect(service.labels["app"] == "my-app")
     #expect(service.labels["component"] == "grpc-service")
 }
 
-@Test func testDAISCloudRunTemplateHTTPAPI() {
-    let service = DAISCloudRunTemplate.httpAPI(
+@Test func testCloudRunTemplateHTTPAPI() {
+    let service = CloudRunTemplate.httpAPI(
         projectID: "test-project",
         region: "us-central1",
         deploymentName: "prod",
-        image: "gcr.io/test-project/dais-api:latest"
+        image: "gcr.io/test-project/app-api:latest"
     )
 
     #expect(service.name == "prod-api")
@@ -3475,12 +3475,12 @@ import Testing
     #expect(service.labels["component"] == "http-api")
 }
 
-@Test func testDAISCloudRunTemplateWorker() {
-    let service = DAISCloudRunTemplate.worker(
+@Test func testCloudRunTemplateWorker() {
+    let service = CloudRunTemplate.worker(
         projectID: "test-project",
         region: "us-central1",
         deploymentName: "prod",
-        image: "gcr.io/test-project/dais-worker:latest",
+        image: "gcr.io/test-project/app-worker:latest",
         concurrency: 1
     )
 
@@ -3491,12 +3491,12 @@ import Testing
     #expect(service.cpuAllocationType == .alwaysAllocated)
 }
 
-@Test func testDAISCloudRunTemplateBatchJob() {
-    let job = DAISCloudRunTemplate.batchJob(
+@Test func testCloudRunTemplateBatchJob() {
+    let job = CloudRunTemplate.batchJob(
         projectID: "test-project",
         region: "us-central1",
         deploymentName: "prod",
-        image: "gcr.io/test-project/dais-batch:latest",
+        image: "gcr.io/test-project/app-batch:latest",
         taskCount: 10,
         parallelism: 5
     )
@@ -3507,12 +3507,12 @@ import Testing
     #expect(job.labels["component"] == "batch-job")
 }
 
-@Test func testDAISCloudRunTemplateMaintenanceJob() {
-    let job = DAISCloudRunTemplate.maintenanceJob(
+@Test func testCloudRunTemplateMaintenanceJob() {
+    let job = CloudRunTemplate.maintenanceJob(
         projectID: "test-project",
         region: "us-central1",
         deploymentName: "prod",
-        image: "gcr.io/test-project/dais-maint:latest"
+        image: "gcr.io/test-project/app-maint:latest"
     )
 
     #expect(job.name == "prod-maintenance")
@@ -3521,8 +3521,8 @@ import Testing
     #expect(job.labels["component"] == "maintenance")
 }
 
-@Test func testDAISCloudRunTemplateSetupScript() {
-    let script = DAISCloudRunTemplate.setupScript(
+@Test func testCloudRunTemplateSetupScript() {
+    let script = CloudRunTemplate.setupScript(
         projectID: "test-project",
         region: "us-central1",
         deploymentName: "prod",
@@ -3536,21 +3536,21 @@ import Testing
     #expect(script.contains("prod-api"))
 }
 
-@Test func testDAISCloudRunTemplateDockerfile() {
-    let dockerfile = DAISCloudRunTemplate.dockerfile(
+@Test func testCloudRunTemplateDockerfile() {
+    let dockerfile = CloudRunTemplate.dockerfile(
         baseImage: "swift:5.10-jammy",
-        executableName: "dais-server",
+        executableName: "app-server",
         port: 8080
     )
 
     #expect(dockerfile.contains("FROM swift:5.10-jammy"))
     #expect(dockerfile.contains("swift build -c release"))
     #expect(dockerfile.contains("EXPOSE 8080"))
-    #expect(dockerfile.contains("CMD [\"/app/dais-server\"]"))
+    #expect(dockerfile.contains("CMD [\"/app/app-server\"]"))
 }
 
-@Test func testDAISCloudRunTemplateCloudbuildConfig() {
-    let config = DAISCloudRunTemplate.cloudbuildConfig(
+@Test func testCloudRunTemplateCloudbuildConfig() {
+    let config = CloudRunTemplate.cloudbuildConfig(
         projectID: "test-project",
         region: "us-central1",
         serviceName: "my-service",
@@ -4245,22 +4245,22 @@ import Testing
     #expect(LogAlertConfiguration.Comparison.equal.rawValue == "COMPARISON_EQ")
 }
 
-// MARK: - DAIS Logging Template Tests
+// MARK: - Cloud Logging Template Tests
 
-@Test func testDAISLoggingTemplateErrorLogsSink() {
-    let sink = DAISLoggingTemplate.errorLogsSink(
+@Test func testLoggingTemplateErrorLogsSink() {
+    let sink = LoggingTemplate.errorLogsSink(
         projectID: "test-project",
         deploymentName: "prod",
         datasetID: "error_logs"
     )
 
     #expect(sink.name == "prod-error-logs")
-    #expect(sink.filter?.contains("butteryai") == true)
+    #expect(sink.filter?.contains("my-app") == true)
     #expect(sink.filter?.contains("severity >= ERROR") == true)
 }
 
-@Test func testDAISLoggingTemplateAuditLogsSink() {
-    let sink = DAISLoggingTemplate.auditLogsSink(
+@Test func testLoggingTemplateAuditLogsSink() {
+    let sink = LoggingTemplate.auditLogsSink(
         projectID: "test-project",
         deploymentName: "prod",
         bucketName: "audit-logs-bucket"
@@ -4270,8 +4270,8 @@ import Testing
     #expect(sink.filter?.contains("audit") == true)
 }
 
-@Test func testDAISLoggingTemplateLogBucket() {
-    let bucket = DAISLoggingTemplate.logBucket(
+@Test func testLoggingTemplateLogBucket() {
+    let bucket = LoggingTemplate.logBucket(
         projectID: "test-project",
         deploymentName: "prod",
         location: "us-central1",
@@ -4283,8 +4283,8 @@ import Testing
     #expect(bucket.analyticsEnabled == true)
 }
 
-@Test func testDAISLoggingTemplateErrorLogsView() {
-    let view = DAISLoggingTemplate.errorLogsView(
+@Test func testLoggingTemplateErrorLogsView() {
+    let view = LoggingTemplate.errorLogsView(
         projectID: "test-project",
         deploymentName: "prod",
         location: "us-central1"
@@ -4294,8 +4294,8 @@ import Testing
     #expect(view.filter?.contains("severity >= ERROR") == true)
 }
 
-@Test func testDAISLoggingTemplateDebugLogExclusion() {
-    let exclusion = DAISLoggingTemplate.debugLogExclusion(
+@Test func testLoggingTemplateDebugLogExclusion() {
+    let exclusion = LoggingTemplate.debugLogExclusion(
         projectID: "test-project",
         deploymentName: "prod"
     )
@@ -4304,8 +4304,8 @@ import Testing
     #expect(exclusion.filter.contains("severity = DEBUG"))
 }
 
-@Test func testDAISLoggingTemplateErrorCountMetric() {
-    let metric = DAISLoggingTemplate.errorCountMetric(
+@Test func testLoggingTemplateErrorCountMetric() {
+    let metric = LoggingTemplate.errorCountMetric(
         projectID: "test-project",
         deploymentName: "prod"
     )
@@ -4315,8 +4315,8 @@ import Testing
     #expect(metric.labelExtractors["node"] != nil)
 }
 
-@Test func testDAISLoggingTemplateGRPCLatencyMetric() {
-    let metric = DAISLoggingTemplate.grpcLatencyMetric(
+@Test func testLoggingTemplateGRPCLatencyMetric() {
+    let metric = LoggingTemplate.grpcLatencyMetric(
         projectID: "test-project",
         deploymentName: "prod"
     )
@@ -4326,8 +4326,8 @@ import Testing
     #expect(metric.valueExtractor != nil)
 }
 
-@Test func testDAISLoggingTemplateSetupScript() {
-    let script = DAISLoggingTemplate.setupScript(
+@Test func testLoggingTemplateSetupScript() {
+    let script = LoggingTemplate.setupScript(
         projectID: "test-project",
         deploymentName: "prod",
         location: "us-central1",
@@ -4342,8 +4342,8 @@ import Testing
     #expect(script.contains("storage.googleapis.com"))
 }
 
-@Test func testDAISLoggingTemplateLogQuery() {
-    let query = DAISLoggingTemplate.daisLogQuery(
+@Test func testLoggingTemplateLogQuery() {
+    let query = LoggingTemplate.appLogQuery(
         projectID: "test-project",
         deploymentName: "prod",
         nodeName: "node-1",
@@ -4351,7 +4351,7 @@ import Testing
         minSeverity: .warning
     )
 
-    #expect(query.contains("labels.app=\"butteryai\""))
+    #expect(query.contains("labels.app=\"my-app\""))
     #expect(query.contains("labels.deployment=\"prod\""))
     #expect(query.contains("labels.node=\"node-1\""))
     #expect(query.contains("labels.component=\"grpc\""))
@@ -4948,12 +4948,12 @@ import Testing
 
 @Test func testGoogleCloudDashboard() {
     let dashboard = GoogleCloudDashboard(
-        displayName: "DAIS Dashboard",
+        displayName: "Cloud Dashboard",
         projectID: "test-project",
         layout: .grid(columns: 3)
     )
 
-    #expect(dashboard.displayName == "DAIS Dashboard")
+    #expect(dashboard.displayName == "Cloud Dashboard")
 }
 
 @Test func testDashboardCreateCommand() {
@@ -4976,13 +4976,13 @@ import Testing
 
 @Test func testGoogleCloudMonitoringGroup() {
     let group = GoogleCloudMonitoringGroup(
-        displayName: "DAIS Nodes",
+        displayName: "Cloud Nodes",
         projectID: "test-project",
-        filter: "resource.metadata.name=starts_with(\"dais\")",
+        filter: "resource.metadata.name=starts_with(\"app\")",
         isCluster: true
     )
 
-    #expect(group.displayName == "DAIS Nodes")
+    #expect(group.displayName == "Cloud Nodes")
     #expect(group.isCluster == true)
 }
 
@@ -5044,10 +5044,10 @@ import Testing
     #expect(PredefinedMetricFilter.pubsubSubscriptionBacklog.contains("pubsub.googleapis.com"))
 }
 
-// MARK: - DAIS Monitoring Template Tests
+// MARK: - Cloud Monitoring Template Tests
 
-@Test func testDAISMonitoringTemplateEmailChannel() {
-    let channel = DAISMonitoringTemplate.emailChannel(
+@Test func testMonitoringTemplateEmailChannel() {
+    let channel = MonitoringTemplate.emailChannel(
         projectID: "test-project",
         deploymentName: "prod",
         email: "alerts@example.com"
@@ -5057,8 +5057,8 @@ import Testing
     #expect(channel.type == .email)
 }
 
-@Test func testDAISMonitoringTemplateSlackChannel() {
-    let channel = DAISMonitoringTemplate.slackChannel(
+@Test func testMonitoringTemplateSlackChannel() {
+    let channel = MonitoringTemplate.slackChannel(
         projectID: "test-project",
         deploymentName: "prod",
         channelName: "#alerts",
@@ -5069,8 +5069,8 @@ import Testing
     #expect(channel.type == .slack)
 }
 
-@Test func testDAISMonitoringTemplateCPUAlertPolicy() {
-    let policy = DAISMonitoringTemplate.cpuAlertPolicy(
+@Test func testMonitoringTemplateCPUAlertPolicy() {
+    let policy = MonitoringTemplate.cpuAlertPolicy(
         projectID: "test-project",
         deploymentName: "prod",
         threshold: 0.8
@@ -5079,11 +5079,11 @@ import Testing
     #expect(policy.displayName == "prod High CPU Usage")
     #expect(policy.conditions.count == 1)
     #expect(policy.severity == .warning)
-    #expect(policy.userLabels["app"] == "butteryai")
+    #expect(policy.userLabels["app"] == "my-app")
 }
 
-@Test func testDAISMonitoringTemplateMemoryAlertPolicy() {
-    let policy = DAISMonitoringTemplate.memoryAlertPolicy(
+@Test func testMonitoringTemplateMemoryAlertPolicy() {
+    let policy = MonitoringTemplate.memoryAlertPolicy(
         projectID: "test-project",
         deploymentName: "prod",
         threshold: 0.85
@@ -5093,8 +5093,8 @@ import Testing
     #expect(policy.severity == .warning)
 }
 
-@Test func testDAISMonitoringTemplateErrorRateAlertPolicy() {
-    let policy = DAISMonitoringTemplate.errorRateAlertPolicy(
+@Test func testMonitoringTemplateErrorRateAlertPolicy() {
+    let policy = MonitoringTemplate.errorRateAlertPolicy(
         projectID: "test-project",
         deploymentName: "prod",
         threshold: 0.01
@@ -5104,8 +5104,8 @@ import Testing
     #expect(policy.severity == .error)
 }
 
-@Test func testDAISMonitoringTemplateHTTPUptimeCheck() {
-    let check = DAISMonitoringTemplate.httpUptimeCheck(
+@Test func testMonitoringTemplateHTTPUptimeCheck() {
+    let check = MonitoringTemplate.httpUptimeCheck(
         projectID: "test-project",
         deploymentName: "prod",
         host: "api.example.com",
@@ -5116,8 +5116,8 @@ import Testing
     #expect(check.httpCheck?.path == "/health")
 }
 
-@Test func testDAISMonitoringTemplateGRPCUptimeCheck() {
-    let check = DAISMonitoringTemplate.grpcUptimeCheck(
+@Test func testMonitoringTemplateGRPCUptimeCheck() {
+    let check = MonitoringTemplate.grpcUptimeCheck(
         projectID: "test-project",
         deploymentName: "prod",
         host: "grpc.example.com",
@@ -5128,40 +5128,40 @@ import Testing
     #expect(check.tcpCheck?.port == 9090)
 }
 
-@Test func testDAISMonitoringTemplateRequestLatencyMetric() {
-    let metric = DAISMonitoringTemplate.requestLatencyMetric(
+@Test func testMonitoringTemplateRequestLatencyMetric() {
+    let metric = MonitoringTemplate.requestLatencyMetric(
         projectID: "test-project",
         deploymentName: "prod"
     )
 
-    #expect(metric.type.contains("dais/prod/request_latency"))
+    #expect(metric.type.contains("app/prod/request_latency"))
     #expect(metric.metricKind == .gauge)
     #expect(metric.valueType == .distribution)
 }
 
-@Test func testDAISMonitoringTemplateActiveConnectionsMetric() {
-    let metric = DAISMonitoringTemplate.activeConnectionsMetric(
+@Test func testMonitoringTemplateActiveConnectionsMetric() {
+    let metric = MonitoringTemplate.activeConnectionsMetric(
         projectID: "test-project",
         deploymentName: "prod"
     )
 
-    #expect(metric.type.contains("dais/prod/active_connections"))
+    #expect(metric.type.contains("app/prod/active_connections"))
     #expect(metric.valueType == .int64)
 }
 
-@Test func testDAISMonitoringTemplateInstanceGroup() {
-    let group = DAISMonitoringTemplate.instanceGroup(
+@Test func testMonitoringTemplateInstanceGroup() {
+    let group = MonitoringTemplate.instanceGroup(
         projectID: "test-project",
         deploymentName: "prod"
     )
 
-    #expect(group.displayName == "prod DAIS Nodes")
+    #expect(group.displayName == "prod Cloud Nodes")
     #expect(group.isCluster == true)
     #expect(group.filter.contains("prod"))
 }
 
-@Test func testDAISMonitoringTemplateSetupScript() {
-    let script = DAISMonitoringTemplate.setupScript(
+@Test func testMonitoringTemplateSetupScript() {
+    let script = MonitoringTemplate.setupScript(
         projectID: "test-project",
         deploymentName: "prod",
         alertEmail: "alerts@example.com",
@@ -6444,37 +6444,37 @@ import Testing
     #expect(PredefinedCIDRRange.restrictedGoogleAccess == "199.36.153.4/30")
 }
 
-// MARK: - DAIS VPC Template Tests
+// MARK: - Cloud VPC Template Tests
 
-@Test func testDAISVPCTemplateNetwork() {
-    let network = DAISVPCTemplate.network(projectID: "test-project", deploymentName: "dais-prod")
+@Test func testVPCTemplateNetwork() {
+    let network = VPCTemplate.network(projectID: "test-project", deploymentName: "app-prod")
 
-    #expect(network.name == "dais-prod-vpc")
+    #expect(network.name == "app-prod-vpc")
     #expect(network.projectID == "test-project")
     #expect(network.autoCreateSubnetworks == false)
     #expect(network.routingMode == .global)
-    #expect(network.description?.contains("dais-prod") == true)
+    #expect(network.description?.contains("app-prod") == true)
 }
 
-@Test func testDAISVPCTemplateNodeSubnet() {
-    let subnet = DAISVPCTemplate.nodeSubnet(
+@Test func testVPCTemplateNodeSubnet() {
+    let subnet = VPCTemplate.nodeSubnet(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         region: "us-central1"
     )
 
-    #expect(subnet.name == "dais-prod-nodes")
-    #expect(subnet.networkName == "dais-prod-vpc")
+    #expect(subnet.name == "app-prod-nodes")
+    #expect(subnet.networkName == "app-prod-vpc")
     #expect(subnet.region == "us-central1")
     #expect(subnet.ipCidrRange == "10.0.0.0/24")
     #expect(subnet.privateIpGoogleAccess == true)
     #expect(subnet.enableFlowLogs == true)
 }
 
-@Test func testDAISVPCTemplateNodeSubnetCustomCIDR() {
-    let subnet = DAISVPCTemplate.nodeSubnet(
+@Test func testVPCTemplateNodeSubnetCustomCIDR() {
+    let subnet = VPCTemplate.nodeSubnet(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         region: "us-central1",
         cidrRange: "10.1.0.0/20"
     )
@@ -6482,133 +6482,133 @@ import Testing
     #expect(subnet.ipCidrRange == "10.1.0.0/20")
 }
 
-@Test func testDAISVPCTemplateGRPCFirewallRule() {
-    let rule = DAISVPCTemplate.grpcFirewallRule(
+@Test func testVPCTemplateGRPCFirewallRule() {
+    let rule = VPCTemplate.grpcFirewallRule(
         projectID: "test-project",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
-    #expect(rule.name == "dais-prod-allow-grpc")
-    #expect(rule.networkName == "dais-prod-vpc")
+    #expect(rule.name == "app-prod-allow-grpc")
+    #expect(rule.networkName == "app-prod-vpc")
     #expect(rule.direction == .ingress)
     #expect(rule.allowed.count == 1)
     #expect(rule.allowed[0].ipProtocol == .tcp)
     #expect(rule.allowed[0].ports?.contains("9090") == true)
-    #expect(rule.targetTags.contains("dais-prod-node"))
+    #expect(rule.targetTags.contains("app-prod-node"))
 }
 
-@Test func testDAISVPCTemplateGRPCFirewallRuleCustomPort() {
-    let rule = DAISVPCTemplate.grpcFirewallRule(
+@Test func testVPCTemplateGRPCFirewallRuleCustomPort() {
+    let rule = VPCTemplate.grpcFirewallRule(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         port: 50051
     )
 
     #expect(rule.allowed[0].ports?.contains("50051") == true)
 }
 
-@Test func testDAISVPCTemplateHealthCheckFirewallRule() {
-    let rule = DAISVPCTemplate.healthCheckFirewallRule(
+@Test func testVPCTemplateHealthCheckFirewallRule() {
+    let rule = VPCTemplate.healthCheckFirewallRule(
         projectID: "test-project",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
-    #expect(rule.name == "dais-prod-allow-health-check")
+    #expect(rule.name == "app-prod-allow-health-check")
     #expect(rule.sourceRanges.contains("35.191.0.0/16"))
     #expect(rule.sourceRanges.contains("130.211.0.0/22"))
 }
 
-@Test func testDAISVPCTemplateSSHFirewallRule() {
-    let rule = DAISVPCTemplate.sshFirewallRule(
+@Test func testVPCTemplateSSHFirewallRule() {
+    let rule = VPCTemplate.sshFirewallRule(
         projectID: "test-project",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
-    #expect(rule.name == "dais-prod-allow-ssh")
+    #expect(rule.name == "app-prod-allow-ssh")
     #expect(rule.allowed[0].ports?.contains("22") == true)
     #expect(rule.sourceRanges.contains("35.235.240.0/20"))
 }
 
-@Test func testDAISVPCTemplateInternalFirewallRule() {
-    let rule = DAISVPCTemplate.internalFirewallRule(
+@Test func testVPCTemplateInternalFirewallRule() {
+    let rule = VPCTemplate.internalFirewallRule(
         projectID: "test-project",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
-    #expect(rule.name == "dais-prod-allow-internal")
+    #expect(rule.name == "app-prod-allow-internal")
     #expect(rule.allowed.count == 3)
-    #expect(rule.sourceTags.contains("dais-prod-node"))
-    #expect(rule.targetTags.contains("dais-prod-node"))
+    #expect(rule.sourceTags.contains("app-prod-node"))
+    #expect(rule.targetTags.contains("app-prod-node"))
 }
 
-@Test func testDAISVPCTemplateRouter() {
-    let router = DAISVPCTemplate.router(
+@Test func testVPCTemplateRouter() {
+    let router = VPCTemplate.router(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         region: "us-central1"
     )
 
-    #expect(router.name == "dais-prod-router")
-    #expect(router.networkName == "dais-prod-vpc")
+    #expect(router.name == "app-prod-router")
+    #expect(router.networkName == "app-prod-vpc")
     #expect(router.region == "us-central1")
 }
 
-@Test func testDAISVPCTemplateNATGateway() {
-    let nat = DAISVPCTemplate.natGateway(
+@Test func testVPCTemplateNATGateway() {
+    let nat = VPCTemplate.natGateway(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         region: "us-central1"
     )
 
-    #expect(nat.name == "dais-prod-nat")
-    #expect(nat.routerName == "dais-prod-router")
+    #expect(nat.name == "app-prod-nat")
+    #expect(nat.routerName == "app-prod-router")
     #expect(nat.enableDynamicPortAllocation == true)
     #expect(nat.logFilter == .errorsOnly)
 }
 
-@Test func testDAISVPCTemplateSetupScript() {
-    let script = DAISVPCTemplate.setupScript(
+@Test func testVPCTemplateSetupScript() {
+    let script = VPCTemplate.setupScript(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         region: "us-central1"
     )
 
     #expect(script.contains("#!/bin/bash"))
-    #expect(script.contains("DAIS VPC Network Setup Script"))
-    #expect(script.contains("gcloud compute networks create dais-prod-vpc"))
-    #expect(script.contains("gcloud compute networks subnets create dais-prod-nodes"))
-    #expect(script.contains("gcloud compute firewall-rules create dais-prod-allow-grpc"))
-    #expect(script.contains("gcloud compute routers create dais-prod-router"))
-    #expect(script.contains("gcloud compute routers nats create dais-prod-nat"))
+    #expect(script.contains("Cloud VPC Network Setup Script"))
+    #expect(script.contains("gcloud compute networks create app-prod-vpc"))
+    #expect(script.contains("gcloud compute networks subnets create app-prod-nodes"))
+    #expect(script.contains("gcloud compute firewall-rules create app-prod-allow-grpc"))
+    #expect(script.contains("gcloud compute routers create app-prod-router"))
+    #expect(script.contains("gcloud compute routers nats create app-prod-nat"))
 }
 
-@Test func testDAISVPCTemplateSetupScriptCustomCIDR() {
-    let script = DAISVPCTemplate.setupScript(
+@Test func testVPCTemplateSetupScriptCustomCIDR() {
+    let script = VPCTemplate.setupScript(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         region: "us-central1",
         nodeSubnetCidr: "10.1.0.0/20"
     )
 
     #expect(script.contains("--range=10.1.0.0/20"))
-    #expect(script.contains("Subnet: dais-prod-nodes (10.1.0.0/20)"))
+    #expect(script.contains("Subnet: app-prod-nodes (10.1.0.0/20)"))
 }
 
-@Test func testDAISVPCTemplateTeardownScript() {
-    let script = DAISVPCTemplate.teardownScript(
+@Test func testVPCTemplateTeardownScript() {
+    let script = VPCTemplate.teardownScript(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         region: "us-central1"
     )
 
     #expect(script.contains("#!/bin/bash"))
-    #expect(script.contains("DAIS VPC Network Teardown Script"))
+    #expect(script.contains("Cloud VPC Network Teardown Script"))
     #expect(script.contains("Deleting Cloud NAT"))
     #expect(script.contains("Deleting Cloud Router"))
     #expect(script.contains("Deleting firewall rules"))
     #expect(script.contains("Deleting subnet"))
-    #expect(script.contains("gcloud compute routers nats delete dais-prod-nat"))
-    #expect(script.contains("gcloud compute routers delete dais-prod-router"))
+    #expect(script.contains("gcloud compute routers nats delete app-prod-nat"))
+    #expect(script.contains("gcloud compute routers delete app-prod-router"))
 }
 
 // MARK: - Cloud DNS Tests
@@ -7397,36 +7397,36 @@ import Testing
     #expect(record.rrdatas[0].contains("google-site-verification=abc123"))
 }
 
-// MARK: - DAIS DNS Template Tests
+// MARK: - Cloud DNS Template Tests
 
-@Test func testDAISDNSTemplateManagedZone() {
-    let zone = DAISDNSTemplate.managedZone(
+@Test func testDNSTemplateManagedZone() {
+    let zone = DNSTemplate.managedZone(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         domain: "example.com"
     )
 
-    #expect(zone.name == "dais-prod-zone")
+    #expect(zone.name == "app-prod-zone")
     #expect(zone.dnsName == "example.com.")
     #expect(zone.visibility == .public)
     #expect(zone.dnssecConfig?.state == .on)
 }
 
-@Test func testDAISDNSTemplatePrivateZone() {
-    let zone = DAISDNSTemplate.privateZone(
+@Test func testDNSTemplatePrivateZone() {
+    let zone = DNSTemplate.privateZone(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         domain: "internal.example.com",
         networks: ["my-vpc"]
     )
 
-    #expect(zone.name == "dais-prod-internal")
+    #expect(zone.name == "app-prod-internal")
     #expect(zone.visibility == .private)
     #expect(zone.networks.count == 1)
 }
 
-@Test func testDAISDNSTemplateAPIRecord() {
-    let record = DAISDNSTemplate.apiRecord(
+@Test func testDNSTemplateAPIRecord() {
+    let record = DNSTemplate.apiRecord(
         domain: "example.com",
         ipAddress: "192.0.2.1"
     )
@@ -7436,8 +7436,8 @@ import Testing
     #expect(record.rrdatas[0] == "192.0.2.1")
 }
 
-@Test func testDAISDNSTemplateGRPCRecord() {
-    let record = DAISDNSTemplate.grpcRecord(
+@Test func testDNSTemplateGRPCRecord() {
+    let record = DNSTemplate.grpcRecord(
         domain: "example.com",
         ipAddress: "192.0.2.2"
     )
@@ -7446,8 +7446,8 @@ import Testing
     #expect(record.type == .a)
 }
 
-@Test func testDAISDNSTemplateWildcardCNAME() {
-    let record = DAISDNSTemplate.wildcardCname(
+@Test func testDNSTemplateWildcardCNAME() {
+    let record = DNSTemplate.wildcardCname(
         domain: "example.com",
         target: "lb.example.com"
     )
@@ -7456,8 +7456,8 @@ import Testing
     #expect(record.type == .cname)
 }
 
-@Test func testDAISDNSTemplateGRPCSRVRecord() {
-    let record = DAISDNSTemplate.grpcSrvRecord(
+@Test func testDNSTemplateGRPCSRVRecord() {
+    let record = DNSTemplate.grpcSrvRecord(
         domain: "example.com",
         serviceName: "myservice",
         targets: [(priority: 10, weight: 5, port: 9090, target: "grpc1.example.com")]
@@ -7467,8 +7467,8 @@ import Testing
     #expect(record.type == .srv)
 }
 
-@Test func testDAISDNSTemplateHealthCheckRecord() {
-    let record = DAISDNSTemplate.healthCheckRecord(
+@Test func testDNSTemplateHealthCheckRecord() {
+    let record = DNSTemplate.healthCheckRecord(
         domain: "example.com",
         target: "lb.example.com"
     )
@@ -7478,44 +7478,44 @@ import Testing
     #expect(record.ttl == 60)
 }
 
-@Test func testDAISDNSTemplateInternalPolicy() {
-    let policy = DAISDNSTemplate.internalPolicy(
+@Test func testDNSTemplateInternalPolicy() {
+    let policy = DNSTemplate.internalPolicy(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         networks: ["my-vpc"]
     )
 
-    #expect(policy.name == "dais-prod-internal-policy")
+    #expect(policy.name == "app-prod-internal-policy")
     #expect(policy.enableInboundForwarding == true)
     #expect(policy.enableLogging == true)
 }
 
-@Test func testDAISDNSTemplateSetupScript() {
-    let script = DAISDNSTemplate.setupScript(
+@Test func testDNSTemplateSetupScript() {
+    let script = DNSTemplate.setupScript(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         domain: "example.com",
         apiIP: "192.0.2.1",
         grpcIP: "192.0.2.2"
     )
 
     #expect(script.contains("#!/bin/bash"))
-    #expect(script.contains("DAIS DNS Setup Script"))
-    #expect(script.contains("gcloud dns managed-zones create dais-prod-zone"))
+    #expect(script.contains("Cloud DNS Setup Script"))
+    #expect(script.contains("gcloud dns managed-zones create app-prod-zone"))
     #expect(script.contains("api.example.com"))
     #expect(script.contains("grpc.example.com"))
     #expect(script.contains("192.0.2.1"))
     #expect(script.contains("192.0.2.2"))
 }
 
-@Test func testDAISDNSTemplateTeardownScript() {
-    let script = DAISDNSTemplate.teardownScript(
+@Test func testDNSTemplateTeardownScript() {
+    let script = DNSTemplate.teardownScript(
         projectID: "test-project",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
     #expect(script.contains("#!/bin/bash"))
-    #expect(script.contains("DAIS DNS Teardown Script"))
+    #expect(script.contains("Cloud DNS Teardown Script"))
     #expect(script.contains("Deleting all record sets"))
     #expect(script.contains("Deleting managed zone"))
 }
@@ -8649,205 +8649,205 @@ import Testing
     #expect(cmd.contains("--regions=us-central1"))
 }
 
-// MARK: DAIS Load Balancing Template Tests
+// MARK: Cloud Load Balancing Template Tests
 
-@Test func testDAISLoadBalancingTemplateHTTPHealthCheck() {
-    let healthCheck = DAISLoadBalancingTemplate.httpHealthCheck(
+@Test func testLoadBalancingTemplateHTTPHealthCheck() {
+    let healthCheck = LoadBalancingTemplate.httpHealthCheck(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         port: 8080,
         path: "/health"
     )
 
-    #expect(healthCheck.name == "dais-prod-http-hc")
+    #expect(healthCheck.name == "app-prod-http-hc")
     #expect(healthCheck.type == .http)
     #expect(healthCheck.httpHealthCheck?.port == 8080)
     #expect(healthCheck.httpHealthCheck?.requestPath == "/health")
-    #expect(healthCheck.description == "HTTP health check for dais-prod")
+    #expect(healthCheck.description == "HTTP health check for app-prod")
 }
 
-@Test func testDAISLoadBalancingTemplateGRPCHealthCheck() {
-    let healthCheck = DAISLoadBalancingTemplate.grpcHealthCheck(
+@Test func testLoadBalancingTemplateGRPCHealthCheck() {
+    let healthCheck = LoadBalancingTemplate.grpcHealthCheck(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         port: 9090
     )
 
-    #expect(healthCheck.name == "dais-prod-grpc-hc")
+    #expect(healthCheck.name == "app-prod-grpc-hc")
     #expect(healthCheck.type == .grpc)
     #expect(healthCheck.grpcHealthCheck?.port == 9090)
     #expect(healthCheck.grpcHealthCheck?.grpcServiceName == "grpc.health.v1.Health")
 }
 
-@Test func testDAISLoadBalancingTemplateHTTPBackendService() {
-    let backendService = DAISLoadBalancingTemplate.httpBackendService(
+@Test func testLoadBalancingTemplateHTTPBackendService() {
+    let backendService = LoadBalancingTemplate.httpBackendService(
         projectID: "test-project",
-        deploymentName: "dais-prod",
-        healthCheckName: "dais-prod-http-hc"
+        deploymentName: "app-prod",
+        healthCheckName: "app-prod-http-hc"
     )
 
-    #expect(backendService.name == "dais-prod-http-backend")
+    #expect(backendService.name == "app-prod-http-backend")
     #expect(backendService.protocol == .http)
     #expect(backendService.portName == "http")
-    #expect(backendService.healthChecks.contains("dais-prod-http-hc"))
+    #expect(backendService.healthChecks.contains("app-prod-http-hc"))
     #expect(backendService.loadBalancingScheme == .externalManaged)
     #expect(backendService.logConfig?.enable == true)
 }
 
-@Test func testDAISLoadBalancingTemplateGRPCBackendService() {
-    let backendService = DAISLoadBalancingTemplate.grpcBackendService(
+@Test func testLoadBalancingTemplateGRPCBackendService() {
+    let backendService = LoadBalancingTemplate.grpcBackendService(
         projectID: "test-project",
-        deploymentName: "dais-prod",
-        healthCheckName: "dais-prod-grpc-hc"
+        deploymentName: "app-prod",
+        healthCheckName: "app-prod-grpc-hc"
     )
 
-    #expect(backendService.name == "dais-prod-grpc-backend")
+    #expect(backendService.name == "app-prod-grpc-backend")
     #expect(backendService.protocol == .grpc)
     #expect(backendService.portName == "grpc")
     #expect(backendService.timeoutSec == 60)
 }
 
-@Test func testDAISLoadBalancingTemplateURLMap() {
-    let urlMap = DAISLoadBalancingTemplate.urlMap(
+@Test func testLoadBalancingTemplateURLMap() {
+    let urlMap = LoadBalancingTemplate.urlMap(
         projectID: "test-project",
-        deploymentName: "dais-prod",
-        defaultBackendService: "dais-prod-http-backend"
+        deploymentName: "app-prod",
+        defaultBackendService: "app-prod-http-backend"
     )
 
-    #expect(urlMap.name == "dais-prod-url-map")
-    #expect(urlMap.defaultService == "dais-prod-http-backend")
-    #expect(urlMap.description == "URL map for dais-prod")
+    #expect(urlMap.name == "app-prod-url-map")
+    #expect(urlMap.defaultService == "app-prod-http-backend")
+    #expect(urlMap.description == "URL map for app-prod")
 }
 
-@Test func testDAISLoadBalancingTemplateSSLCertificate() {
-    let cert = DAISLoadBalancingTemplate.sslCertificate(
+@Test func testLoadBalancingTemplateSSLCertificate() {
+    let cert = LoadBalancingTemplate.sslCertificate(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         domains: ["api.example.com", "www.example.com"]
     )
 
-    #expect(cert.name == "dais-prod-cert")
+    #expect(cert.name == "app-prod-cert")
     #expect(cert.type == .managed)
     #expect(cert.domains.count == 2)
     #expect(cert.domains.contains("api.example.com"))
 }
 
-@Test func testDAISLoadBalancingTemplateSSLPolicy() {
-    let policy = DAISLoadBalancingTemplate.sslPolicy(
+@Test func testLoadBalancingTemplateSSLPolicy() {
+    let policy = LoadBalancingTemplate.sslPolicy(
         projectID: "test-project",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
-    #expect(policy.name == "dais-prod-ssl-policy")
+    #expect(policy.name == "app-prod-ssl-policy")
     #expect(policy.minTlsVersion == .tls12)
     #expect(policy.profile == .modern)
 }
 
-@Test func testDAISLoadBalancingTemplateHTTPSTargetProxy() {
-    let proxy = DAISLoadBalancingTemplate.httpsTargetProxy(
+@Test func testLoadBalancingTemplateHTTPSTargetProxy() {
+    let proxy = LoadBalancingTemplate.httpsTargetProxy(
         projectID: "test-project",
-        deploymentName: "dais-prod",
-        urlMapName: "dais-prod-url-map",
-        sslCertificateName: "dais-prod-cert",
-        sslPolicyName: "dais-prod-ssl-policy"
+        deploymentName: "app-prod",
+        urlMapName: "app-prod-url-map",
+        sslCertificateName: "app-prod-cert",
+        sslPolicyName: "app-prod-ssl-policy"
     )
 
-    #expect(proxy.name == "dais-prod-https-proxy")
+    #expect(proxy.name == "app-prod-https-proxy")
     #expect(proxy.type == .https)
-    #expect(proxy.urlMap == "dais-prod-url-map")
-    #expect(proxy.sslCertificates.contains("dais-prod-cert"))
-    #expect(proxy.sslPolicy == "dais-prod-ssl-policy")
+    #expect(proxy.urlMap == "app-prod-url-map")
+    #expect(proxy.sslCertificates.contains("app-prod-cert"))
+    #expect(proxy.sslPolicy == "app-prod-ssl-policy")
 }
 
-@Test func testDAISLoadBalancingTemplateHTTPTargetProxy() {
-    let proxy = DAISLoadBalancingTemplate.httpTargetProxy(
+@Test func testLoadBalancingTemplateHTTPTargetProxy() {
+    let proxy = LoadBalancingTemplate.httpTargetProxy(
         projectID: "test-project",
-        deploymentName: "dais-prod",
-        urlMapName: "dais-prod-url-map"
+        deploymentName: "app-prod",
+        urlMapName: "app-prod-url-map"
     )
 
-    #expect(proxy.name == "dais-prod-http-proxy")
+    #expect(proxy.name == "app-prod-http-proxy")
     #expect(proxy.type == .http)
-    #expect(proxy.description == "HTTP proxy for dais-prod (redirect)")
+    #expect(proxy.description == "HTTP proxy for app-prod (redirect)")
 }
 
-@Test func testDAISLoadBalancingTemplateHTTPSForwardingRule() {
-    let rule = DAISLoadBalancingTemplate.httpsForwardingRule(
+@Test func testLoadBalancingTemplateHTTPSForwardingRule() {
+    let rule = LoadBalancingTemplate.httpsForwardingRule(
         projectID: "test-project",
-        deploymentName: "dais-prod",
-        targetProxyName: "dais-prod-https-proxy",
+        deploymentName: "app-prod",
+        targetProxyName: "app-prod-https-proxy",
         ipAddress: "34.120.0.1"
     )
 
-    #expect(rule.name == "dais-prod-https-rule")
+    #expect(rule.name == "app-prod-https-rule")
     #expect(rule.portRange == "443")
-    #expect(rule.target == "dais-prod-https-proxy")
+    #expect(rule.target == "app-prod-https-proxy")
     #expect(rule.ipAddress == "34.120.0.1")
     #expect(rule.loadBalancingScheme == .externalManaged)
     #expect(rule.networkTier == .premium)
 }
 
-@Test func testDAISLoadBalancingTemplateHTTPForwardingRule() {
-    let rule = DAISLoadBalancingTemplate.httpForwardingRule(
+@Test func testLoadBalancingTemplateHTTPForwardingRule() {
+    let rule = LoadBalancingTemplate.httpForwardingRule(
         projectID: "test-project",
-        deploymentName: "dais-prod",
-        targetProxyName: "dais-prod-http-proxy"
+        deploymentName: "app-prod",
+        targetProxyName: "app-prod-http-proxy"
     )
 
-    #expect(rule.name == "dais-prod-http-rule")
+    #expect(rule.name == "app-prod-http-rule")
     #expect(rule.portRange == "80")
 }
 
-@Test func testDAISLoadBalancingTemplateCloudRunNEG() {
-    let neg = DAISLoadBalancingTemplate.cloudRunNEG(
+@Test func testLoadBalancingTemplateCloudRunNEG() {
+    let neg = LoadBalancingTemplate.cloudRunNEG(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         region: "us-central1",
         cloudRunServiceName: "my-service"
     )
 
-    #expect(neg.name == "dais-prod-cloudrun-neg")
+    #expect(neg.name == "app-prod-cloudrun-neg")
     #expect(neg.type == .serverless)
     #expect(neg.region == "us-central1")
     #expect(neg.cloudRunService == "my-service")
     #expect(neg.description == "Serverless NEG for Cloud Run service")
 }
 
-@Test func testDAISLoadBalancingTemplateSetupScript() {
-    let script = DAISLoadBalancingTemplate.setupScript(
+@Test func testLoadBalancingTemplateSetupScript() {
+    let script = LoadBalancingTemplate.setupScript(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         domains: ["api.example.com"],
         cloudRunServiceName: "api-service",
         region: "us-central1"
     )
 
     #expect(script.contains("#!/bin/bash"))
-    #expect(script.contains("DAIS Load Balancer Setup Script"))
-    #expect(script.contains("dais-prod"))
+    #expect(script.contains("Cloud Load Balancer Setup Script"))
+    #expect(script.contains("app-prod"))
     #expect(script.contains("api.example.com"))
-    #expect(script.contains("gcloud compute addresses create dais-prod-ip"))
-    #expect(script.contains("gcloud compute network-endpoint-groups create dais-prod-cloudrun-neg"))
-    #expect(script.contains("gcloud compute health-checks create http dais-prod-http-hc"))
-    #expect(script.contains("gcloud compute backend-services create dais-prod-http-backend"))
-    #expect(script.contains("gcloud compute url-maps create dais-prod-url-map"))
-    #expect(script.contains("gcloud compute ssl-certificates create dais-prod-cert"))
-    #expect(script.contains("gcloud compute ssl-policies create dais-prod-ssl-policy"))
-    #expect(script.contains("gcloud compute target-https-proxies create dais-prod-https-proxy"))
+    #expect(script.contains("gcloud compute addresses create app-prod-ip"))
+    #expect(script.contains("gcloud compute network-endpoint-groups create app-prod-cloudrun-neg"))
+    #expect(script.contains("gcloud compute health-checks create http app-prod-http-hc"))
+    #expect(script.contains("gcloud compute backend-services create app-prod-http-backend"))
+    #expect(script.contains("gcloud compute url-maps create app-prod-url-map"))
+    #expect(script.contains("gcloud compute ssl-certificates create app-prod-cert"))
+    #expect(script.contains("gcloud compute ssl-policies create app-prod-ssl-policy"))
+    #expect(script.contains("gcloud compute target-https-proxies create app-prod-https-proxy"))
     #expect(script.contains("Load Balancer Setup Complete!"))
 }
 
-@Test func testDAISLoadBalancingTemplateTeardownScript() {
-    let script = DAISLoadBalancingTemplate.teardownScript(
+@Test func testLoadBalancingTemplateTeardownScript() {
+    let script = LoadBalancingTemplate.teardownScript(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         region: "us-central1"
     )
 
     #expect(script.contains("#!/bin/bash"))
-    #expect(script.contains("DAIS Load Balancer Teardown Script"))
+    #expect(script.contains("Cloud Load Balancer Teardown Script"))
     #expect(script.contains("Deleting forwarding rules"))
-    #expect(script.contains("gcloud compute forwarding-rules delete dais-prod-https-rule"))
+    #expect(script.contains("gcloud compute forwarding-rules delete app-prod-https-rule"))
     #expect(script.contains("Deleting target proxies"))
     #expect(script.contains("Deleting SSL policy"))
     #expect(script.contains("Deleting SSL certificate"))
@@ -9007,7 +9007,7 @@ import Testing
         location: "us-west1",
         format: .docker,
         description: "Docker images",
-        labels: ["app": "dais"]
+        labels: ["app": "my-app"]
     )
 
     let cmd = repo.createCommand
@@ -9016,7 +9016,7 @@ import Testing
     #expect(cmd.contains("--location=us-west1"))
     #expect(cmd.contains("--repository-format=docker"))
     #expect(cmd.contains("--description=\"Docker images\""))
-    #expect(cmd.contains("--labels=app=dais"))
+    #expect(cmd.contains("--labels=app=my-app"))
 }
 
 @Test func testRepositoryMavenFormat() {
@@ -9798,64 +9798,64 @@ import Testing
     #expect(cmd.contains("gcloud config set artifacts/location us-central1"))
 }
 
-// MARK: DAIS Artifact Registry Template Tests
+// MARK: Cloud Artifact Registry Template Tests
 
-@Test func testDAISArtifactRegistryTemplateDockerRepository() {
-    let repo = DAISArtifactRegistryTemplate.dockerRepository(
+@Test func testArtifactRegistryTemplateDockerRepository() {
+    let repo = ArtifactRegistryTemplate.dockerRepository(
         projectID: "test-project",
         location: "us-central1",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
-    #expect(repo.name == "dais-prod-docker")
+    #expect(repo.name == "app-prod-docker")
     #expect(repo.format == .docker)
-    #expect(repo.labels["app"] == "dais")
-    #expect(repo.labels["deployment"] == "dais-prod")
+    #expect(repo.labels["app"] == "my-app")
+    #expect(repo.labels["deployment"] == "app-prod")
     #expect(repo.cleanupPolicies.count == 2)
     #expect(repo.vulnerabilityScanningConfig?.enablementConfig == .automatic)
 }
 
-@Test func testDAISArtifactRegistryTemplateNpmRepository() {
-    let repo = DAISArtifactRegistryTemplate.npmRepository(
+@Test func testArtifactRegistryTemplateNpmRepository() {
+    let repo = ArtifactRegistryTemplate.npmRepository(
         projectID: "test-project",
         location: "us-central1",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
-    #expect(repo.name == "dais-prod-npm")
+    #expect(repo.name == "app-prod-npm")
     #expect(repo.format == .npm)
 }
 
-@Test func testDAISArtifactRegistryTemplatePythonRepository() {
-    let repo = DAISArtifactRegistryTemplate.pythonRepository(
+@Test func testArtifactRegistryTemplatePythonRepository() {
+    let repo = ArtifactRegistryTemplate.pythonRepository(
         projectID: "test-project",
         location: "us-central1",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
-    #expect(repo.name == "dais-prod-python")
+    #expect(repo.name == "app-prod-python")
     #expect(repo.format == .python)
 }
 
-@Test func testDAISArtifactRegistryTemplateDockerImage() {
-    let image = DAISArtifactRegistryTemplate.dockerImage(
+@Test func testArtifactRegistryTemplateDockerImage() {
+    let image = ArtifactRegistryTemplate.dockerImage(
         projectID: "test-project",
         location: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         imageName: "my-service",
         tag: "v1.0.0"
     )
 
     #expect(image.name == "my-service")
-    #expect(image.repositoryName == "dais-prod-docker")
+    #expect(image.repositoryName == "app-prod-docker")
     #expect(image.tag == "v1.0.0")
 }
 
-@Test func testDAISArtifactRegistryTemplateAPIServiceImage() {
-    let image = DAISArtifactRegistryTemplate.apiServiceImage(
+@Test func testArtifactRegistryTemplateAPIServiceImage() {
+    let image = ArtifactRegistryTemplate.apiServiceImage(
         projectID: "test-project",
         location: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         tag: "v2.0.0"
     )
 
@@ -9863,56 +9863,56 @@ import Testing
     #expect(image.tag == "v2.0.0")
 }
 
-@Test func testDAISArtifactRegistryTemplateGRPCServiceImage() {
-    let image = DAISArtifactRegistryTemplate.grpcServiceImage(
+@Test func testArtifactRegistryTemplateGRPCServiceImage() {
+    let image = ArtifactRegistryTemplate.grpcServiceImage(
         projectID: "test-project",
         location: "us-central1",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
     #expect(image.name == "grpc-service")
     #expect(image.tag == "latest")
 }
 
-@Test func testDAISArtifactRegistryTemplateWorkerServiceImage() {
-    let image = DAISArtifactRegistryTemplate.workerServiceImage(
+@Test func testArtifactRegistryTemplateWorkerServiceImage() {
+    let image = ArtifactRegistryTemplate.workerServiceImage(
         projectID: "test-project",
         location: "us-central1",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
     #expect(image.name == "worker")
 }
 
-@Test func testDAISArtifactRegistryTemplateDockerAuth() {
-    let auth = DAISArtifactRegistryTemplate.dockerAuth(location: "us-central1")
+@Test func testArtifactRegistryTemplateDockerAuth() {
+    let auth = ArtifactRegistryTemplate.dockerAuth(location: "us-central1")
     #expect(auth.host == "us-central1-docker.pkg.dev")
 }
 
-@Test func testDAISArtifactRegistryTemplateSwiftDockerfile() {
-    let dockerfile = DAISArtifactRegistryTemplate.swiftDockerfile(
-        executableName: "dais-server",
+@Test func testArtifactRegistryTemplateSwiftDockerfile() {
+    let dockerfile = ArtifactRegistryTemplate.swiftDockerfile(
+        executableName: "app-server",
         port: 8080
     )
 
     #expect(dockerfile.contains("FROM swift:5.10-jammy"))
     #expect(dockerfile.contains("swift build -c release"))
-    #expect(dockerfile.contains("dais-server"))
+    #expect(dockerfile.contains("app-server"))
     #expect(dockerfile.contains("EXPOSE 8080"))
 }
 
-@Test func testDAISArtifactRegistryTemplateCloudbuildConfig() {
-    let config = DAISArtifactRegistryTemplate.cloudbuildConfig(
+@Test func testArtifactRegistryTemplateCloudbuildConfig() {
+    let config = ArtifactRegistryTemplate.cloudbuildConfig(
         projectID: "test-project",
         location: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         serviceName: "api-service",
         cloudRunRegion: "us-central1"
     )
 
     #expect(config.contains("steps:"))
     #expect(config.contains("gcr.io/cloud-builders/docker"))
-    #expect(config.contains("dais-prod-docker"))
+    #expect(config.contains("app-prod-docker"))
     #expect(config.contains("api-service"))
     #expect(config.contains("$COMMIT_SHA"))
     #expect(config.contains("gcloud"))
@@ -9920,37 +9920,37 @@ import Testing
     #expect(config.contains("deploy"))
 }
 
-@Test func testDAISArtifactRegistryTemplateSetupScript() {
-    let script = DAISArtifactRegistryTemplate.setupScript(
+@Test func testArtifactRegistryTemplateSetupScript() {
+    let script = ArtifactRegistryTemplate.setupScript(
         projectID: "test-project",
         location: "us-central1",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
     #expect(script.contains("#!/bin/bash"))
     #expect(script.contains("gcloud services enable artifactregistry.googleapis.com"))
-    #expect(script.contains("gcloud artifacts repositories create dais-prod-docker"))
+    #expect(script.contains("gcloud artifacts repositories create app-prod-docker"))
     #expect(script.contains("gcloud auth configure-docker"))
     #expect(script.contains("Artifact Registry Setup Complete!"))
 }
 
-@Test func testDAISArtifactRegistryTemplateTeardownScript() {
-    let script = DAISArtifactRegistryTemplate.teardownScript(
+@Test func testArtifactRegistryTemplateTeardownScript() {
+    let script = ArtifactRegistryTemplate.teardownScript(
         projectID: "test-project",
         location: "us-central1",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
     #expect(script.contains("#!/bin/bash"))
-    #expect(script.contains("gcloud artifacts repositories delete dais-prod-docker"))
+    #expect(script.contains("gcloud artifacts repositories delete app-prod-docker"))
     #expect(script.contains("teardown complete"))
 }
 
-@Test func testDAISArtifactRegistryTemplateCICDSetupScript() {
-    let script = DAISArtifactRegistryTemplate.cicdSetupScript(
+@Test func testArtifactRegistryTemplateCICDSetupScript() {
+    let script = ArtifactRegistryTemplate.cicdSetupScript(
         projectID: "test-project",
         location: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         repoOwner: "myorg",
         repoName: "my-repo"
     )
@@ -10945,20 +10945,20 @@ import Testing
     #expect(config.contains("web/Dockerfile"))
 }
 
-// MARK: - DAIS Cloud Build Template Tests
+// MARK: - Cloud Cloud Build Template Tests
 
-@Test func testDAISGitHubTrigger() {
-    let trigger = DAISCloudBuildTemplate.githubTrigger(
+@Test func testGitHubTrigger() {
+    let trigger = CloudBuildTemplate.githubTrigger(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         owner: "myorg",
         repo: "my-repo"
     )
 
-    #expect(trigger.name == "dais-prod-deploy")
-    #expect(trigger.tags.contains("dais"))
-    #expect(trigger.tags.contains("dais-prod"))
-    #expect(trigger.substitutions["DEPLOYMENT_NAME"] == "dais-prod")
+    #expect(trigger.name == "app-prod-deploy")
+    #expect(trigger.tags.contains("app"))
+    #expect(trigger.tags.contains("app-prod"))
+    #expect(trigger.substitutions["DEPLOYMENT_NAME"] == "app-prod")
 
     if case .github(let owner, let name, _) = trigger.triggerSource {
         #expect(owner == "myorg")
@@ -10966,15 +10966,15 @@ import Testing
     }
 }
 
-@Test func testDAISPRPreviewTrigger() {
-    let trigger = DAISCloudBuildTemplate.prPreviewTrigger(
+@Test func testPRPreviewTrigger() {
+    let trigger = CloudBuildTemplate.prPreviewTrigger(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         owner: "myorg",
         repo: "my-repo"
     )
 
-    #expect(trigger.name == "dais-prod-pr-preview")
+    #expect(trigger.name == "app-prod-pr-preview")
     #expect(trigger.tags.contains("preview"))
 
     if case .github(_, _, let eventConfig) = trigger.triggerSource {
@@ -10986,13 +10986,13 @@ import Testing
     }
 }
 
-@Test func testDAISManualTrigger() {
-    let trigger = DAISCloudBuildTemplate.manualTrigger(
+@Test func testManualTrigger() {
+    let trigger = CloudBuildTemplate.manualTrigger(
         projectID: "test-project",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
-    #expect(trigger.name == "dais-prod-manual")
+    #expect(trigger.name == "app-prod-manual")
     #expect(trigger.tags.contains("manual"))
 
     if case .manual = trigger.triggerSource {
@@ -11002,11 +11002,11 @@ import Testing
     }
 }
 
-@Test func testDAISCloudbuildYaml() {
-    let yaml = DAISCloudBuildTemplate.cloudbuildYaml(
+@Test func testCloudbuildYaml() {
+    let yaml = CloudBuildTemplate.cloudbuildYaml(
         projectID: "test-project",
         location: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         cloudRunRegion: "us-central1",
         services: [
             (name: "api", port: 8080),
@@ -11014,8 +11014,8 @@ import Testing
         ]
     )
 
-    #expect(yaml.contains("DAIS Cloud Build Configuration"))
-    #expect(yaml.contains("dais-prod"))
+    #expect(yaml.contains("Cloud Cloud Build Configuration"))
+    #expect(yaml.contains("app-prod"))
     #expect(yaml.contains("build-api"))
     #expect(yaml.contains("build-worker"))
     #expect(yaml.contains("push-api"))
@@ -11028,11 +11028,11 @@ import Testing
     #expect(yaml.contains("timeout: '1800s'"))
 }
 
-@Test func testDAISSetupScript() {
-    let script = DAISCloudBuildTemplate.setupScript(
+@Test func testSetupScript() {
+    let script = CloudBuildTemplate.setupScript(
         projectID: "test-project",
         location: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         githubOwner: "myorg",
         githubRepo: "my-repo",
         cloudRunRegion: "us-central1"
@@ -11046,41 +11046,41 @@ import Testing
     #expect(script.contains("gcloud builds triggers create github"))
     #expect(script.contains("--repo-owner=myorg"))
     #expect(script.contains("--repo-name=my-repo"))
-    #expect(script.contains("dais-prod-deploy"))
+    #expect(script.contains("app-prod-deploy"))
     #expect(script.contains("Cloud Build Setup Complete!"))
 }
 
-@Test func testDAISTeardownScript() {
-    let script = DAISCloudBuildTemplate.teardownScript(
+@Test func testTeardownScript() {
+    let script = CloudBuildTemplate.teardownScript(
         projectID: "test-project",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
     #expect(script.contains("#!/bin/bash"))
-    #expect(script.contains("gcloud builds triggers delete dais-prod-deploy"))
-    #expect(script.contains("gcloud builds triggers delete dais-prod-pr-preview"))
-    #expect(script.contains("gcloud builds triggers delete dais-prod-manual"))
+    #expect(script.contains("gcloud builds triggers delete app-prod-deploy"))
+    #expect(script.contains("gcloud builds triggers delete app-prod-pr-preview"))
+    #expect(script.contains("gcloud builds triggers delete app-prod-manual"))
     #expect(script.contains("teardown complete"))
 }
 
-@Test func testDAISWorkerPool() {
-    let pool = DAISCloudBuildTemplate.workerPool(
+@Test func testWorkerPool() {
+    let pool = CloudBuildTemplate.workerPool(
         projectID: "test-project",
         region: "us-central1",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
-    #expect(pool.name == "dais-prod-pool")
-    #expect(pool.displayName == "DAIS dais-prod Worker Pool")
+    #expect(pool.name == "app-prod-pool")
+    #expect(pool.displayName == "Cloud app-prod Worker Pool")
     #expect(pool.privatePoolConfig.workerConfig.machineType == "e2-standard-4")
     #expect(pool.privatePoolConfig.workerConfig.diskSizeGb == 100)
 }
 
-@Test func testDAISWorkerPoolWithVPC() {
-    let pool = DAISCloudBuildTemplate.workerPool(
+@Test func testWorkerPoolWithVPC() {
+    let pool = CloudBuildTemplate.workerPool(
         projectID: "test-project",
         region: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         vpcNetwork: "projects/test-project/global/networks/my-vpc"
     )
 
@@ -11612,29 +11612,29 @@ import Testing
     #expect(cmd.contains("--preview"))
 }
 
-// MARK: - DAIS Cloud Armor Template Tests
+// MARK: - Cloud Cloud Armor Template Tests
 
-@Test func testDAISSecurityPolicy() {
-    let policy = DAISCloudArmorTemplate.securityPolicy(
+@Test func testSecurityPolicy() {
+    let policy = CloudArmorTemplate.securityPolicy(
         projectID: "test-project",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
-    #expect(policy.name == "dais-prod-security-policy")
+    #expect(policy.name == "app-prod-security-policy")
     #expect(policy.adaptiveProtectionConfig?.layer7DdosDefenseConfig?.enable == true)
     #expect(policy.advancedOptionsConfig?.jsonParsing == .standard)
-    #expect(policy.labels["deployment"] == "dais-prod")
+    #expect(policy.labels["deployment"] == "app-prod")
 }
 
-@Test func testDAISDefaultAllowRule() {
-    let rule = DAISCloudArmorTemplate.defaultAllowRule()
+@Test func testDefaultAllowRule() {
+    let rule = CloudArmorTemplate.defaultAllowRule()
 
     #expect(rule.priority == 2147483647)
     #expect(rule.action == .allow)
 }
 
-@Test func testDAISOWASPProtectionRule() {
-    let rule = DAISCloudArmorTemplate.owaspProtectionRule(priority: 1000)
+@Test func testOWASPProtectionRule() {
+    let rule = CloudArmorTemplate.owaspProtectionRule(priority: 1000)
 
     #expect(rule.priority == 1000)
     #expect(rule.action == .deny403)
@@ -11642,8 +11642,8 @@ import Testing
     #expect(rule.match.expr?.expression.contains("xss") == true)
 }
 
-@Test func testDAISRCEProtectionRule() {
-    let rule = DAISCloudArmorTemplate.rceProtectionRule()
+@Test func testRCEProtectionRule() {
+    let rule = CloudArmorTemplate.rceProtectionRule()
 
     #expect(rule.action == .deny403)
     #expect(rule.match.expr?.expression.contains("rce") == true)
@@ -11651,15 +11651,15 @@ import Testing
     #expect(rule.match.expr?.expression.contains("rfi") == true)
 }
 
-@Test func testDAISLog4jProtectionRule() {
-    let rule = DAISCloudArmorTemplate.log4jProtectionRule()
+@Test func testLog4jProtectionRule() {
+    let rule = CloudArmorTemplate.log4jProtectionRule()
 
     #expect(rule.priority == 900)
     #expect(rule.match.expr?.expression.contains("cve") == true)
 }
 
-@Test func testDAISAPIRateLimitRule() {
-    let rule = DAISCloudArmorTemplate.apiRateLimitRule(priority: 2000, requestsPerMinute: 100)
+@Test func testAPIRateLimitRule() {
+    let rule = CloudArmorTemplate.apiRateLimitRule(priority: 2000, requestsPerMinute: 100)
 
     #expect(rule.priority == 2000)
     #expect(rule.action == .throttle)
@@ -11668,8 +11668,8 @@ import Testing
     #expect(rule.rateLimitOptions?.enforceOnKey == .ip)
 }
 
-@Test func testDAISGeoBlockRule() {
-    let rule = DAISCloudArmorTemplate.geoBlockRule(
+@Test func testGeoBlockRule() {
+    let rule = CloudArmorTemplate.geoBlockRule(
         priority: 500,
         blockedCountries: ["CN", "RU"]
     )
@@ -11680,8 +11680,8 @@ import Testing
     #expect(rule.match.expr?.expression.contains("RU") == true)
 }
 
-@Test func testDAISGeoAllowRule() {
-    let rule = DAISCloudArmorTemplate.geoAllowRule(
+@Test func testGeoAllowRule() {
+    let rule = CloudArmorTemplate.geoAllowRule(
         priority: 500,
         allowedCountries: ["US", "CA"]
     )
@@ -11689,15 +11689,15 @@ import Testing
     #expect(rule.match.expr?.expression.contains("!(origin.region_code in") == true)
 }
 
-@Test func testDAISBotProtectionRule() {
-    let rule = DAISCloudArmorTemplate.botProtectionRule()
+@Test func testBotProtectionRule() {
+    let rule = CloudArmorTemplate.botProtectionRule()
 
     #expect(rule.priority == 1500)
     #expect(rule.action == .deny403)
 }
 
-@Test func testDAISLoginRateLimitRule() {
-    let rule = DAISCloudArmorTemplate.loginRateLimitRule(
+@Test func testLoginRateLimitRule() {
+    let rule = CloudArmorTemplate.loginRateLimitRule(
         priority: 1800,
         loginPath: "/auth/login",
         requestsPerMinute: 5,
@@ -11710,51 +11710,51 @@ import Testing
     #expect(rule.match.expr?.expression.contains("/auth/login") == true)
 }
 
-@Test func testDAISArmorSetupScript() {
-    let script = DAISCloudArmorTemplate.setupScript(
+@Test func testArmorSetupScript() {
+    let script = CloudArmorTemplate.setupScript(
         projectID: "test-project",
-        deploymentName: "dais-prod",
-        backendServiceName: "dais-backend",
+        deploymentName: "app-prod",
+        backendServiceName: "app-backend",
         enableGeoBlocking: true,
         blockedCountries: ["CN", "RU"]
     )
 
     #expect(script.contains("#!/bin/bash"))
     #expect(script.contains("gcloud compute security-policies create"))
-    #expect(script.contains("dais-prod-security-policy"))
+    #expect(script.contains("app-prod-security-policy"))
     #expect(script.contains("--enable-layer7-ddos-defense"))
     #expect(script.contains("sqli"))
     #expect(script.contains("xss"))
     #expect(script.contains("'CN', 'RU'"))
-    #expect(script.contains("dais-backend"))
+    #expect(script.contains("app-backend"))
     #expect(script.contains("Cloud Armor Setup Complete!"))
 }
 
-@Test func testDAISArmorTeardownScript() {
-    let script = DAISCloudArmorTemplate.teardownScript(
+@Test func testArmorTeardownScript() {
+    let script = CloudArmorTemplate.teardownScript(
         projectID: "test-project",
-        deploymentName: "dais-prod",
-        backendServiceName: "dais-backend"
+        deploymentName: "app-prod",
+        backendServiceName: "app-backend"
     )
 
     #expect(script.contains("#!/bin/bash"))
-    #expect(script.contains("gcloud compute backend-services update dais-backend"))
+    #expect(script.contains("gcloud compute backend-services update app-backend"))
     #expect(script.contains("--security-policy="))
     #expect(script.contains("gcloud compute security-policies delete"))
     #expect(script.contains("teardown complete"))
 }
 
-@Test func testDAISPolicyYAML() {
-    let yaml = DAISCloudArmorTemplate.policyYAML(
+@Test func testPolicyYAML() {
+    let yaml = CloudArmorTemplate.policyYAML(
         projectID: "test-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         enableAdaptiveProtection: true,
         enableWAF: true,
         enableRateLimiting: true,
         rateLimit: 200
     )
 
-    #expect(yaml.contains("name: dais-prod-security-policy"))
+    #expect(yaml.contains("name: app-prod-security-policy"))
     #expect(yaml.contains("layer7DdosDefenseConfig"))
     #expect(yaml.contains("enable: true"))
     #expect(yaml.contains("Log4j CVE"))
@@ -12103,21 +12103,21 @@ import Testing
     #expect(cmd.contains("--cache-key-query-string-whitelist=page,sort"))
 }
 
-@Test func testDAISCDNTemplateStaticAssetsBucket() {
-    let bucket = DAISCDNTemplate.staticAssetsBucket(
+@Test func testCDNTemplateStaticAssetsBucket() {
+    let bucket = CDNTemplate.staticAssetsBucket(
         projectID: "my-project",
-        deploymentName: "dais-prod",
-        storageBucket: "dais-static-bucket"
+        deploymentName: "app-prod",
+        storageBucket: "app-static-bucket"
     )
 
-    #expect(bucket.name == "dais-prod-static-assets")
+    #expect(bucket.name == "app-prod-static-assets")
     #expect(bucket.enableCDN == true)
     #expect(bucket.cdnPolicy?.cacheMode == .cacheAllStatic)
     #expect(bucket.compressionMode == .automatic)
 }
 
-@Test func testDAISCDNTemplateApiCachePolicy() {
-    let policy = DAISCDNTemplate.apiCachePolicy()
+@Test func testCDNTemplateApiCachePolicy() {
+    let policy = CDNTemplate.apiCachePolicy()
 
     #expect(policy.cacheMode == .useOriginHeaders)
     #expect(policy.defaultTTL == 60)
@@ -12125,27 +12125,27 @@ import Testing
     #expect(policy.bypassCacheOnRequestHeaders?.count == 2)
 }
 
-@Test func testDAISCDNTemplateMediaCachePolicy() {
-    let policy = DAISCDNTemplate.mediaCachePolicy()
+@Test func testCDNTemplateMediaCachePolicy() {
+    let policy = CDNTemplate.mediaCachePolicy()
 
     #expect(policy.cacheMode == .forceCacheAll)
     #expect(policy.defaultTTL == 2592000) // 30 days
     #expect(policy.maxTTL == 31536000) // 1 year
 }
 
-@Test func testDAISCDNTemplateEdgeSecurityPolicy() {
-    let policy = DAISCDNTemplate.edgeSecurityPolicy(
+@Test func testCDNTemplateEdgeSecurityPolicy() {
+    let policy = CDNTemplate.edgeSecurityPolicy(
         projectID: "my-project",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
-    #expect(policy.name == "dais-prod-cdn-edge-policy")
+    #expect(policy.name == "app-prod-cdn-edge-policy")
 }
 
-@Test func testDAISCDNTemplateSetupScript() {
-    let script = DAISCDNTemplate.setupScript(
+@Test func testCDNTemplateSetupScript() {
+    let script = CDNTemplate.setupScript(
         projectID: "my-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         storageBucket: "my-bucket",
         urlMap: "my-url-map"
     )
@@ -12155,17 +12155,17 @@ import Testing
     #expect(script.contains("url-maps add-path-matcher"))
 }
 
-@Test func testDAISCDNTemplateTeardownScript() {
-    let script = DAISCDNTemplate.teardownScript(
+@Test func testCDNTemplateTeardownScript() {
+    let script = CDNTemplate.teardownScript(
         projectID: "my-project",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
     #expect(script.contains("backend-buckets delete"))
 }
 
-@Test func testDAISCDNTemplateStandardHeaders() {
-    let headers = DAISCDNTemplate.standardResponseHeaders
+@Test func testCDNTemplateStandardHeaders() {
+    let headers = CDNTemplate.standardResponseHeaders
     #expect(headers.contains("X-Cache-Status: {cdn_cache_status}"))
     #expect(headers.contains { $0.contains("Strict-Transport-Security") })
 }
@@ -12482,43 +12482,43 @@ import Testing
     #expect(TaskQueueRole.enqueuer.description.contains("create tasks"))
 }
 
-@Test func testDAISTasksTemplateAPIProcessingQueue() {
-    let queue = DAISTasksTemplate.apiProcessingQueue(
+@Test func testTasksTemplateAPIProcessingQueue() {
+    let queue = TasksTemplate.apiProcessingQueue(
         projectID: "my-project",
         location: "us-central1",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
-    #expect(queue.name == "dais-prod-api-processing")
+    #expect(queue.name == "app-prod-api-processing")
     #expect(queue.rateLimits?.maxDispatchesPerSecond == 500)
     #expect(queue.retryConfig?.maxAttempts == 5)
 }
 
-@Test func testDAISTasksTemplateBackgroundJobsQueue() {
-    let queue = DAISTasksTemplate.backgroundJobsQueue(
+@Test func testTasksTemplateBackgroundJobsQueue() {
+    let queue = TasksTemplate.backgroundJobsQueue(
         projectID: "my-project",
         location: "us-central1",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
-    #expect(queue.name == "dais-prod-background-jobs")
+    #expect(queue.name == "app-prod-background-jobs")
     #expect(queue.rateLimits?.maxDispatchesPerSecond == 100)
     #expect(queue.retryConfig?.maxAttempts == 10)
 }
 
-@Test func testDAISTasksTemplateHighPriorityQueue() {
-    let queue = DAISTasksTemplate.highPriorityQueue(
+@Test func testTasksTemplateHighPriorityQueue() {
+    let queue = TasksTemplate.highPriorityQueue(
         projectID: "my-project",
         location: "us-central1",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
-    #expect(queue.name == "dais-prod-high-priority")
+    #expect(queue.name == "app-prod-high-priority")
     #expect(queue.rateLimits?.maxDispatchesPerSecond == 1000)
 }
 
-@Test func testDAISTasksTemplateCloudRunTask() {
-    let task = DAISTasksTemplate.cloudRunTask(
+@Test func testTasksTemplateCloudRunTask() {
+    let task = TasksTemplate.cloudRunTask(
         queueName: "my-queue",
         projectID: "my-project",
         location: "us-central1",
@@ -12532,11 +12532,11 @@ import Testing
     #expect(task.oidcToken?.serviceAccountEmail == "sa@project.iam.gserviceaccount.com")
 }
 
-@Test func testDAISTasksTemplateSetupScript() {
-    let script = DAISTasksTemplate.setupScript(
+@Test func testTasksTemplateSetupScript() {
+    let script = TasksTemplate.setupScript(
         projectID: "my-project",
         location: "us-central1",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
     #expect(script.contains("cloudtasks.googleapis.com"))
@@ -12544,11 +12544,11 @@ import Testing
     #expect(script.contains("api-processing"))
 }
 
-@Test func testDAISTasksTemplateTeardownScript() {
-    let script = DAISTasksTemplate.teardownScript(
+@Test func testTasksTemplateTeardownScript() {
+    let script = TasksTemplate.teardownScript(
         projectID: "my-project",
         location: "us-central1",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
     #expect(script.contains("tasks queues delete"))
@@ -12816,58 +12816,58 @@ import Testing
     #expect(KMSRole.cryptoKeyEncrypter.description.contains("Encrypt"))
 }
 
-@Test func testDAISKMSTemplateKeyRing() {
-    let keyRing = DAISKMSTemplate.keyRing(
+@Test func testKMSTemplateKeyRing() {
+    let keyRing = KMSTemplate.keyRing(
         projectID: "my-project",
         location: "us-central1",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
-    #expect(keyRing.name == "dais-prod-keyring")
+    #expect(keyRing.name == "app-prod-keyring")
 }
 
-@Test func testDAISKMSTemplateDataEncryptionKey() {
-    let key = DAISKMSTemplate.dataEncryptionKey(
+@Test func testKMSTemplateDataEncryptionKey() {
+    let key = KMSTemplate.dataEncryptionKey(
         projectID: "my-project",
         location: "us-central1",
-        keyRing: "dais-prod-keyring",
-        deploymentName: "dais-prod"
+        keyRing: "app-prod-keyring",
+        deploymentName: "app-prod"
     )
 
-    #expect(key.name == "dais-prod-data-key")
+    #expect(key.name == "app-prod-data-key")
     #expect(key.purpose == .encryptDecrypt)
     #expect(key.rotationPeriod == "7776000s")
 }
 
-@Test func testDAISKMSTemplateHSMKey() {
-    let key = DAISKMSTemplate.hsmEncryptionKey(
+@Test func testKMSTemplateHSMKey() {
+    let key = KMSTemplate.hsmEncryptionKey(
         projectID: "my-project",
         location: "us-central1",
-        keyRing: "dais-prod-keyring",
-        deploymentName: "dais-prod"
+        keyRing: "app-prod-keyring",
+        deploymentName: "app-prod"
     )
 
-    #expect(key.name == "dais-prod-hsm-key")
+    #expect(key.name == "app-prod-hsm-key")
     #expect(key.protectionLevel == .hsm)
 }
 
-@Test func testDAISKMSTemplateSigningKey() {
-    let key = DAISKMSTemplate.signingKey(
+@Test func testKMSTemplateSigningKey() {
+    let key = KMSTemplate.signingKey(
         projectID: "my-project",
         location: "us-central1",
-        keyRing: "dais-prod-keyring",
-        deploymentName: "dais-prod"
+        keyRing: "app-prod-keyring",
+        deploymentName: "app-prod"
     )
 
-    #expect(key.name == "dais-prod-signing-key")
+    #expect(key.name == "app-prod-signing-key")
     #expect(key.purpose == .asymmetricSign)
 }
 
-@Test func testDAISKMSTemplateSetupScript() {
-    let script = DAISKMSTemplate.setupScript(
+@Test func testKMSTemplateSetupScript() {
+    let script = KMSTemplate.setupScript(
         projectID: "my-project",
         location: "us-central1",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
     #expect(script.contains("cloudkms.googleapis.com"))
@@ -12875,8 +12875,8 @@ import Testing
     #expect(script.contains("kms keys create"))
 }
 
-@Test func testDAISKMSTemplateGrantEncrypter() {
-    let cmd = DAISKMSTemplate.grantEncrypterCommand(
+@Test func testKMSTemplateGrantEncrypter() {
+    let cmd = KMSTemplate.grantEncrypterCommand(
         keyName: "my-key",
         keyRing: "my-keyring",
         location: "us-central1",
@@ -13083,37 +13083,37 @@ import Testing
     #expect(cmd.contains("bucket=my-bucket"))
 }
 
-@Test func testDAISEventarcTemplateStorageUploadTrigger() {
-    let trigger = DAISEventarcTemplate.storageUploadTrigger(
+@Test func testEventarcTemplateStorageUploadTrigger() {
+    let trigger = EventarcTemplate.storageUploadTrigger(
         projectID: "my-project",
         location: "us-central1",
-        deploymentName: "dais-prod",
-        bucket: "dais-uploads",
-        destinationService: "dais-api",
+        deploymentName: "app-prod",
+        bucket: "app-uploads",
+        destinationService: "app-api",
         serviceAccountEmail: "sa@project.iam.gserviceaccount.com"
     )
 
-    #expect(trigger.name == "dais-prod-storage-upload")
+    #expect(trigger.name == "app-prod-storage-upload")
     #expect(trigger.eventFilters.count == 2)
 }
 
-@Test func testDAISEventarcTemplatePubsubTrigger() {
-    let trigger = DAISEventarcTemplate.pubsubMessageTrigger(
+@Test func testEventarcTemplatePubsubTrigger() {
+    let trigger = EventarcTemplate.pubsubMessageTrigger(
         projectID: "my-project",
         location: "us-central1",
-        deploymentName: "dais-prod",
-        destinationService: "dais-api",
+        deploymentName: "app-prod",
+        destinationService: "app-api",
         serviceAccountEmail: "sa@project.iam.gserviceaccount.com"
     )
 
-    #expect(trigger.name == "dais-prod-pubsub-events")
+    #expect(trigger.name == "app-prod-pubsub-events")
 }
 
-@Test func testDAISEventarcTemplateSetupScript() {
-    let script = DAISEventarcTemplate.setupScript(
+@Test func testEventarcTemplateSetupScript() {
+    let script = EventarcTemplate.setupScript(
         projectID: "my-project",
         location: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         serviceAccountEmail: "sa@project.iam.gserviceaccount.com"
     )
 
@@ -13280,48 +13280,48 @@ import Testing
     #expect(cmd.contains("--size=10"))
 }
 
-@Test func testDAISMemorystoreTemplateCacheInstance() {
-    let instance = DAISMemorystoreTemplate.cacheInstance(
+@Test func testMemorystoreTemplateCacheInstance() {
+    let instance = MemorystoreTemplate.cacheInstance(
         projectID: "my-project",
         region: "us-central1",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
-    #expect(instance.name == "dais-prod-cache")
+    #expect(instance.name == "app-prod-cache")
     #expect(instance.tier == .basic)
     #expect(instance.redisConfigs?["maxmemory-policy"] == "allkeys-lru")
 }
 
-@Test func testDAISMemorystoreTemplateSessionStore() {
-    let instance = DAISMemorystoreTemplate.sessionStoreInstance(
+@Test func testMemorystoreTemplateSessionStore() {
+    let instance = MemorystoreTemplate.sessionStoreInstance(
         projectID: "my-project",
         region: "us-central1",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
-    #expect(instance.name == "dais-prod-sessions")
+    #expect(instance.name == "app-prod-sessions")
     #expect(instance.tier == .standardHa)
     #expect(instance.authEnabled == true)
 }
 
-@Test func testDAISMemorystoreTemplateHACluster() {
-    let instance = DAISMemorystoreTemplate.haClusterInstance(
+@Test func testMemorystoreTemplateHACluster() {
+    let instance = MemorystoreTemplate.haClusterInstance(
         projectID: "my-project",
         region: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         replicaCount: 2
     )
 
-    #expect(instance.name == "dais-prod-ha-redis")
+    #expect(instance.name == "app-prod-ha-redis")
     #expect(instance.replicaCount == 2)
     #expect(instance.readReplicasMode == .readReplicasEnabled)
 }
 
-@Test func testDAISMemorystoreTemplateConnectionStrings() {
-    let basic = DAISMemorystoreTemplate.redisConnectionString(host: "10.0.0.1")
+@Test func testMemorystoreTemplateConnectionStrings() {
+    let basic = MemorystoreTemplate.redisConnectionString(host: "10.0.0.1")
     #expect(basic == "redis://10.0.0.1:6379")
 
-    let withAuth = DAISMemorystoreTemplate.redisConnectionStringWithAuth(
+    let withAuth = MemorystoreTemplate.redisConnectionStringWithAuth(
         host: "10.0.0.1",
         authString: "secret123"
     )
@@ -13545,65 +13545,65 @@ import Testing
     #expect(clearCmd.contains("dry-run drop test-perimeter"))
 }
 
-@Test func testDAISVPCServiceControlsTemplateAccessPolicy() {
-    let policy = DAISVPCServiceControlsTemplate.accessPolicy(
+@Test func testVPCServiceControlsTemplateAccessPolicy() {
+    let policy = VPCServiceControlsTemplate.accessPolicy(
         organizationID: "org-123",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
-    #expect(policy.name == "dais-prod-policy")
-    #expect(policy.title.contains("dais-prod"))
+    #expect(policy.name == "app-prod-policy")
+    #expect(policy.title.contains("app-prod"))
 }
 
-@Test func testDAISVPCServiceControlsTemplateCorporateNetworkLevel() {
-    let level = DAISVPCServiceControlsTemplate.corporateNetworkLevel(
+@Test func testVPCServiceControlsTemplateCorporateNetworkLevel() {
+    let level = VPCServiceControlsTemplate.corporateNetworkLevel(
         policyID: "policy-123",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         corporateCIDRs: ["10.0.0.0/8", "172.16.0.0/12"]
     )
 
-    #expect(level.name == "dais-prod-corporate-network")
+    #expect(level.name == "app-prod-corporate-network")
     #expect(level.basic?.conditions.first?.ipSubnetworks?.contains("10.0.0.0/8") == true)
 }
 
-@Test func testDAISVPCServiceControlsTemplateDataProtectionPerimeter() {
-    let perimeter = DAISVPCServiceControlsTemplate.dataProtectionPerimeter(
+@Test func testVPCServiceControlsTemplateDataProtectionPerimeter() {
+    let perimeter = VPCServiceControlsTemplate.dataProtectionPerimeter(
         policyID: "policy-123",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         projectNumbers: ["123456789", "987654321"]
     )
 
-    #expect(perimeter.name == "dais-prod-data-protection")
+    #expect(perimeter.name == "app-prod-data-protection")
     #expect(perimeter.resources.contains("projects/123456789"))
     #expect(perimeter.restrictedServices.contains("storage.googleapis.com"))
 }
 
-@Test func testDAISVPCServiceControlsTemplateBridgePerimeter() {
-    let perimeter = DAISVPCServiceControlsTemplate.bridgePerimeter(
+@Test func testVPCServiceControlsTemplateBridgePerimeter() {
+    let perimeter = VPCServiceControlsTemplate.bridgePerimeter(
         policyID: "policy-123",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         projectNumbers: ["123", "456"]
     )
 
     #expect(perimeter.perimeterType == .bridge)
-    #expect(perimeter.name == "dais-prod-bridge")
+    #expect(perimeter.name == "app-prod-bridge")
 }
 
-@Test func testDAISVPCServiceControlsTemplateComprehensivePerimeter() {
-    let perimeter = DAISVPCServiceControlsTemplate.comprehensivePerimeter(
+@Test func testVPCServiceControlsTemplateComprehensivePerimeter() {
+    let perimeter = VPCServiceControlsTemplate.comprehensivePerimeter(
         policyID: "policy-123",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         projectNumbers: ["123456"],
         allowBigQueryExport: true
     )
 
-    #expect(perimeter.name == "dais-prod-comprehensive")
+    #expect(perimeter.name == "app-prod-comprehensive")
     #expect(perimeter.restrictedServices.count > 10)
     #expect(perimeter.egressPolicies != nil)
 }
 
-@Test func testDAISVPCServiceControlsTemplatePerimeterYAML() {
-    let yaml = DAISVPCServiceControlsTemplate.perimeterYAML(
+@Test func testVPCServiceControlsTemplatePerimeterYAML() {
+    let yaml = VPCServiceControlsTemplate.perimeterYAML(
         name: "test-perimeter",
         title: "Test Perimeter",
         resources: ["projects/123"],
@@ -13616,12 +13616,12 @@ import Testing
     #expect(yaml.contains("storage.googleapis.com"))
 }
 
-@Test func testDAISVPCServiceControlsTemplateSetupScript() {
-    let script = DAISVPCServiceControlsTemplate.setupScript(
+@Test func testVPCServiceControlsTemplateSetupScript() {
+    let script = VPCServiceControlsTemplate.setupScript(
         organizationID: "org-123",
         projectID: "my-project",
         projectNumber: "123456789",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         corporateCIDRs: ["10.0.0.0/8"]
     )
 
@@ -13629,7 +13629,7 @@ import Testing
     #expect(script.contains("policies create"))
     #expect(script.contains("levels create"))
     #expect(script.contains("perimeters create"))
-    #expect(script.contains("dais-prod"))
+    #expect(script.contains("app-prod"))
 }
 
 @Test func testAccessPolicyCodable() throws {
@@ -13937,48 +13937,48 @@ import Testing
     #expect(cmd.contains("ipAddresses"))
 }
 
-@Test func testDAISFilestoreTemplateSharedStorage() {
-    let instance = DAISFilestoreTemplate.sharedStorage(
+@Test func testFilestoreTemplateSharedStorage() {
+    let instance = FilestoreTemplate.sharedStorage(
         projectID: "my-project",
         zone: "us-central1-a",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
-    #expect(instance.name == "dais-prod-shared-storage")
+    #expect(instance.name == "app-prod-shared-storage")
     #expect(instance.tier == .basicSSD)
-    #expect(instance.labels?["deployment"] == "dais-prod")
+    #expect(instance.labels?["deployment"] == "app-prod")
 }
 
-@Test func testDAISFilestoreTemplateEnterpriseStorage() {
-    let instance = DAISFilestoreTemplate.enterpriseStorage(
+@Test func testFilestoreTemplateEnterpriseStorage() {
+    let instance = FilestoreTemplate.enterpriseStorage(
         projectID: "my-project",
         region: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         capacityGB: 4096,
         network: "prod-vpc"
     )
 
-    #expect(instance.name == "dais-prod-enterprise-storage")
+    #expect(instance.name == "app-prod-enterprise-storage")
     #expect(instance.tier == .enterprise)
     #expect(instance.fileShares.first?.nfsExportOptions?.first?.squashMode == .rootSquash)
 }
 
-@Test func testDAISFilestoreTemplateDataProcessing() {
-    let instance = DAISFilestoreTemplate.dataProcessingStorage(
+@Test func testFilestoreTemplateDataProcessing() {
+    let instance = FilestoreTemplate.dataProcessingStorage(
         projectID: "my-project",
         zone: "us-central1-a",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         capacityGB: 20480,
         network: "data-vpc"
     )
 
-    #expect(instance.name == "dais-prod-data-storage")
+    #expect(instance.name == "app-prod-data-storage")
     #expect(instance.tier == .highScaleSSD)
     #expect(instance.fileShares.first?.capacityGB == 20480)
 }
 
-@Test func testDAISFilestoreTemplateFstabEntry() {
-    let entry = DAISFilestoreTemplate.fstabEntry(
+@Test func testFilestoreTemplateFstabEntry() {
+    let entry = FilestoreTemplate.fstabEntry(
         filestoreIP: "10.0.0.2",
         fileShareName: "shared",
         mountPoint: "/mnt/filestore"
@@ -13989,16 +13989,16 @@ import Testing
     #expect(entry.contains("nfs"))
 }
 
-@Test func testDAISFilestoreTemplateSetupScript() {
-    let script = DAISFilestoreTemplate.setupScript(
+@Test func testFilestoreTemplateSetupScript() {
+    let script = FilestoreTemplate.setupScript(
         projectID: "my-project",
         zone: "us-central1-a",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
     #expect(script.contains("file.googleapis.com"))
     #expect(script.contains("filestore instances create"))
-    #expect(script.contains("dais-prod-shared-storage"))
+    #expect(script.contains("app-prod-shared-storage"))
 }
 
 @Test func testFilestoreInstanceCodable() throws {
@@ -14262,35 +14262,35 @@ import Testing
     #expect(cmds[2].contains("4500"))
 }
 
-@Test func testDAISVPNTemplateHAGateway() {
-    let gateway = DAISVPNTemplate.haVPNGateway(
+@Test func testVPNTemplateHAGateway() {
+    let gateway = VPNTemplate.haVPNGateway(
         projectID: "my-project",
         region: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         network: "prod-vpc"
     )
 
-    #expect(gateway.name == "dais-prod-vpn-gw")
+    #expect(gateway.name == "app-prod-vpn-gw")
     #expect(gateway.stackType == .ipv4Only)
-    #expect(gateway.labels?["deployment"] == "dais-prod")
+    #expect(gateway.labels?["deployment"] == "app-prod")
 }
 
-@Test func testDAISVPNTemplateExternalGateway() {
-    let external = DAISVPNTemplate.externalGateway(
+@Test func testVPNTemplateExternalGateway() {
+    let external = VPNTemplate.externalGateway(
         projectID: "my-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         peerIPs: ["203.0.113.1", "203.0.113.2"]
     )
 
-    #expect(external.name == "dais-prod-peer-gw")
+    #expect(external.name == "app-prod-peer-gw")
     #expect(external.redundancyType == .twoIPs)
     #expect(external.interfaces.count == 2)
 }
 
-@Test func testDAISVPNTemplateExternalGatewaySingleIP() {
-    let external = DAISVPNTemplate.externalGateway(
+@Test func testVPNTemplateExternalGatewaySingleIP() {
+    let external = VPNTemplate.externalGateway(
         projectID: "my-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         peerIPs: ["198.51.100.1"]
     )
 
@@ -14298,24 +14298,24 @@ import Testing
     #expect(external.interfaces.count == 1)
 }
 
-@Test func testDAISVPNTemplateTunnel() {
-    let tunnel = DAISVPNTemplate.vpnTunnel(
+@Test func testVPNTemplateTunnel() {
+    let tunnel = VPNTemplate.vpnTunnel(
         projectID: "my-project",
         region: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         interfaceNum: 0,
         peerInterfaceNum: 0,
         sharedSecret: "supersecret",
-        routerName: "dais-router"
+        routerName: "app-router"
     )
 
-    #expect(tunnel.name == "dais-prod-tunnel-0")
+    #expect(tunnel.name == "app-prod-tunnel-0")
     #expect(tunnel.ikeVersion == .v2)
 }
 
-@Test func testDAISVPNTemplateBGPPeerCommand() {
-    let cmd = DAISVPNTemplate.bgpPeerCommand(
-        routerName: "dais-router",
+@Test func testVPNTemplateBGPPeerCommand() {
+    let cmd = VPNTemplate.bgpPeerCommand(
+        routerName: "app-router",
         peerName: "bgp-peer-0",
         peerASN: 65001,
         peerIPAddress: "169.254.0.2",
@@ -14324,16 +14324,16 @@ import Testing
         region: "us-central1"
     )
 
-    #expect(cmd.contains("add-bgp-peer dais-router"))
+    #expect(cmd.contains("add-bgp-peer app-router"))
     #expect(cmd.contains("--peer-asn=65001"))
     #expect(cmd.contains("--peer-ip-address=169.254.0.2"))
 }
 
-@Test func testDAISVPNTemplateSetupScript() {
-    let script = DAISVPNTemplate.setupScript(
+@Test func testVPNTemplateSetupScript() {
+    let script = VPNTemplate.setupScript(
         projectID: "my-project",
         region: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         network: "prod-vpc",
         peerASN: 65001,
         peerIPs: ["203.0.113.1"]
@@ -14345,11 +14345,11 @@ import Testing
     #expect(script.contains("65001"))
 }
 
-@Test func testDAISVPNTemplateTeardownScript() {
-    let script = DAISVPNTemplate.teardownScript(
+@Test func testVPNTemplateTeardownScript() {
+    let script = VPNTemplate.teardownScript(
         projectID: "my-project",
         region: "us-central1",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
     #expect(script.contains("remove-bgp-peer"))
@@ -14794,34 +14794,34 @@ import Testing
     #expect(cmd.contains("--use_legacy_sql=false"))
 }
 
-@Test func testDAISBigQueryTemplateAnalyticsDataset() {
-    let dataset = DAISBigQueryTemplate.analyticsDataset(
+@Test func testBigQueryTemplateAnalyticsDataset() {
+    let dataset = BigQueryTemplate.analyticsDataset(
         projectID: "my-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         location: "US"
     )
 
-    #expect(dataset.datasetID == "dais_prod_analytics")
+    #expect(dataset.datasetID == "app_prod_analytics")
     #expect(dataset.location == "US")
-    #expect(dataset.labels?["deployment"] == "dais-prod")
+    #expect(dataset.labels?["deployment"] == "app-prod")
     #expect(dataset.labels?["purpose"] == "analytics")
 }
 
-@Test func testDAISBigQueryTemplateLogsDataset() {
-    let dataset = DAISBigQueryTemplate.logsDataset(
+@Test func testBigQueryTemplateLogsDataset() {
+    let dataset = BigQueryTemplate.logsDataset(
         projectID: "my-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         location: "EU",
         expirationDays: 30
     )
 
-    #expect(dataset.datasetID == "dais_prod_logs")
+    #expect(dataset.datasetID == "app_prod_logs")
     #expect(dataset.defaultTableExpirationMs == Int64(30) * 24 * 60 * 60 * 1000)
     #expect(dataset.labels?["purpose"] == "logs")
 }
 
-@Test func testDAISBigQueryTemplateEventsTableSchema() {
-    let schema = DAISBigQueryTemplate.eventsTableSchema()
+@Test func testBigQueryTemplateEventsTableSchema() {
+    let schema = BigQueryTemplate.eventsTableSchema()
 
     #expect(schema.fields.count == 7)
     #expect(schema.fields[0].name == "event_id")
@@ -14831,11 +14831,11 @@ import Testing
     #expect(schema.fields[2].type == .timestamp)
 }
 
-@Test func testDAISBigQueryTemplateEventsTable() {
-    let table = DAISBigQueryTemplate.eventsTable(
+@Test func testBigQueryTemplateEventsTable() {
+    let table = BigQueryTemplate.eventsTable(
         projectID: "my-project",
-        datasetID: "dais_prod_analytics",
-        deploymentName: "dais-prod"
+        datasetID: "app_prod_analytics",
+        deploymentName: "app-prod"
     )
 
     #expect(table.tableID == "events")
@@ -14845,11 +14845,11 @@ import Testing
     #expect(table.labels?["table_type"] == "events")
 }
 
-@Test func testDAISBigQueryTemplateDailyAggregationView() {
-    let view = DAISBigQueryTemplate.dailyAggregationView(
+@Test func testBigQueryTemplateDailyAggregationView() {
+    let view = BigQueryTemplate.dailyAggregationView(
         projectID: "my-project",
-        datasetID: "dais_prod_analytics",
-        deploymentName: "dais-prod"
+        datasetID: "app_prod_analytics",
+        deploymentName: "app-prod"
     )
 
     #expect(view.viewID == "daily_event_counts")
@@ -14858,33 +14858,33 @@ import Testing
     #expect(view.query.contains("COUNT(DISTINCT user_id)"))
 }
 
-@Test func testDAISBigQueryTemplateSetupScript() {
-    let script = DAISBigQueryTemplate.setupScript(
+@Test func testBigQueryTemplateSetupScript() {
+    let script = BigQueryTemplate.setupScript(
         projectID: "my-project",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         location: "US"
     )
 
     #expect(script.contains("#!/bin/bash"))
     #expect(script.contains("bigquery.googleapis.com"))
     #expect(script.contains("bq mk --dataset"))
-    #expect(script.contains("dais_prod_analytics"))
+    #expect(script.contains("app_prod_analytics"))
     #expect(script.contains("bq mk --table"))
     #expect(script.contains("--time_partitioning_field=event_timestamp"))
     #expect(script.contains("bq mk --view"))
     #expect(script.contains("daily_event_counts"))
 }
 
-@Test func testDAISBigQueryTemplateTeardownScript() {
-    let script = DAISBigQueryTemplate.teardownScript(
+@Test func testBigQueryTemplateTeardownScript() {
+    let script = BigQueryTemplate.teardownScript(
         projectID: "my-project",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
     #expect(script.contains("#!/bin/bash"))
     #expect(script.contains("bq rm -r -f -d"))
-    #expect(script.contains("dais_prod_analytics"))
-    #expect(script.contains("dais_prod_logs"))
+    #expect(script.contains("app_prod_analytics"))
+    #expect(script.contains("app_prod_logs"))
 }
 
 @Test func testBigQueryDatasetCodable() throws {
@@ -15383,74 +15383,74 @@ import Testing
     #expect(job.parameters?["outputDirectory"] == "gs://bucket/exports")
 }
 
-@Test func testDAISDataflowTemplateStreamingETLJob() {
-    let job = DAISDataflowTemplate.streamingETLJob(
+@Test func testDataflowTemplateStreamingETLJob() {
+    let job = DataflowTemplate.streamingETLJob(
         projectID: "my-project",
         region: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         inputTopic: "projects/my-project/topics/events",
         outputTable: "my-project:analytics.events",
-        tempBucket: "dais-prod-dataflow"
+        tempBucket: "app-prod-dataflow"
     )
 
-    #expect(job.name == "dais-prod-streaming-etl")
+    #expect(job.name == "app-prod-streaming-etl")
     #expect(job.type == .streaming)
     #expect(job.environment?.enableStreamingEngine == true)
-    #expect(job.labels?["deployment"] == "dais-prod")
-    #expect(job.labels?["managed-by"] == "dais")
+    #expect(job.labels?["deployment"] == "app-prod")
+    #expect(job.labels?["managed-by"] == "googlecloudswift")
 }
 
-@Test func testDAISDataflowTemplateBatchExportJob() {
-    let job = DAISDataflowTemplate.batchExportJob(
+@Test func testDataflowTemplateBatchExportJob() {
+    let job = DataflowTemplate.batchExportJob(
         projectID: "my-project",
         region: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         sourceTable: "my-project:analytics.events",
-        destinationBucket: "dais-prod-exports",
-        tempBucket: "dais-prod-dataflow"
+        destinationBucket: "app-prod-exports",
+        tempBucket: "app-prod-dataflow"
     )
 
-    #expect(job.name == "dais-prod-batch-export")
+    #expect(job.name == "app-prod-batch-export")
     #expect(job.type == .batch)
     #expect(job.environment?.machineType == "n1-standard-4")
 }
 
-@Test func testDAISDataflowTemplateLogProcessingJob() {
-    let job = DAISDataflowTemplate.logProcessingJob(
+@Test func testDataflowTemplateLogProcessingJob() {
+    let job = DataflowTemplate.logProcessingJob(
         projectID: "my-project",
         region: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         logsTopic: "projects/my-project/topics/logs",
-        outputDataset: "dais_prod_logs",
-        tempBucket: "dais-prod-dataflow"
+        outputDataset: "app_prod_logs",
+        tempBucket: "app-prod-dataflow"
     )
 
-    #expect(job.name == "dais-prod-log-processor")
+    #expect(job.name == "app-prod-log-processor")
     #expect(job.type == .streaming)
     #expect(job.environment?.additionalExperiments?.contains("enable_streaming_engine") == true)
 }
 
-@Test func testDAISDataflowTemplateDataArchiveJob() {
-    let job = DAISDataflowTemplate.dataArchiveJob(
+@Test func testDataflowTemplateDataArchiveJob() {
+    let job = DataflowTemplate.dataArchiveJob(
         projectID: "my-project",
         region: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         sourceTable: "my-project:analytics.old_events",
-        archiveBucket: "dais-prod-archive",
-        tempBucket: "dais-prod-dataflow"
+        archiveBucket: "app-prod-archive",
+        tempBucket: "app-prod-dataflow"
     )
 
-    #expect(job.name == "dais-prod-data-archive")
+    #expect(job.name == "app-prod-data-archive")
     #expect(job.environment?.diskSizeGb == 100)
     #expect(job.environment?.maxWorkers == 50)
 }
 
-@Test func testDAISDataflowTemplateSetupScript() {
-    let script = DAISDataflowTemplate.setupScript(
+@Test func testDataflowTemplateSetupScript() {
+    let script = DataflowTemplate.setupScript(
         projectID: "my-project",
         region: "us-central1",
-        deploymentName: "dais-prod",
-        tempBucket: "dais-prod-dataflow",
+        deploymentName: "app-prod",
+        tempBucket: "app-prod-dataflow",
         serviceAccountEmail: "dataflow@my-project.iam.gserviceaccount.com"
     )
 
@@ -15464,17 +15464,17 @@ import Testing
     #expect(script.contains("roles/pubsub.subscriber"))
 }
 
-@Test func testDAISDataflowTemplateTeardownScript() {
-    let script = DAISDataflowTemplate.teardownScript(
+@Test func testDataflowTemplateTeardownScript() {
+    let script = DataflowTemplate.teardownScript(
         projectID: "my-project",
         region: "us-central1",
-        deploymentName: "dais-prod"
+        deploymentName: "app-prod"
     )
 
     #expect(script.contains("#!/bin/bash"))
     #expect(script.contains("dataflow jobs cancel"))
     #expect(script.contains("dataflow jobs drain"))
-    #expect(script.contains("dais-prod"))
+    #expect(script.contains("app-prod"))
 }
 
 @Test func testDataflowJobCodable() throws {
@@ -15892,58 +15892,58 @@ import Testing
     #expect(cmd.contains("--promote-release-rule=promoteRule"))
 }
 
-@Test func testDAISCloudDeployTemplateCloudRunPipeline() {
-    let pipeline = DAISCloudDeployTemplate.cloudRunPipeline(
+@Test func testCloudDeployTemplateCloudRunPipeline() {
+    let pipeline = CloudDeployTemplate.cloudRunPipeline(
         projectID: "my-project",
         location: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         stages: [
             (name: "dev", runLocation: "us-central1", requireApproval: false),
             (name: "prod", runLocation: "us-central1", requireApproval: true)
         ]
     )
 
-    #expect(pipeline.name == "dais-prod-pipeline")
+    #expect(pipeline.name == "app-prod-pipeline")
     #expect(pipeline.serialPipeline?.stages.count == 2)
-    #expect(pipeline.labels?["deployment"] == "dais-prod")
+    #expect(pipeline.labels?["deployment"] == "app-prod")
 }
 
-@Test func testDAISCloudDeployTemplateCloudRunTarget() {
-    let target = DAISCloudDeployTemplate.cloudRunTarget(
+@Test func testCloudDeployTemplateCloudRunTarget() {
+    let target = CloudDeployTemplate.cloudRunTarget(
         projectID: "my-project",
         location: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         environment: "prod",
         runLocation: "us-central1",
         requireApproval: true
     )
 
-    #expect(target.name == "dais-prod-prod")
+    #expect(target.name == "app-prod-prod")
     #expect(target.requireApproval == true)
     #expect(target.labels?["environment"] == "prod")
 }
 
-@Test func testDAISCloudDeployTemplateGKETarget() {
-    let target = DAISCloudDeployTemplate.gkeTarget(
+@Test func testCloudDeployTemplateGKETarget() {
+    let target = CloudDeployTemplate.gkeTarget(
         projectID: "my-project",
         location: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         environment: "staging",
         clusterName: "main-cluster",
         clusterLocation: "us-central1-a"
     )
 
-    #expect(target.name == "dais-prod-staging")
+    #expect(target.name == "app-prod-staging")
     if case .gke(let cluster, _) = target.targetType {
         #expect(cluster.contains("main-cluster"))
     }
 }
 
-@Test func testDAISCloudDeployTemplateSetupScript() {
-    let script = DAISCloudDeployTemplate.setupScript(
+@Test func testCloudDeployTemplateSetupScript() {
+    let script = CloudDeployTemplate.setupScript(
         projectID: "my-project",
         location: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         environments: [
             (name: "dev", runLocation: "us-central1", requireApproval: false),
             (name: "prod", runLocation: "us-central1", requireApproval: true)
@@ -15952,28 +15952,28 @@ import Testing
 
     #expect(script.contains("#!/bin/bash"))
     #expect(script.contains("clouddeploy.googleapis.com"))
-    #expect(script.contains("targets create dais-prod-dev"))
-    #expect(script.contains("targets create dais-prod-prod"))
+    #expect(script.contains("targets create app-prod-dev"))
+    #expect(script.contains("targets create app-prod-prod"))
     #expect(script.contains("--require-approval"))
-    #expect(script.contains("dais-prod-pipeline"))
+    #expect(script.contains("app-prod-pipeline"))
 }
 
-@Test func testDAISCloudDeployTemplateTeardownScript() {
-    let script = DAISCloudDeployTemplate.teardownScript(
+@Test func testCloudDeployTemplateTeardownScript() {
+    let script = CloudDeployTemplate.teardownScript(
         projectID: "my-project",
         location: "us-central1",
-        deploymentName: "dais-prod",
+        deploymentName: "app-prod",
         environments: ["dev", "staging", "prod"]
     )
 
-    #expect(script.contains("delivery-pipelines delete dais-prod-pipeline"))
-    #expect(script.contains("targets delete dais-prod-dev"))
-    #expect(script.contains("targets delete dais-prod-staging"))
-    #expect(script.contains("targets delete dais-prod-prod"))
+    #expect(script.contains("delivery-pipelines delete app-prod-pipeline"))
+    #expect(script.contains("targets delete app-prod-dev"))
+    #expect(script.contains("targets delete app-prod-staging"))
+    #expect(script.contains("targets delete app-prod-prod"))
 }
 
-@Test func testDAISCloudDeployTemplateSkaffoldYaml() {
-    let yaml = DAISCloudDeployTemplate.skaffoldYamlCloudRun(
+@Test func testCloudDeployTemplateSkaffoldYaml() {
+    let yaml = CloudDeployTemplate.skaffoldYamlCloudRun(
         projectID: "my-project",
         serviceName: "my-service",
         image: "gcr.io/my-project/my-service:latest"
@@ -15983,8 +15983,8 @@ import Testing
     #expect(yaml.contains("cloudrun: {}"))
 }
 
-@Test func testDAISCloudDeployTemplateCloudRunServiceYaml() {
-    let yaml = DAISCloudDeployTemplate.cloudRunServiceYaml(
+@Test func testCloudDeployTemplateCloudRunServiceYaml() {
+    let yaml = CloudDeployTemplate.cloudRunServiceYaml(
         serviceName: "api-service",
         image: "gcr.io/project/api:v1",
         port: 8080,
@@ -16375,59 +16375,59 @@ import Testing
     }
 }
 
-@Test func testDAISWorkflowsTemplateDataProcessing() {
-    let template = DAISWorkflowsTemplate(
+@Test func testWorkflowsTemplateDataProcessing() {
+    let template = WorkflowsTemplate(
         projectID: "my-project",
         location: "us-central1",
         serviceAccountEmail: "workflow-sa@my-project.iam.gserviceaccount.com"
     )
 
     let workflow = template.dataProcessingWorkflow
-    #expect(workflow.name == "dais-data-processing")
-    #expect(workflow.labels?["app"] == "dais")
+    #expect(workflow.name == "app-data-processing")
+    #expect(workflow.labels?["app"] == "my-app")
     #expect(workflow.labels?["component"] == "data-processing")
     #expect(workflow.serviceAccount == "workflow-sa@my-project.iam.gserviceaccount.com")
     #expect(workflow.sourceContents?.contains("processData") == true)
 }
 
-@Test func testDAISWorkflowsTemplateStorageEvent() {
-    let template = DAISWorkflowsTemplate(projectID: "my-project")
+@Test func testWorkflowsTemplateStorageEvent() {
+    let template = WorkflowsTemplate(projectID: "my-project")
 
     let workflow = template.storageEventWorkflow
-    #expect(workflow.name == "dais-storage-event-handler")
+    #expect(workflow.name == "app-storage-event-handler")
     #expect(workflow.sourceContents?.contains("event.data.bucket") == true)
     #expect(workflow.sourceContents?.contains("contentType") == true)
 }
 
-@Test func testDAISWorkflowsTemplateBatchProcessing() {
-    let template = DAISWorkflowsTemplate(projectID: "my-project")
+@Test func testWorkflowsTemplateBatchProcessing() {
+    let template = WorkflowsTemplate(projectID: "my-project")
 
     let workflow = template.batchProcessingWorkflow
-    #expect(workflow.name == "dais-batch-processing")
+    #expect(workflow.name == "app-batch-processing")
     #expect(workflow.sourceContents?.contains("parallel:") == true)
     #expect(workflow.sourceContents?.contains("processedCount") == true)
 }
 
-@Test func testDAISWorkflowsTemplateRetry() {
-    let template = DAISWorkflowsTemplate(projectID: "my-project")
+@Test func testWorkflowsTemplateRetry() {
+    let template = WorkflowsTemplate(projectID: "my-project")
 
     let workflow = template.retryWorkflow
-    #expect(workflow.name == "dais-retry-workflow")
+    #expect(workflow.name == "app-retry-workflow")
     #expect(workflow.sourceContents?.contains("maxRetries") == true)
     #expect(workflow.sourceContents?.contains("exponential") != true || workflow.sourceContents?.contains("math.pow") == true)
 }
 
-@Test func testDAISWorkflowsTemplateApproval() {
-    let template = DAISWorkflowsTemplate(projectID: "my-project")
+@Test func testWorkflowsTemplateApproval() {
+    let template = WorkflowsTemplate(projectID: "my-project")
 
     let workflow = template.approvalWorkflow
-    #expect(workflow.name == "dais-approval-workflow")
+    #expect(workflow.name == "app-approval-workflow")
     #expect(workflow.sourceContents?.contains("callbacks.await") == true)
     #expect(workflow.sourceContents?.contains("approvalTimeout") == true)
 }
 
-@Test func testDAISWorkflowsTemplateSetupScript() {
-    let template = DAISWorkflowsTemplate(
+@Test func testWorkflowsTemplateSetupScript() {
+    let template = WorkflowsTemplate(
         projectID: "my-project",
         location: "us-central1",
         serviceAccountEmail: "sa@my-project.iam.gserviceaccount.com"
@@ -16435,8 +16435,8 @@ import Testing
 
     let script = template.setupScript
     #expect(script.contains("gcloud services enable workflows.googleapis.com"))
-    #expect(script.contains("gcloud workflows deploy dais-data-processing"))
-    #expect(script.contains("gcloud workflows deploy dais-batch-processing"))
+    #expect(script.contains("gcloud workflows deploy app-data-processing"))
+    #expect(script.contains("gcloud workflows deploy app-batch-processing"))
     #expect(script.contains("gcloud workflows list"))
 }
 
@@ -16622,7 +16622,7 @@ import Testing
         location: "us-central1",
         apiConfig: "my-config",
         displayName: "My Gateway",
-        labels: ["app": "dais"]
+        labels: ["app": "my-app"]
     )
 
     let cmd = gateway.createCommand
@@ -16750,58 +16750,58 @@ import Testing
     #expect(cmd.contains("servicemanagement.googleapis.com"))
 }
 
-@Test func testDAISAPIGatewayTemplateAPI() {
-    let template = DAISAPIGatewayTemplate(
+@Test func testAPIGatewayTemplateAPI() {
+    let template = APIGatewayTemplate(
         projectID: "my-project",
         backendURL: "https://my-backend.run.app"
     )
 
     let api = template.api
-    #expect(api.name == "dais-api")
-    #expect(api.displayName == "DAIS API")
-    #expect(api.labels?["app"] == "dais")
+    #expect(api.name == "app-api")
+    #expect(api.displayName == "Cloud API")
+    #expect(api.labels?["app"] == "my-app")
 }
 
-@Test func testDAISAPIGatewayTemplateConfig() {
-    let template = DAISAPIGatewayTemplate(
+@Test func testAPIGatewayTemplateConfig() {
+    let template = APIGatewayTemplate(
         projectID: "my-project",
         serviceAccountEmail: "sa@my-project.iam.gserviceaccount.com",
         backendURL: "https://my-backend.run.app"
     )
 
     let config = template.config(version: "v2")
-    #expect(config.name == "dais-api-config-v2")
+    #expect(config.name == "app-api-config-v2")
     #expect(config.gatewayServiceAccount == "sa@my-project.iam.gserviceaccount.com")
 }
 
-@Test func testDAISAPIGatewayTemplateGateway() {
-    let template = DAISAPIGatewayTemplate(
+@Test func testAPIGatewayTemplateGateway() {
+    let template = APIGatewayTemplate(
         projectID: "my-project",
         location: "us-west1",
         backendURL: "https://my-backend.run.app"
     )
 
     let gateway = template.gateway()
-    #expect(gateway.name == "dais-api-gateway")
+    #expect(gateway.name == "app-api-gateway")
     #expect(gateway.location == "us-west1")
 }
 
-@Test func testDAISAPIGatewayTemplateOpenAPISpec() {
-    let template = DAISAPIGatewayTemplate(
+@Test func testAPIGatewayTemplateOpenAPISpec() {
+    let template = APIGatewayTemplate(
         projectID: "my-project",
         backendURL: "https://my-backend.run.app"
     )
 
     let spec = template.openAPISpec
     #expect(spec.contains("swagger: \"2.0\""))
-    #expect(spec.contains("DAIS API"))
+    #expect(spec.contains("Cloud API"))
     #expect(spec.contains("/health"))
     #expect(spec.contains("/api/v1/nodes"))
     #expect(spec.contains("/api/v1/inference"))
 }
 
-@Test func testDAISAPIGatewayTemplateOpenAPISpecWithAPIKey() {
-    let template = DAISAPIGatewayTemplate(
+@Test func testAPIGatewayTemplateOpenAPISpecWithAPIKey() {
+    let template = APIGatewayTemplate(
         projectID: "my-project",
         backendURL: "https://my-backend.run.app"
     )
@@ -16811,8 +16811,8 @@ import Testing
     #expect(spec.contains("type: \"apiKey\""))
 }
 
-@Test func testDAISAPIGatewayTemplateSetupScript() {
-    let template = DAISAPIGatewayTemplate(
+@Test func testAPIGatewayTemplateSetupScript() {
+    let template = APIGatewayTemplate(
         projectID: "my-project",
         location: "us-central1",
         backendURL: "https://my-backend.run.app"
@@ -16825,8 +16825,8 @@ import Testing
     #expect(script.contains("gcloud api-gateway gateways create"))
 }
 
-@Test func testDAISAPIGatewayTemplateTeardownScript() {
-    let template = DAISAPIGatewayTemplate(
+@Test func testAPIGatewayTemplateTeardownScript() {
+    let template = APIGatewayTemplate(
         projectID: "my-project",
         backendURL: "https://my-backend.run.app"
     )
@@ -17124,52 +17124,52 @@ import Testing
     #expect(DLPOperations.enableAPICommand == "gcloud services enable dlp.googleapis.com")
 }
 
-@Test func testDAISDLPTemplatePIIInspectConfig() {
-    let template = DAISDLPTemplate(projectID: "my-project")
+@Test func testDLPTemplatePIIInspectConfig() {
+    let template = DLPTemplate(projectID: "my-project")
     let config = template.piiInspectConfig
 
     #expect(config.infoTypes?.isEmpty == false)
     #expect(config.minLikelihood == .likely)
 }
 
-@Test func testDAISDLPTemplateFinancialInspectConfig() {
-    let template = DAISDLPTemplate(projectID: "my-project")
+@Test func testDLPTemplateFinancialInspectConfig() {
+    let template = DLPTemplate(projectID: "my-project")
     let config = template.financialInspectConfig
 
     #expect(config.infoTypes?.contains(where: { $0.name == "CREDIT_CARD_NUMBER" }) == true)
 }
 
-@Test func testDAISDLPTemplateRedactionConfig() {
-    let template = DAISDLPTemplate(projectID: "my-project")
+@Test func testDLPTemplateRedactionConfig() {
+    let template = DLPTemplate(projectID: "my-project")
     let config = template.redactionDeidentifyConfig
 
     #expect(config.infoTypeTransformations != nil)
 }
 
-@Test func testDAISDLPTemplateMaskingConfig() {
-    let template = DAISDLPTemplate(projectID: "my-project")
+@Test func testDLPTemplateMaskingConfig() {
+    let template = DLPTemplate(projectID: "my-project")
     let config = template.maskingDeidentifyConfig
 
     #expect(config.infoTypeTransformations?.transformations.count ?? 0 > 0)
 }
 
-@Test func testDAISDLPTemplatePIIInspectTemplate() {
-    let template = DAISDLPTemplate(projectID: "my-project")
+@Test func testDLPTemplatePIIInspectTemplate() {
+    let template = DLPTemplate(projectID: "my-project")
     let inspectTemplate = template.piiInspectTemplate
 
-    #expect(inspectTemplate.name == "dais-pii-inspect")
-    #expect(inspectTemplate.displayName == "DAIS PII Inspection Template")
+    #expect(inspectTemplate.name == "app-pii-inspect")
+    #expect(inspectTemplate.displayName == "Cloud PII Inspection Template")
 }
 
-@Test func testDAISDLPTemplateRedactionDeidentifyTemplate() {
-    let template = DAISDLPTemplate(projectID: "my-project")
+@Test func testDLPTemplateRedactionDeidentifyTemplate() {
+    let template = DLPTemplate(projectID: "my-project")
     let deidentifyTemplate = template.redactionDeidentifyTemplate
 
-    #expect(deidentifyTemplate.name == "dais-redaction-deidentify")
+    #expect(deidentifyTemplate.name == "app-redaction-deidentify")
 }
 
-@Test func testDAISDLPTemplateSetupScript() {
-    let template = DAISDLPTemplate(projectID: "my-project")
+@Test func testDLPTemplateSetupScript() {
+    let template = DLPTemplate(projectID: "my-project")
     let script = template.setupScript
 
     #expect(script.contains("gcloud services enable dlp.googleapis.com"))
@@ -17760,50 +17760,50 @@ import Testing
     #expect(cmd.contains("--project=my-project"))
 }
 
-// MARK: - DAIS GKE Template Tests
+// MARK: - Cloud GKE Template Tests
 
-@Test func testDAISGKETemplateBasicInit() {
-    let template = DAISGKETemplate(
+@Test func testGKETemplateBasicInit() {
+    let template = GKETemplate(
         projectID: "my-project",
         location: "us-central1",
-        clusterName: "dais-cluster"
+        clusterName: "app-cluster"
     )
 
     #expect(template.projectID == "my-project")
     #expect(template.location == "us-central1")
-    #expect(template.clusterName == "dais-cluster")
+    #expect(template.clusterName == "app-cluster")
 }
 
-@Test func testDAISGKETemplateStandardCluster() {
-    let template = DAISGKETemplate(projectID: "my-project")
+@Test func testGKETemplateStandardCluster() {
+    let template = GKETemplate(projectID: "my-project")
     let cluster = template.standardCluster
 
-    #expect(cluster.name == "dais-cluster")
+    #expect(cluster.name == "app-cluster")
     #expect(cluster.initialNodeCount == 3)
     #expect(cluster.nodeConfig?.machineType == "e2-standard-4")
     #expect(cluster.releaseChannel?.channel == .regular)
     #expect(cluster.workloadIdentityConfig?.workloadPool == "my-project.svc.id.goog")
 }
 
-@Test func testDAISGKETemplateAutopilotCluster() {
-    let template = DAISGKETemplate(projectID: "my-project")
+@Test func testGKETemplateAutopilotCluster() {
+    let template = GKETemplate(projectID: "my-project")
     let cluster = template.autopilotCluster
 
-    #expect(cluster.name == "dais-cluster-autopilot")
+    #expect(cluster.name == "app-cluster-autopilot")
     #expect(cluster.autopilot?.enabled == true)
 }
 
-@Test func testDAISGKETemplatePrivateCluster() {
-    let template = DAISGKETemplate(projectID: "my-project")
+@Test func testGKETemplatePrivateCluster() {
+    let template = GKETemplate(projectID: "my-project")
     let cluster = template.privateCluster
 
-    #expect(cluster.name == "dais-cluster-private")
+    #expect(cluster.name == "app-cluster-private")
     #expect(cluster.privateClusterConfig?.enablePrivateNodes == true)
     #expect(cluster.privateClusterConfig?.masterIpv4CidrBlock == "172.16.0.0/28")
 }
 
-@Test func testDAISGKETemplateGPUNodePool() {
-    let template = DAISGKETemplate(projectID: "my-project")
+@Test func testGKETemplateGPUNodePool() {
+    let template = GKETemplate(projectID: "my-project")
     let nodePool = template.gpuNodePool
 
     #expect(nodePool.name == "gpu-pool")
@@ -17813,8 +17813,8 @@ import Testing
     #expect(nodePool.autoscaling?.maxNodeCount == 5)
 }
 
-@Test func testDAISGKETemplateSpotNodePool() {
-    let template = DAISGKETemplate(projectID: "my-project")
+@Test func testGKETemplateSpotNodePool() {
+    let template = GKETemplate(projectID: "my-project")
     let nodePool = template.spotNodePool
 
     #expect(nodePool.name == "spot-pool")
@@ -17822,8 +17822,8 @@ import Testing
     #expect(nodePool.initialNodeCount == 0)
 }
 
-@Test func testDAISGKETemplateSetupScript() {
-    let template = DAISGKETemplate(projectID: "my-project")
+@Test func testGKETemplateSetupScript() {
+    let template = GKETemplate(projectID: "my-project")
     let script = template.setupScript
 
     #expect(script.contains("gcloud services enable container.googleapis.com"))
@@ -17831,8 +17831,8 @@ import Testing
     #expect(script.contains("gcloud container clusters get-credentials"))
 }
 
-@Test func testDAISGKETemplateTeardownScript() {
-    let template = DAISGKETemplate(projectID: "my-project")
+@Test func testGKETemplateTeardownScript() {
+    let template = GKETemplate(projectID: "my-project")
     let script = template.teardownScript
 
     #expect(script.contains("gcloud container clusters delete"))
@@ -18287,53 +18287,53 @@ import Testing
     #expect(cmd.contains("--role=roles/spanner.databaseAdmin"))
 }
 
-// MARK: - DAIS Spanner Template Tests
+// MARK: - Cloud Spanner Template Tests
 
-@Test func testDAISSpannerTemplateBasicInit() {
-    let template = DAISSpannerTemplate(projectID: "my-project")
+@Test func testSpannerTemplateBasicInit() {
+    let template = SpannerTemplate(projectID: "my-project")
 
     #expect(template.projectID == "my-project")
-    #expect(template.instanceName == "dais-spanner")
-    #expect(template.databaseName == "dais-db")
+    #expect(template.instanceName == "app-spanner")
+    #expect(template.databaseName == "app-db")
 }
 
-@Test func testDAISSpannerTemplateDevelopmentInstance() {
-    let template = DAISSpannerTemplate(projectID: "my-project")
+@Test func testSpannerTemplateDevelopmentInstance() {
+    let template = SpannerTemplate(projectID: "my-project")
     let instance = template.developmentInstance
 
-    #expect(instance.name == "dais-spanner")
+    #expect(instance.name == "app-spanner")
     #expect(instance.processingUnits == 100)
     #expect(instance.labels?["environment"] == "development")
 }
 
-@Test func testDAISSpannerTemplateProductionInstance() {
-    let template = DAISSpannerTemplate(projectID: "my-project")
+@Test func testSpannerTemplateProductionInstance() {
+    let template = SpannerTemplate(projectID: "my-project")
     let instance = template.productionInstance
 
-    #expect(instance.name == "dais-spanner-prod")
+    #expect(instance.name == "app-spanner-prod")
     #expect(instance.nodeCount == 3)
     #expect(instance.config == GoogleCloudSpannerInstanceConfig.nam3)
 }
 
-@Test func testDAISSpannerTemplateMainDatabase() {
-    let template = DAISSpannerTemplate(projectID: "my-project")
+@Test func testSpannerTemplateMainDatabase() {
+    let template = SpannerTemplate(projectID: "my-project")
     let database = template.mainDatabase
 
-    #expect(database.name == "dais-db")
+    #expect(database.name == "app-db")
     #expect(database.enableDropProtection == true)
     #expect(database.ddl?.isEmpty == false)
 }
 
-@Test func testDAISSpannerTemplatePostgresDatabase() {
-    let template = DAISSpannerTemplate(projectID: "my-project")
+@Test func testSpannerTemplatePostgresDatabase() {
+    let template = SpannerTemplate(projectID: "my-project")
     let database = template.postgresDatabase
 
-    #expect(database.name == "dais-db-pg")
+    #expect(database.name == "app-db-pg")
     #expect(database.databaseDialect == .postgresql)
 }
 
-@Test func testDAISSpannerTemplateSetupScript() {
-    let template = DAISSpannerTemplate(projectID: "my-project")
+@Test func testSpannerTemplateSetupScript() {
+    let template = SpannerTemplate(projectID: "my-project")
     let script = template.setupScript
 
     #expect(script.contains("gcloud services enable spanner.googleapis.com"))
@@ -18341,16 +18341,16 @@ import Testing
     #expect(script.contains("gcloud spanner databases create"))
 }
 
-@Test func testDAISSpannerTemplateTeardownScript() {
-    let template = DAISSpannerTemplate(projectID: "my-project")
+@Test func testSpannerTemplateTeardownScript() {
+    let template = SpannerTemplate(projectID: "my-project")
     let script = template.teardownScript
 
     #expect(script.contains("gcloud spanner instances delete"))
 }
 
-@Test func testDAISSpannerTemplateSchema() {
-    let template = DAISSpannerTemplate(projectID: "my-project")
-    let schema = template.daisSchema
+@Test func testSpannerTemplateSchema() {
+    let template = SpannerTemplate(projectID: "my-project")
+    let schema = template.appSchema
 
     #expect(schema.count > 0)
     #expect(schema.first?.contains("CREATE TABLE agents") == true)
@@ -18678,18 +18678,18 @@ import Testing
     #expect(FirestoreLocation.europeWest1 == "europe-west1")
 }
 
-// MARK: - DAIS Firestore Template Tests
+// MARK: - Cloud Firestore Template Tests
 
-@Test func testDAISFirestoreTemplateBasicInit() {
-    let template = DAISFirestoreTemplate(projectID: "my-project")
+@Test func testFirestoreTemplateBasicInit() {
+    let template = FirestoreTemplate(projectID: "my-project")
 
     #expect(template.projectID == "my-project")
     #expect(template.databaseID == "(default)")
     #expect(template.location == FirestoreLocation.nam5)
 }
 
-@Test func testDAISFirestoreTemplateMainDatabase() {
-    let template = DAISFirestoreTemplate(projectID: "my-project")
+@Test func testFirestoreTemplateMainDatabase() {
+    let template = FirestoreTemplate(projectID: "my-project")
     let database = template.mainDatabase
 
     #expect(database.type == .firestoreNative)
@@ -18697,55 +18697,55 @@ import Testing
     #expect(database.deleteProtectionState == .deleteProtectionEnabled)
 }
 
-@Test func testDAISFirestoreTemplateAnalyticsDatabase() {
-    let template = DAISFirestoreTemplate(projectID: "my-project")
+@Test func testFirestoreTemplateAnalyticsDatabase() {
+    let template = FirestoreTemplate(projectID: "my-project")
     let database = template.analyticsDatabase
 
-    #expect(database.name == "dais-analytics")
+    #expect(database.name == "app-analytics")
     #expect(database.pointInTimeRecoveryEnablement == .pointInTimeRecoveryDisabled)
 }
 
-@Test func testDAISFirestoreTemplateDatastoreDatabase() {
-    let template = DAISFirestoreTemplate(projectID: "my-project")
+@Test func testFirestoreTemplateDatastoreDatabase() {
+    let template = FirestoreTemplate(projectID: "my-project")
     let database = template.datastoreModeDatabase
 
-    #expect(database.name == "dais-datastore")
+    #expect(database.name == "app-datastore")
     #expect(database.type == .datastoreMode)
 }
 
-@Test func testDAISFirestoreTemplateAgentsByStatusIndex() {
-    let template = DAISFirestoreTemplate(projectID: "my-project")
+@Test func testFirestoreTemplateAgentsByStatusIndex() {
+    let template = FirestoreTemplate(projectID: "my-project")
     let index = template.agentsByStatusIndex
 
     #expect(index.collectionGroup == "agents")
     #expect(index.fields.count == 2)
 }
 
-@Test func testDAISFirestoreTemplateTasksByAgentIndex() {
-    let template = DAISFirestoreTemplate(projectID: "my-project")
+@Test func testFirestoreTemplateTasksByAgentIndex() {
+    let template = FirestoreTemplate(projectID: "my-project")
     let index = template.tasksByAgentIndex
 
     #expect(index.collectionGroup == "tasks")
     #expect(index.fields.count == 3)
 }
 
-@Test func testDAISFirestoreTemplateEventsCollectionGroupIndex() {
-    let template = DAISFirestoreTemplate(projectID: "my-project")
+@Test func testFirestoreTemplateEventsCollectionGroupIndex() {
+    let template = FirestoreTemplate(projectID: "my-project")
     let index = template.eventsCollectionGroupIndex
 
     #expect(index.collectionGroup == "events")
     #expect(index.queryScope == .collectionGroup)
 }
 
-@Test func testDAISFirestoreTemplateDailyExport() {
-    let template = DAISFirestoreTemplate(projectID: "my-project")
+@Test func testFirestoreTemplateDailyExport() {
+    let template = FirestoreTemplate(projectID: "my-project")
     let export = template.dailyExport(bucketName: "my-backup-bucket")
 
     #expect(export.outputUriPrefix.contains("gs://my-backup-bucket/firestore-exports/"))
 }
 
-@Test func testDAISFirestoreTemplateSetupScript() {
-    let template = DAISFirestoreTemplate(projectID: "my-project")
+@Test func testFirestoreTemplateSetupScript() {
+    let template = FirestoreTemplate(projectID: "my-project")
     let script = template.setupScript
 
     #expect(script.contains("gcloud services enable firestore.googleapis.com"))
@@ -18753,8 +18753,8 @@ import Testing
     #expect(script.contains("gcloud firestore indexes composite create"))
 }
 
-@Test func testDAISFirestoreTemplateTeardownScript() {
-    let template = DAISFirestoreTemplate(projectID: "my-project")
+@Test func testFirestoreTemplateTeardownScript() {
+    let template = FirestoreTemplate(projectID: "my-project")
     let script = template.teardownScript
 
     #expect(script.contains("gcloud firestore databases delete"))
@@ -19148,57 +19148,57 @@ import Testing
     #expect(cmd.contains("gcloud ai operations list"))
 }
 
-// MARK: - DAIS Vertex AI Template Tests
+// MARK: - Cloud Vertex AI Template Tests
 
-@Test func testDAISVertexAITemplateBasicInit() {
-    let template = DAISVertexAITemplate(projectID: "my-project")
+@Test func testVertexAITemplateBasicInit() {
+    let template = VertexAITemplate(projectID: "my-project")
 
     #expect(template.projectID == "my-project")
     #expect(template.location == "us-central1")
 }
 
-@Test func testDAISVertexAITemplateTrainingDataset() {
-    let template = DAISVertexAITemplate(projectID: "my-project")
+@Test func testVertexAITemplateTrainingDataset() {
+    let template = VertexAITemplate(projectID: "my-project")
     let dataset = template.trainingDataset
 
-    #expect(dataset.displayName == "DAIS Training Dataset")
-    #expect(dataset.labels?["app"] == "dais")
+    #expect(dataset.displayName == "Cloud Training Dataset")
+    #expect(dataset.labels?["app"] == "my-app")
 }
 
-@Test func testDAISVertexAITemplatePredictionEndpoint() {
-    let template = DAISVertexAITemplate(projectID: "my-project")
+@Test func testVertexAITemplatePredictionEndpoint() {
+    let template = VertexAITemplate(projectID: "my-project")
     let endpoint = template.predictionEndpoint
 
-    #expect(endpoint.displayName == "DAIS Prediction Endpoint")
+    #expect(endpoint.displayName == "Cloud Prediction Endpoint")
 }
 
-@Test func testDAISVertexAITemplateCustomTrainingJob() {
-    let template = DAISVertexAITemplate(projectID: "my-project")
+@Test func testVertexAITemplateCustomTrainingJob() {
+    let template = VertexAITemplate(projectID: "my-project")
     let job = template.customTrainingJob
 
-    #expect(job.displayName == "DAIS Custom Training Job")
+    #expect(job.displayName == "Cloud Custom Training Job")
     #expect(job.workerPoolSpecs.first?.machineSpec.machineType == "n1-standard-8")
     #expect(job.workerPoolSpecs.first?.machineSpec.acceleratorType == "NVIDIA_TESLA_T4")
 }
 
-@Test func testDAISVertexAITemplateDaisModel() {
-    let template = DAISVertexAITemplate(projectID: "my-project")
-    let model = template.daisModel(artifactUri: "gs://my-bucket/model")
+@Test func testVertexAITemplateDaisModel() {
+    let template = VertexAITemplate(projectID: "my-project")
+    let model = template.appModel(artifactUri: "gs://my-bucket/model")
 
-    #expect(model.displayName == "DAIS Model")
+    #expect(model.displayName == "Cloud Model")
     #expect(model.artifactUri == "gs://my-bucket/model")
 }
 
-@Test func testDAISVertexAITemplateSetupScript() {
-    let template = DAISVertexAITemplate(projectID: "my-project")
+@Test func testVertexAITemplateSetupScript() {
+    let template = VertexAITemplate(projectID: "my-project")
     let script = template.setupScript
 
     #expect(script.contains("gcloud services enable aiplatform.googleapis.com"))
     #expect(script.contains("gcloud ai endpoints create"))
 }
 
-@Test func testDAISVertexAITemplateTeardownScript() {
-    let template = DAISVertexAITemplate(projectID: "my-project")
+@Test func testVertexAITemplateTeardownScript() {
+    let template = VertexAITemplate(projectID: "my-project")
     let script = template.teardownScript
 
     #expect(script.contains("gcloud ai endpoints delete"))
@@ -19570,31 +19570,31 @@ import Testing
     #expect(cmd.contains("my-image:latest"))
 }
 
-@Test func testDAISTraceTemplateBasicInit() {
-    let template = DAISTraceTemplate(
+@Test func testTraceTemplateBasicInit() {
+    let template = TraceTemplate(
         projectID: "my-project",
-        serviceName: "dais-api"
+        serviceName: "app-api"
     )
 
     #expect(template.projectID == "my-project")
-    #expect(template.serviceName == "dais-api")
+    #expect(template.serviceName == "app-api")
 }
 
-@Test func testDAISTraceTemplateOpenTelemetryConfig() {
-    let template = DAISTraceTemplate(
+@Test func testTraceTemplateOpenTelemetryConfig() {
+    let template = TraceTemplate(
         projectID: "my-project",
-        serviceName: "dais-api"
+        serviceName: "app-api"
     )
 
     let otelConfig = template.openTelemetryConfig
-    #expect(otelConfig.serviceName == "dais-api")
+    #expect(otelConfig.serviceName == "app-api")
     #expect(otelConfig.projectID == "my-project")
     #expect(otelConfig.serviceVersion == "1.0.0")
     #expect(otelConfig.environment == "production")
 }
 
-@Test func testDAISTraceTemplateTraceConfig() {
-    let template = DAISTraceTemplate(projectID: "my-project")
+@Test func testTraceTemplateTraceConfig() {
+    let template = TraceTemplate(projectID: "my-project")
 
     let config = template.traceConfig
     #expect(config.sampleRate == 0.1)  // 10% sampling
@@ -19602,31 +19602,31 @@ import Testing
     #expect(config.spanAttributeLimit == 32)
 }
 
-@Test func testDAISTraceTemplateBigQuerySink() {
-    let template = DAISTraceTemplate(projectID: "my-project")
+@Test func testTraceTemplateBigQuerySink() {
+    let template = TraceTemplate(projectID: "my-project")
 
     let sink = template.bigQuerySink(datasetID: "trace_data")
-    #expect(sink.name == "dais-trace-bq-sink")
+    #expect(sink.name == "app-trace-bq-sink")
     #expect(sink.destination.contains("bigquery.googleapis.com"))
     #expect(sink.destination.contains("trace_data"))
 }
 
-@Test func testDAISTraceTemplateFilters() {
-    let template = DAISTraceTemplate(
+@Test func testTraceTemplateFilters() {
+    let template = TraceTemplate(
         projectID: "my-project",
-        serviceName: "dais-api"
+        serviceName: "app-api"
     )
 
-    #expect(template.highLatencyFilter.contains("dais-api"))
+    #expect(template.highLatencyFilter.contains("app-api"))
     #expect(template.highLatencyFilter.contains("1000ms"))
-    #expect(template.errorFilter.contains("dais-api"))
+    #expect(template.errorFilter.contains("app-api"))
     #expect(template.errorFilter.contains("status.code!=OK"))
 }
 
-@Test func testDAISTraceTemplateSetupScript() {
-    let template = DAISTraceTemplate(
+@Test func testTraceTemplateSetupScript() {
+    let template = TraceTemplate(
         projectID: "my-project",
-        serviceName: "dais-api",
+        serviceName: "app-api",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com"
     )
 
@@ -19934,57 +19934,57 @@ import Testing
     #expect(snippet.contains("JAVA_TOOL_OPTIONS"))
 }
 
-@Test func testDAISProfilerTemplateBasicInit() {
-    let template = DAISProfilerTemplate(
+@Test func testProfilerTemplateBasicInit() {
+    let template = ProfilerTemplate(
         projectID: "my-project",
-        service: "dais-api"
+        service: "app-api"
     )
 
     #expect(template.projectID == "my-project")
-    #expect(template.service == "dais-api")
+    #expect(template.service == "app-api")
 }
 
-@Test func testDAISProfilerTemplateAgentConfig() {
-    let template = DAISProfilerTemplate(
+@Test func testProfilerTemplateAgentConfig() {
+    let template = ProfilerTemplate(
         projectID: "my-project",
-        service: "dais-api",
+        service: "app-api",
         serviceVersion: "2.0.0"
     )
 
     let config = template.agentConfig
-    #expect(config.service == "dais-api")
+    #expect(config.service == "app-api")
     #expect(config.cpuProfilingEnabled == true)
     #expect(config.heapProfilingEnabled == true)
 }
 
-@Test func testDAISProfilerTemplateLanguageConfigs() {
-    let template = DAISProfilerTemplate(
+@Test func testProfilerTemplateLanguageConfigs() {
+    let template = ProfilerTemplate(
         projectID: "my-project",
-        service: "dais-api"
+        service: "app-api"
     )
 
-    #expect(template.goConfig.service == "dais-api")
-    #expect(template.pythonConfig.service == "dais-api")
-    #expect(template.nodeJSConfig.service == "dais-api")
-    #expect(template.javaConfig.service == "dais-api")
+    #expect(template.goConfig.service == "app-api")
+    #expect(template.pythonConfig.service == "app-api")
+    #expect(template.nodeJSConfig.service == "app-api")
+    #expect(template.javaConfig.service == "app-api")
 }
 
-@Test func testDAISProfilerTemplateRecentProfilesQuery() {
-    let template = DAISProfilerTemplate(
+@Test func testProfilerTemplateRecentProfilesQuery() {
+    let template = ProfilerTemplate(
         projectID: "my-project",
-        service: "dais-api",
+        service: "app-api",
         serviceVersion: "1.0.0"
     )
 
     let query = template.recentProfilesQuery
-    #expect(query.service == "dais-api")
+    #expect(query.service == "app-api")
     #expect(query.version == "1.0.0")
 }
 
-@Test func testDAISProfilerTemplateSetupScript() {
-    let template = DAISProfilerTemplate(
+@Test func testProfilerTemplateSetupScript() {
+    let template = ProfilerTemplate(
         projectID: "my-project",
-        service: "dais-api",
+        service: "app-api",
         serviceVersion: "1.0.0",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com"
     )
@@ -20338,67 +20338,67 @@ import Testing
     #expect(dep.contains("google-cloud-errorreporting"))
 }
 
-@Test func testDAISErrorReportingTemplateBasicInit() {
-    let template = DAISErrorReportingTemplate(
+@Test func testErrorReportingTemplateBasicInit() {
+    let template = ErrorReportingTemplate(
         projectID: "my-project",
-        service: "dais-api"
+        service: "app-api"
     )
 
     #expect(template.projectID == "my-project")
-    #expect(template.service == "dais-api")
+    #expect(template.service == "app-api")
 }
 
-@Test func testDAISErrorReportingTemplateServiceContext() {
-    let template = DAISErrorReportingTemplate(
+@Test func testErrorReportingTemplateServiceContext() {
+    let template = ErrorReportingTemplate(
         projectID: "my-project",
-        service: "dais-api",
+        service: "app-api",
         serviceVersion: "2.0.0"
     )
 
     let context = template.serviceContext
-    #expect(context.service == "dais-api")
+    #expect(context.service == "app-api")
     #expect(context.version == "2.0.0")
 }
 
-@Test func testDAISErrorReportingTemplateErrorEvent() {
-    let template = DAISErrorReportingTemplate(
+@Test func testErrorReportingTemplateErrorEvent() {
+    let template = ErrorReportingTemplate(
         projectID: "my-project",
-        service: "dais-api"
+        service: "app-api"
     )
 
     let event = template.errorEvent(message: "Test error")
     #expect(event.projectID == "my-project")
     #expect(event.message == "Test error")
-    #expect(event.serviceContext.service == "dais-api")
+    #expect(event.serviceContext.service == "app-api")
 }
 
-@Test func testDAISErrorReportingTemplateLanguageConfigs() {
-    let template = DAISErrorReportingTemplate(
+@Test func testErrorReportingTemplateLanguageConfigs() {
+    let template = ErrorReportingTemplate(
         projectID: "my-project",
-        service: "dais-api"
+        service: "app-api"
     )
 
-    #expect(template.goConfig.service == "dais-api")
-    #expect(template.pythonConfig.service == "dais-api")
-    #expect(template.nodeJSConfig.service == "dais-api")
-    #expect(template.javaConfig.service == "dais-api")
+    #expect(template.goConfig.service == "app-api")
+    #expect(template.pythonConfig.service == "app-api")
+    #expect(template.nodeJSConfig.service == "app-api")
+    #expect(template.javaConfig.service == "app-api")
 }
 
-@Test func testDAISErrorReportingTemplateListErrorsCommand() {
-    let template = DAISErrorReportingTemplate(
+@Test func testErrorReportingTemplateListErrorsCommand() {
+    let template = ErrorReportingTemplate(
         projectID: "my-project",
-        service: "dais-api"
+        service: "app-api"
     )
 
     let cmd = template.listErrorsCommand
-    #expect(cmd.contains("dais-api"))
+    #expect(cmd.contains("app-api"))
     #expect(cmd.contains("PERIOD_1_DAY"))
 }
 
-@Test func testDAISErrorReportingTemplateSetupScript() {
-    let template = DAISErrorReportingTemplate(
+@Test func testErrorReportingTemplateSetupScript() {
+    let template = ErrorReportingTemplate(
         projectID: "my-project",
-        service: "dais-api",
+        service: "app-api",
         serviceVersion: "1.0.0",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com"
     )
@@ -20406,7 +20406,7 @@ import Testing
     let script = template.setupScript
     #expect(script.contains("clouderrorreporting.googleapis.com"))
     #expect(script.contains("errorreporting.writer"))
-    #expect(script.contains("dais-api"))
+    #expect(script.contains("app-api"))
 }
 
 @Test func testErrorEventCodable() throws {
@@ -20955,43 +20955,43 @@ import Testing
     #expect(cmd == "gcloud bigtable app-profiles list --instance=my-instance --project=my-project")
 }
 
-@Test func testDAISBigtableTemplateBasic() {
-    let template = DAISBigtableTemplate(projectID: "my-project")
+@Test func testBigtableTemplateBasic() {
+    let template = BigtableTemplate(projectID: "my-project")
 
     #expect(template.projectID == "my-project")
-    #expect(template.instanceName == "dais-bigtable")
+    #expect(template.instanceName == "app-bigtable")
     #expect(template.zone == "us-central1-a")
 }
 
-@Test func testDAISBigtableTemplateProductionInstance() {
-    let template = DAISBigtableTemplate(projectID: "my-project")
+@Test func testBigtableTemplateProductionInstance() {
+    let template = BigtableTemplate(projectID: "my-project")
 
     let instance = template.productionInstance
-    #expect(instance.name == "dais-bigtable")
+    #expect(instance.name == "app-bigtable")
     #expect(instance.instanceType == .production)
     #expect(instance.labels?["env"] == "production")
 }
 
-@Test func testDAISBigtableTemplateDevelopmentInstance() {
-    let template = DAISBigtableTemplate(projectID: "my-project")
+@Test func testBigtableTemplateDevelopmentInstance() {
+    let template = BigtableTemplate(projectID: "my-project")
 
     let instance = template.developmentInstance
-    #expect(instance.name == "dais-bigtable-dev")
+    #expect(instance.name == "app-bigtable-dev")
     #expect(instance.instanceType == .development)
     #expect(instance.labels?["env"] == "development")
 }
 
-@Test func testDAISBigtableTemplatePrimaryCluster() {
-    let template = DAISBigtableTemplate(projectID: "my-project")
+@Test func testBigtableTemplatePrimaryCluster() {
+    let template = BigtableTemplate(projectID: "my-project")
 
     let cluster = template.primaryCluster
-    #expect(cluster.name == "dais-bigtable-c1")
+    #expect(cluster.name == "app-bigtable-c1")
     #expect(cluster.serveNodes == 3)
     #expect(cluster.storageType == .ssd)
 }
 
-@Test func testDAISBigtableTemplateTimeSeriesTable() {
-    let template = DAISBigtableTemplate(projectID: "my-project")
+@Test func testBigtableTemplateTimeSeriesTable() {
+    let template = BigtableTemplate(projectID: "my-project")
 
     let table = template.timeSeriesTable
     #expect(table.name == "time_series")
@@ -20999,8 +20999,8 @@ import Testing
     #expect(table.columnFamilies?.contains("events") == true)
 }
 
-@Test func testDAISBigtableTemplateEntitiesTable() {
-    let template = DAISBigtableTemplate(projectID: "my-project")
+@Test func testBigtableTemplateEntitiesTable() {
+    let template = BigtableTemplate(projectID: "my-project")
 
     let table = template.entitiesTable
     #expect(table.name == "entities")
@@ -21008,30 +21008,30 @@ import Testing
     #expect(table.columnFamilies?.contains("activity") == true)
 }
 
-@Test func testDAISBigtableTemplateDefaultAppProfile() {
-    let template = DAISBigtableTemplate(projectID: "my-project")
+@Test func testBigtableTemplateDefaultAppProfile() {
+    let template = BigtableTemplate(projectID: "my-project")
 
     let profile = template.defaultAppProfile
     #expect(profile.name == "default-profile")
 }
 
-@Test func testDAISBigtableTemplateTransactionalAppProfile() {
-    let template = DAISBigtableTemplate(projectID: "my-project")
+@Test func testBigtableTemplateTransactionalAppProfile() {
+    let template = BigtableTemplate(projectID: "my-project")
 
     let profile = template.transactionalAppProfile(clusterID: "cluster-1")
     #expect(profile.name == "transactional-profile")
 }
 
-@Test func testDAISBigtableTemplateDailyBackup() {
-    let template = DAISBigtableTemplate(projectID: "my-project")
+@Test func testBigtableTemplateDailyBackup() {
+    let template = BigtableTemplate(projectID: "my-project")
 
     let backup = template.dailyBackup
     #expect(backup.name == "daily-backup")
     #expect(backup.sourceTable == "time_series")
 }
 
-@Test func testDAISBigtableTemplateSetupScript() {
-    let template = DAISBigtableTemplate(
+@Test func testBigtableTemplateSetupScript() {
+    let template = BigtableTemplate(
         projectID: "my-project",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com"
     )
@@ -21042,8 +21042,8 @@ import Testing
     #expect(script.contains("bigtable.user"))
 }
 
-@Test func testDAISBigtableTemplateTeardownScript() {
-    let template = DAISBigtableTemplate(projectID: "my-project")
+@Test func testBigtableTemplateTeardownScript() {
+    let template = BigtableTemplate(projectID: "my-project")
 
     let script = template.teardownScript
     #expect(script.contains("Deleting Bigtable instance"))
@@ -21574,72 +21574,72 @@ import Testing
     #expect(cmd.contains("gcloud dataproc clusters diagnose my-cluster"))
 }
 
-@Test func testDAISDataprocTemplateBasic() {
-    let template = DAISDataprocTemplate(projectID: "my-project")
+@Test func testDataprocTemplateBasic() {
+    let template = DataprocTemplate(projectID: "my-project")
 
     #expect(template.projectID == "my-project")
     #expect(template.region == "us-central1")
-    #expect(template.clusterName == "dais-dataproc")
+    #expect(template.clusterName == "app-dataproc")
 }
 
-@Test func testDAISDataprocTemplateAnalyticsCluster() {
-    let template = DAISDataprocTemplate(projectID: "my-project")
+@Test func testDataprocTemplateAnalyticsCluster() {
+    let template = DataprocTemplate(projectID: "my-project")
 
     let cluster = template.analyticsCluster
-    #expect(cluster.name == "dais-dataproc")
-    #expect(cluster.labels?["managed-by"] == "dais")
+    #expect(cluster.name == "app-dataproc")
+    #expect(cluster.labels?["managed-by"] == "googlecloudswift")
 }
 
-@Test func testDAISDataprocTemplateBatchCluster() {
-    let template = DAISDataprocTemplate(projectID: "my-project")
+@Test func testDataprocTemplateBatchCluster() {
+    let template = DataprocTemplate(projectID: "my-project")
 
     let cluster = template.batchProcessingCluster
-    #expect(cluster.name == "dais-dataproc-batch")
+    #expect(cluster.name == "app-dataproc-batch")
     #expect(cluster.labels?["type"] == "batch")
 }
 
-@Test func testDAISDataprocTemplateHighMemoryCluster() {
-    let template = DAISDataprocTemplate(projectID: "my-project")
+@Test func testDataprocTemplateHighMemoryCluster() {
+    let template = DataprocTemplate(projectID: "my-project")
 
     let cluster = template.highMemoryCluster
-    #expect(cluster.name == "dais-dataproc-highmem")
+    #expect(cluster.name == "app-dataproc-highmem")
     #expect(cluster.labels?["type"] == "highmem")
 }
 
-@Test func testDAISDataprocTemplateSamplePySparkJob() {
-    let template = DAISDataprocTemplate(projectID: "my-project")
+@Test func testDataprocTemplateSamplePySparkJob() {
+    let template = DataprocTemplate(projectID: "my-project")
 
     let job = template.samplePySparkJob
     #expect(job.jobType == .pyspark)
     #expect(job.mainFile?.contains("etl_job.py") == true)
 }
 
-@Test func testDAISDataprocTemplateSampleSparkJob() {
-    let template = DAISDataprocTemplate(projectID: "my-project")
+@Test func testDataprocTemplateSampleSparkJob() {
+    let template = DataprocTemplate(projectID: "my-project")
 
     let job = template.sampleSparkJob
     #expect(job.jobType == .spark)
-    #expect(job.mainClass == "com.dais.analytics.MainJob")
+    #expect(job.mainClass == "com.myapp.analytics.MainJob")
 }
 
-@Test func testDAISDataprocTemplateServerlessBatch() {
-    let template = DAISDataprocTemplate(projectID: "my-project")
+@Test func testDataprocTemplateServerlessBatch() {
+    let template = DataprocTemplate(projectID: "my-project")
 
     let batch = template.serverlessBatch
     #expect(batch.batchType == .pyspark)
     #expect(batch.mainFile?.contains("batch_job.py") == true)
 }
 
-@Test func testDAISDataprocTemplateAutoscalingPolicy() {
-    let template = DAISDataprocTemplate(projectID: "my-project")
+@Test func testDataprocTemplateAutoscalingPolicy() {
+    let template = DataprocTemplate(projectID: "my-project")
 
     let policy = template.autoscalingPolicy
-    #expect(policy.name == "dais-dataproc-autoscaling")
+    #expect(policy.name == "app-dataproc-autoscaling")
     #expect(policy.workerConfig?.maxInstances == 10)
 }
 
-@Test func testDAISDataprocTemplateSetupScript() {
-    let template = DAISDataprocTemplate(
+@Test func testDataprocTemplateSetupScript() {
+    let template = DataprocTemplate(
         projectID: "my-project",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com"
     )
@@ -21650,8 +21650,8 @@ import Testing
     #expect(script.contains("dataproc.editor"))
 }
 
-@Test func testDAISDataprocTemplateTeardownScript() {
-    let template = DAISDataprocTemplate(projectID: "my-project")
+@Test func testDataprocTemplateTeardownScript() {
+    let template = DataprocTemplate(projectID: "my-project")
 
     let script = template.teardownScript
     #expect(script.contains("Deleting Dataproc cluster"))
@@ -21908,13 +21908,13 @@ import Testing
         dagID: "my-dag",
         schedule: "@daily",
         description: "Test DAG",
-        tags: ["test", "dais"]
+        tags: ["test", "app"]
     )
 
     let template = dag.pythonTemplate
     #expect(template.contains("'my-dag'"))
     #expect(template.contains("'@daily'"))
-    #expect(template.contains("['test', 'dais']"))
+    #expect(template.contains("['test', 'app']"))
 }
 
 @Test func testComposerImageVersions() {
@@ -21963,60 +21963,60 @@ import Testing
     #expect(ComposerOperations.Locations.europeWest1 == "europe-west1")
 }
 
-@Test func testDAISComposerTemplateBasic() {
-    let template = DAISComposerTemplate(projectID: "my-project")
+@Test func testComposerTemplateBasic() {
+    let template = ComposerTemplate(projectID: "my-project")
 
     #expect(template.projectID == "my-project")
     #expect(template.location == "us-central1")
-    #expect(template.environmentName == "dais-composer")
+    #expect(template.environmentName == "app-composer")
 }
 
-@Test func testDAISComposerTemplateDevelopmentEnvironment() {
-    let template = DAISComposerTemplate(projectID: "my-project")
+@Test func testComposerTemplateDevelopmentEnvironment() {
+    let template = ComposerTemplate(projectID: "my-project")
 
     let env = template.developmentEnvironment
-    #expect(env.name == "dais-composer-dev")
+    #expect(env.name == "app-composer-dev")
     #expect(env.config?.environmentSize == .small)
     #expect(env.labels?["env"] == "development")
 }
 
-@Test func testDAISComposerTemplateProductionEnvironment() {
-    let template = DAISComposerTemplate(projectID: "my-project")
+@Test func testComposerTemplateProductionEnvironment() {
+    let template = ComposerTemplate(projectID: "my-project")
 
     let env = template.productionEnvironment
-    #expect(env.name == "dais-composer")
+    #expect(env.name == "app-composer")
     #expect(env.config?.nodeCount == 3)
     #expect(env.config?.environmentSize == .medium)
 }
 
-@Test func testDAISComposerTemplateHighAvailabilityEnvironment() {
-    let template = DAISComposerTemplate(projectID: "my-project")
+@Test func testComposerTemplateHighAvailabilityEnvironment() {
+    let template = ComposerTemplate(projectID: "my-project")
 
     let env = template.highAvailabilityEnvironment
-    #expect(env.name == "dais-composer-ha")
+    #expect(env.name == "app-composer-ha")
     #expect(env.config?.environmentSize == .large)
     #expect(env.labels?["ha"] == "true")
 }
 
-@Test func testDAISComposerTemplateSampleETLDAG() {
-    let template = DAISComposerTemplate(projectID: "my-project")
+@Test func testComposerTemplateSampleETLDAG() {
+    let template = ComposerTemplate(projectID: "my-project")
 
     let dag = template.sampleETLDAG
-    #expect(dag.dagID == "dais_etl_pipeline")
+    #expect(dag.dagID == "app_etl_pipeline")
     #expect(dag.schedule == "@daily")
     #expect(dag.tags?.contains("etl") == true)
 }
 
-@Test func testDAISComposerTemplateSampleDataSyncDAG() {
-    let template = DAISComposerTemplate(projectID: "my-project")
+@Test func testComposerTemplateSampleDataSyncDAG() {
+    let template = ComposerTemplate(projectID: "my-project")
 
     let dag = template.sampleDataSyncDAG
-    #expect(dag.dagID == "dais_data_sync")
+    #expect(dag.dagID == "app_data_sync")
     #expect(dag.schedule == "@hourly")
 }
 
-@Test func testDAISComposerTemplateSetupScript() {
-    let template = DAISComposerTemplate(
+@Test func testComposerTemplateSetupScript() {
+    let template = ComposerTemplate(
         projectID: "my-project",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com"
     )
@@ -22027,8 +22027,8 @@ import Testing
     #expect(script.contains("composer.user"))
 }
 
-@Test func testDAISComposerTemplateTeardownScript() {
-    let template = DAISComposerTemplate(projectID: "my-project")
+@Test func testComposerTemplateTeardownScript() {
+    let template = ComposerTemplate(projectID: "my-project")
 
     let script = template.teardownScript
     #expect(script.contains("Deleting Composer environment"))
@@ -22400,54 +22400,54 @@ import Testing
     #expect(viewerCmd.contains("roles/documentai.viewer"))
 }
 
-@Test func testDAISDocumentAITemplateBasic() {
-    let template = DAISDocumentAITemplate(
+@Test func testDocumentAITemplateBasic() {
+    let template = DocumentAITemplate(
         projectID: "my-project",
         location: "us",
-        processorPrefix: "dais",
+        processorPrefix: "app",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com",
         documentBucket: "my-project-documents"
     )
 
     #expect(template.projectID == "my-project")
     #expect(template.location == "us")
-    #expect(template.processorPrefix == "dais")
+    #expect(template.processorPrefix == "app")
 }
 
-@Test func testDAISDocumentAITemplateOCRProcessor() {
-    let template = DAISDocumentAITemplate(
+@Test func testDocumentAITemplateOCRProcessor() {
+    let template = DocumentAITemplate(
         projectID: "my-project",
         location: "us",
-        processorPrefix: "dais",
+        processorPrefix: "app",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com",
         documentBucket: "my-project-documents"
     )
 
     let processor = template.ocrProcessor
-    #expect(processor.name == "dais-ocr")
+    #expect(processor.name == "app-ocr")
     #expect(processor.type == .ocrProcessor)
-    #expect(processor.displayName == "DAIS OCR Processor")
+    #expect(processor.displayName == "Cloud OCR Processor")
 }
 
-@Test func testDAISDocumentAITemplateFormParser() {
-    let template = DAISDocumentAITemplate(
+@Test func testDocumentAITemplateFormParser() {
+    let template = DocumentAITemplate(
         projectID: "my-project",
         location: "us",
-        processorPrefix: "dais",
+        processorPrefix: "app",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com",
         documentBucket: "my-project-documents"
     )
 
     let processor = template.formParserProcessor
     #expect(processor.type == .formParser)
-    #expect(processor.displayName == "DAIS Form Parser")
+    #expect(processor.displayName == "Cloud Form Parser")
 }
 
-@Test func testDAISDocumentAITemplateInvoiceProcessor() {
-    let template = DAISDocumentAITemplate(
+@Test func testDocumentAITemplateInvoiceProcessor() {
+    let template = DocumentAITemplate(
         projectID: "my-project",
         location: "us",
-        processorPrefix: "dais",
+        processorPrefix: "app",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com",
         documentBucket: "my-project-documents"
     )
@@ -22456,11 +22456,11 @@ import Testing
     #expect(processor.type == .invoiceParser)
 }
 
-@Test func testDAISDocumentAITemplateSetupScript() {
-    let template = DAISDocumentAITemplate(
+@Test func testDocumentAITemplateSetupScript() {
+    let template = DocumentAITemplate(
         projectID: "my-project",
         location: "us",
-        processorPrefix: "dais",
+        processorPrefix: "app",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com",
         documentBucket: "my-project-documents"
     )
@@ -22473,25 +22473,25 @@ import Testing
     #expect(script.contains("INVOICE_PROCESSOR"))
 }
 
-@Test func testDAISDocumentAITemplateOCRRequest() {
-    let template = DAISDocumentAITemplate(
+@Test func testDocumentAITemplateOCRRequest() {
+    let template = DocumentAITemplate(
         projectID: "my-project",
         location: "us",
-        processorPrefix: "dais",
+        processorPrefix: "app",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com",
         documentBucket: "my-project-documents"
     )
 
     let request = template.ocrRequest(gcsUri: "gs://my-bucket/doc.pdf")
-    #expect(request.processorName == "dais-ocr")
+    #expect(request.processorName == "app-ocr")
     #expect(request.document?.gcsUri == "gs://my-bucket/doc.pdf")
 }
 
-@Test func testDAISDocumentAITemplateBatchRequest() {
-    let template = DAISDocumentAITemplate(
+@Test func testDocumentAITemplateBatchRequest() {
+    let template = DocumentAITemplate(
         projectID: "my-project",
         location: "us",
-        processorPrefix: "dais",
+        processorPrefix: "app",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com",
         documentBucket: "my-project-documents"
     )
@@ -22501,11 +22501,11 @@ import Testing
     #expect(request.outputGcsUri?.contains("output/") == true)
 }
 
-@Test func testDAISDocumentAITemplatePythonScript() {
-    let template = DAISDocumentAITemplate(
+@Test func testDocumentAITemplatePythonScript() {
+    let template = DocumentAITemplate(
         projectID: "my-project",
         location: "us",
-        processorPrefix: "dais",
+        processorPrefix: "app",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com",
         documentBucket: "my-project-documents"
     )
@@ -22853,8 +22853,8 @@ import Testing
     #expect(webCmd.contains("detect-web"))
 }
 
-@Test func testDAISVisionAITemplateBasic() {
-    let template = DAISVisionAITemplate(
+@Test func testVisionAITemplateBasic() {
+    let template = VisionAITemplate(
         projectID: "my-project",
         location: "us-central1",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com",
@@ -22865,8 +22865,8 @@ import Testing
     #expect(template.location == "us-central1")
 }
 
-@Test func testDAISVisionAITemplateLabelDetection() {
-    let template = DAISVisionAITemplate(
+@Test func testVisionAITemplateLabelDetection() {
+    let template = VisionAITemplate(
         projectID: "my-project",
         location: "us-central1",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com",
@@ -22879,8 +22879,8 @@ import Testing
     #expect(request.features.first?.maxResults == 10)
 }
 
-@Test func testDAISVisionAITemplateComprehensiveAnalysis() {
-    let template = DAISVisionAITemplate(
+@Test func testVisionAITemplateComprehensiveAnalysis() {
+    let template = VisionAITemplate(
         projectID: "my-project",
         location: "us-central1",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com",
@@ -22898,8 +22898,8 @@ import Testing
     #expect(featureTypes.contains(.safeSearchDetection))
 }
 
-@Test func testDAISVisionAITemplateOCRRequest() {
-    let template = DAISVisionAITemplate(
+@Test func testVisionAITemplateOCRRequest() {
+    let template = VisionAITemplate(
         projectID: "my-project",
         location: "us-central1",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com",
@@ -22911,8 +22911,8 @@ import Testing
     #expect(request.imageContext?.languageHints?.contains("en") == true)
 }
 
-@Test func testDAISVisionAITemplateSetupScript() {
-    let template = DAISVisionAITemplate(
+@Test func testVisionAITemplateSetupScript() {
+    let template = VisionAITemplate(
         projectID: "my-project",
         location: "us-central1",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com",
@@ -22925,8 +22925,8 @@ import Testing
     #expect(script.contains("my-project-images"))
 }
 
-@Test func testDAISVisionAITemplatePythonScript() {
-    let template = DAISVisionAITemplate(
+@Test func testVisionAITemplatePythonScript() {
+    let template = VisionAITemplate(
         projectID: "my-project",
         location: "us-central1",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com",
@@ -23236,8 +23236,8 @@ import Testing
     #expect(longRunningCmd.contains("--async"))
 }
 
-@Test func testDAISSpeechToTextTemplateBasic() {
-    let template = DAISSpeechToTextTemplate(
+@Test func testSpeechToTextTemplateBasic() {
+    let template = SpeechToTextTemplate(
         projectID: "my-project",
         location: "global",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com",
@@ -23248,8 +23248,8 @@ import Testing
     #expect(template.audioBucket == "my-project-audio")
 }
 
-@Test func testDAISSpeechToTextTemplateEnglishConfig() {
-    let template = DAISSpeechToTextTemplate(
+@Test func testSpeechToTextTemplateEnglishConfig() {
+    let template = SpeechToTextTemplate(
         projectID: "my-project",
         location: "global",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com",
@@ -23264,8 +23264,8 @@ import Testing
     #expect(config.model == .latest_long)
 }
 
-@Test func testDAISSpeechToTextTemplatePhoneCallConfig() {
-    let template = DAISSpeechToTextTemplate(
+@Test func testSpeechToTextTemplatePhoneCallConfig() {
+    let template = SpeechToTextTemplate(
         projectID: "my-project",
         location: "global",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com",
@@ -23278,8 +23278,8 @@ import Testing
     #expect(config.model == .phone_call)
 }
 
-@Test func testDAISSpeechToTextTemplateMultiLanguageConfig() {
-    let template = DAISSpeechToTextTemplate(
+@Test func testSpeechToTextTemplateMultiLanguageConfig() {
+    let template = SpeechToTextTemplate(
         projectID: "my-project",
         location: "global",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com",
@@ -23291,8 +23291,8 @@ import Testing
     #expect(config.alternativeLanguageCodes?.contains("es-ES") == true)
 }
 
-@Test func testDAISSpeechToTextTemplateSetupScript() {
-    let template = DAISSpeechToTextTemplate(
+@Test func testSpeechToTextTemplateSetupScript() {
+    let template = SpeechToTextTemplate(
         projectID: "my-project",
         location: "global",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com",
@@ -23305,8 +23305,8 @@ import Testing
     #expect(script.contains("my-project-audio"))
 }
 
-@Test func testDAISSpeechToTextTemplatePythonScript() {
-    let template = DAISSpeechToTextTemplate(
+@Test func testSpeechToTextTemplatePythonScript() {
+    let template = SpeechToTextTemplate(
         projectID: "my-project",
         location: "global",
         serviceAccount: "sa@my-project.iam.gserviceaccount.com",
@@ -23627,8 +23627,8 @@ import Testing
     #expect(roles["roles/cloudtts.admin"] == "Text-to-Speech admin")
 }
 
-@Test func testDAISTextToSpeechTemplateBasic() {
-    let template = DAISTextToSpeechTemplate(
+@Test func testTextToSpeechTemplateBasic() {
+    let template = TextToSpeechTemplate(
         projectID: "my-project",
         defaultVoice: .wavenet("D"),
         defaultAudioConfig: .mp3,
@@ -23641,8 +23641,8 @@ import Testing
     #expect(template.outputBucket == "tts-audio")
 }
 
-@Test func testDAISTextToSpeechTemplateVoices() {
-    let template = DAISTextToSpeechTemplate(projectID: "my-project")
+@Test func testTextToSpeechTemplateVoices() {
+    let template = TextToSpeechTemplate(projectID: "my-project")
 
     #expect(template.americanMaleVoice.name == "en-US-Wavenet-D")
     #expect(template.americanFemaleVoice.name == "en-US-Wavenet-F")
@@ -23652,8 +23652,8 @@ import Testing
     #expect(template.studioVoice.name == "en-US-Studio-O")
 }
 
-@Test func testDAISTextToSpeechTemplateAudioConfigs() {
-    let template = DAISTextToSpeechTemplate(projectID: "my-project")
+@Test func testTextToSpeechTemplateAudioConfigs() {
+    let template = TextToSpeechTemplate(projectID: "my-project")
 
     let podcast = template.podcastAudioConfig
     #expect(podcast.audioEncoding == .mp3)
@@ -23667,8 +23667,8 @@ import Testing
     #expect(speaker.effectsProfileId?.contains("medium-bluetooth-speaker-class-device") == true)
 }
 
-@Test func testDAISTextToSpeechTemplateSynthesize() {
-    let template = DAISTextToSpeechTemplate(projectID: "my-project")
+@Test func testTextToSpeechTemplateSynthesize() {
+    let template = TextToSpeechTemplate(projectID: "my-project")
 
     let request = template.synthesize("Hello, world!")
     #expect(request.projectID == "my-project")
@@ -23678,8 +23678,8 @@ import Testing
     #expect(customRequest.voice.name == "en-US-Neural2-B")
 }
 
-@Test func testDAISTextToSpeechTemplateLongAudio() {
-    let template = DAISTextToSpeechTemplate(
+@Test func testTextToSpeechTemplateLongAudio() {
+    let template = TextToSpeechTemplate(
         projectID: "my-project",
         outputBucket: "audio-output"
     )
@@ -23688,8 +23688,8 @@ import Testing
     #expect(request.outputGcsUri == "gs://audio-output/chapter1.mp3")
 }
 
-@Test func testDAISTextToSpeechTemplateSetupScript() {
-    let template = DAISTextToSpeechTemplate(
+@Test func testTextToSpeechTemplateSetupScript() {
+    let template = TextToSpeechTemplate(
         projectID: "my-project",
         serviceAccount: "tts-sa",
         outputBucket: "tts-output"
@@ -23702,8 +23702,8 @@ import Testing
     #expect(script.contains("gsutil mb"))
 }
 
-@Test func testDAISTextToSpeechTemplateTeardownScript() {
-    let template = DAISTextToSpeechTemplate(
+@Test func testTextToSpeechTemplateTeardownScript() {
+    let template = TextToSpeechTemplate(
         projectID: "my-project",
         serviceAccount: "tts-sa",
         outputBucket: "tts-output"
@@ -23714,8 +23714,8 @@ import Testing
     #expect(script.contains("gcloud iam service-accounts delete"))
 }
 
-@Test func testDAISTextToSpeechTemplatePythonScript() {
-    let template = DAISTextToSpeechTemplate(
+@Test func testTextToSpeechTemplatePythonScript() {
+    let template = TextToSpeechTemplate(
         projectID: "my-project",
         defaultVoice: .wavenet("D")
     )
@@ -24062,8 +24062,8 @@ import Testing
     #expect(roles["roles/cloudtranslate.admin"] == "Translation admin")
 }
 
-@Test func testDAISTranslationTemplateBasic() {
-    let template = DAISTranslationTemplate(
+@Test func testTranslationTemplateBasic() {
+    let template = TranslationTemplate(
         projectID: "my-project",
         location: "us-central1",
         serviceAccount: "trans-sa",
@@ -24077,16 +24077,16 @@ import Testing
     #expect(template.defaultTargetLanguages.count == 2)
 }
 
-@Test func testDAISTranslationTemplateTranslate() {
-    let template = DAISTranslationTemplate(projectID: "my-project")
+@Test func testTranslationTemplateTranslate() {
+    let template = TranslationTemplate(projectID: "my-project")
 
     let request = template.translate("Hello", to: .spanish)
     #expect(request.targetLanguageCode == "es")
     #expect(request.contents == ["Hello"])
 }
 
-@Test func testDAISTranslationTemplateTranslateToAll() {
-    let template = DAISTranslationTemplate(
+@Test func testTranslationTemplateTranslateToAll() {
+    let template = TranslationTemplate(
         projectID: "my-project",
         defaultTargetLanguages: [.spanish, .french, .german]
     )
@@ -24098,8 +24098,8 @@ import Testing
     #expect(requests[2].targetLanguageCode == "de")
 }
 
-@Test func testDAISTranslationTemplateGlossary() {
-    let template = DAISTranslationTemplate(
+@Test func testTranslationTemplateGlossary() {
+    let template = TranslationTemplate(
         projectID: "my-project",
         glossaryBucket: "my-glossaries"
     )
@@ -24115,8 +24115,8 @@ import Testing
     #expect(glossary.inputConfig.gcsSource.inputUri == "gs://my-glossaries/product-terms.tsv")
 }
 
-@Test func testDAISTranslationTemplateMultiLanguageGlossary() {
-    let template = DAISTranslationTemplate(projectID: "my-project")
+@Test func testTranslationTemplateMultiLanguageGlossary() {
+    let template = TranslationTemplate(projectID: "my-project")
 
     let glossary = template.createMultiLanguageGlossary(
         name: "multi-terms",
@@ -24127,8 +24127,8 @@ import Testing
     #expect(glossary.languageCodesSet?.languageCodes.count == 3)
 }
 
-@Test func testDAISTranslationTemplateBatchTranslate() {
-    let template = DAISTranslationTemplate(projectID: "my-project")
+@Test func testTranslationTemplateBatchTranslate() {
+    let template = TranslationTemplate(projectID: "my-project")
 
     let batch = template.batchTranslate(
         inputUri: "gs://my-bucket/input/",
@@ -24139,8 +24139,8 @@ import Testing
     #expect(batch.targetLanguageCodes == ["es", "fr"])
 }
 
-@Test func testDAISTranslationTemplateDocumentTranslation() {
-    let template = DAISTranslationTemplate(projectID: "my-project")
+@Test func testTranslationTemplateDocumentTranslation() {
+    let template = TranslationTemplate(projectID: "my-project")
 
     let doc = template.translateDocument(
         inputUri: "gs://my-bucket/doc.pdf",
@@ -24152,8 +24152,8 @@ import Testing
     #expect(doc.documentInputConfig.mimeType == "application/pdf")
 }
 
-@Test func testDAISTranslationTemplateSetupScript() {
-    let template = DAISTranslationTemplate(
+@Test func testTranslationTemplateSetupScript() {
+    let template = TranslationTemplate(
         projectID: "my-project",
         serviceAccount: "trans-sa",
         glossaryBucket: "trans-glossaries"
@@ -24166,8 +24166,8 @@ import Testing
     #expect(script.contains("gsutil mb"))
 }
 
-@Test func testDAISTranslationTemplateTeardownScript() {
-    let template = DAISTranslationTemplate(
+@Test func testTranslationTemplateTeardownScript() {
+    let template = TranslationTemplate(
         projectID: "my-project",
         glossaryBucket: "trans-glossaries"
     )
@@ -24176,8 +24176,8 @@ import Testing
     #expect(script.contains("gsutil rm -r gs://trans-glossaries"))
 }
 
-@Test func testDAISTranslationTemplatePythonScript() {
-    let template = DAISTranslationTemplate(projectID: "my-project")
+@Test func testTranslationTemplatePythonScript() {
+    let template = TranslationTemplate(projectID: "my-project")
 
     let script = template.pythonScript
     #expect(script.contains("from google.cloud import translate"))
@@ -24413,8 +24413,8 @@ import Testing
     #expect(roles["roles/batch.jobsEditor"] == "Edit batch jobs")
 }
 
-@Test func testDAISBatchTemplateBasic() {
-    let template = DAISBatchTemplate(
+@Test func testBatchTemplateBasic() {
+    let template = BatchTemplate(
         projectID: "my-project",
         location: "us-central1",
         serviceAccount: "batch-sa",
@@ -24426,8 +24426,8 @@ import Testing
     #expect(template.defaultMachineType == "e2-standard-8")
 }
 
-@Test func testDAISBatchTemplateContainerJob() {
-    let template = DAISBatchTemplate(projectID: "my-project")
+@Test func testBatchTemplateContainerJob() {
+    let template = BatchTemplate(projectID: "my-project")
 
     let job = template.containerJob(
         name: "process-job",
@@ -24442,8 +24442,8 @@ import Testing
     #expect(job.taskGroups[0].parallelism == 20)
 }
 
-@Test func testDAISBatchTemplateScriptJob() {
-    let template = DAISBatchTemplate(projectID: "my-project")
+@Test func testBatchTemplateScriptJob() {
+    let template = BatchTemplate(projectID: "my-project")
 
     let job = template.scriptJob(
         name: "script-job",
@@ -24454,8 +24454,8 @@ import Testing
     #expect(job.taskGroups[0].taskSpec.runnables[0].script?.text == "echo 'Hello World'")
 }
 
-@Test func testDAISBatchTemplateGPUJob() {
-    let template = DAISBatchTemplate(projectID: "my-project")
+@Test func testBatchTemplateGPUJob() {
+    let template = BatchTemplate(projectID: "my-project")
 
     let job = template.gpuJob(
         name: "ml-job",
@@ -24468,8 +24468,8 @@ import Testing
     #expect(job.allocationPolicy?.instances?.first?.installGpuDrivers == true)
 }
 
-@Test func testDAISBatchTemplateSpotJob() {
-    let template = DAISBatchTemplate(projectID: "my-project")
+@Test func testBatchTemplateSpotJob() {
+    let template = BatchTemplate(projectID: "my-project")
 
     let job = template.spotJob(
         name: "spot-job",
@@ -24481,8 +24481,8 @@ import Testing
     #expect(job.taskGroups[0].taskSpec.maxRetryCount == 3)
 }
 
-@Test func testDAISBatchTemplateDataProcessingJob() {
-    let template = DAISBatchTemplate(
+@Test func testBatchTemplateDataProcessingJob() {
+    let template = BatchTemplate(
         projectID: "my-project",
         dataBucket: "my-data-bucket"
     )
@@ -24499,8 +24499,8 @@ import Testing
     #expect(job.taskGroups[0].taskSpec.volumes?.first?.mountPath == "/mnt/data")
 }
 
-@Test func testDAISBatchTemplateMLTrainingJob() {
-    let template = DAISBatchTemplate(projectID: "my-project")
+@Test func testBatchTemplateMLTrainingJob() {
+    let template = BatchTemplate(projectID: "my-project")
 
     let job = template.mlTrainingJob(
         name: "training-job",
@@ -24513,8 +24513,8 @@ import Testing
     #expect(job.taskGroups[0].taskSpec.environment?.variables?["MODEL_PATH"] == "gs://models/v1")
 }
 
-@Test func testDAISBatchTemplateSetupScript() {
-    let template = DAISBatchTemplate(
+@Test func testBatchTemplateSetupScript() {
+    let template = BatchTemplate(
         projectID: "my-project",
         serviceAccount: "batch-sa",
         dataBucket: "batch-data"
@@ -24527,8 +24527,8 @@ import Testing
     #expect(script.contains("gsutil mb"))
 }
 
-@Test func testDAISBatchTemplateTeardownScript() {
-    let template = DAISBatchTemplate(
+@Test func testBatchTemplateTeardownScript() {
+    let template = BatchTemplate(
         projectID: "my-project",
         dataBucket: "batch-data"
     )
@@ -24735,31 +24735,31 @@ import Testing
     #expect(BinaryAuthorizationOperations.BinaryAuthorizationRole.attestationCreator.rawValue == "roles/binaryauthorization.attestationsCreator")
 }
 
-@Test func testDAISBinaryAuthorizationTemplateAllowAllPolicy() {
-    let template = DAISBinaryAuthorizationTemplate(projectID: "my-project")
+@Test func testBinaryAuthorizationTemplateAllowAllPolicy() {
+    let template = BinaryAuthorizationTemplate(projectID: "my-project")
     let policy = template.allowAllPolicy
 
     #expect(policy.projectID == "my-project")
     #expect(policy.defaultAdmissionRule.evaluationMode == .alwaysAllow)
 }
 
-@Test func testDAISBinaryAuthorizationTemplateDenyAllPolicy() {
-    let template = DAISBinaryAuthorizationTemplate(projectID: "my-project")
+@Test func testBinaryAuthorizationTemplateDenyAllPolicy() {
+    let template = BinaryAuthorizationTemplate(projectID: "my-project")
     let policy = template.denyAllPolicy
 
     #expect(policy.defaultAdmissionRule.evaluationMode == .alwaysDeny)
 }
 
-@Test func testDAISBinaryAuthorizationTemplateAttestationRequiredPolicy() {
-    let template = DAISBinaryAuthorizationTemplate(projectID: "my-project")
+@Test func testBinaryAuthorizationTemplateAttestationRequiredPolicy() {
+    let template = BinaryAuthorizationTemplate(projectID: "my-project")
     let policy = template.attestationRequiredPolicy(attestorNames: ["prod-attestor"])
 
     #expect(policy.defaultAdmissionRule.evaluationMode == .requireAttestation)
     #expect(policy.defaultAdmissionRule.requireAttestationsBy?.first == "projects/my-project/attestors/prod-attestor")
 }
 
-@Test func testDAISBinaryAuthorizationTemplateAttestor() {
-    let template = DAISBinaryAuthorizationTemplate(projectID: "my-project")
+@Test func testBinaryAuthorizationTemplateAttestor() {
+    let template = BinaryAuthorizationTemplate(projectID: "my-project")
     let attestor = template.attestor(name: "prod-attestor", description: "Production attestor")
 
     #expect(attestor.name == "prod-attestor")
@@ -24767,8 +24767,8 @@ import Testing
     #expect(attestor.userOwnedGrafeasNote?.noteReference == "projects/my-project/notes/prod-attestor-note")
 }
 
-@Test func testDAISBinaryAuthorizationTemplateSetupScript() {
-    let template = DAISBinaryAuthorizationTemplate(projectID: "my-project")
+@Test func testBinaryAuthorizationTemplateSetupScript() {
+    let template = BinaryAuthorizationTemplate(projectID: "my-project")
     let script = template.setupScript
 
     #expect(script.contains("gcloud services enable binaryauthorization.googleapis.com"))
@@ -24778,8 +24778,8 @@ import Testing
     #expect(script.contains("gcloud container binauthz attestors create"))
 }
 
-@Test func testDAISBinaryAuthorizationTemplateCICDScript() {
-    let template = DAISBinaryAuthorizationTemplate(projectID: "my-project")
+@Test func testBinaryAuthorizationTemplateCICDScript() {
+    let template = BinaryAuthorizationTemplate(projectID: "my-project")
     let script = template.cicdIntegrationScript
 
     #expect(script.contains("gcloud container binauthz attestations create"))
@@ -24787,8 +24787,8 @@ import Testing
     #expect(script.contains("IMAGE_URI="))
 }
 
-@Test func testDAISBinaryAuthorizationTemplateRequireAttestationPolicyYAML() {
-    let template = DAISBinaryAuthorizationTemplate(projectID: "my-project")
+@Test func testBinaryAuthorizationTemplateRequireAttestationPolicyYAML() {
+    let template = BinaryAuthorizationTemplate(projectID: "my-project")
     let yaml = template.requireAttestationPolicyYAML(attestorName: "prod-attestor")
 
     #expect(yaml.contains("evaluationMode: REQUIRE_ATTESTATION"))
@@ -24796,8 +24796,8 @@ import Testing
     #expect(yaml.contains("enforcementMode: ENFORCED_BLOCK_AND_AUDIT_LOG"))
 }
 
-@Test func testDAISBinaryAuthorizationTemplateDryRunPolicyYAML() {
-    let template = DAISBinaryAuthorizationTemplate(projectID: "my-project")
+@Test func testBinaryAuthorizationTemplateDryRunPolicyYAML() {
+    let template = BinaryAuthorizationTemplate(projectID: "my-project")
     let yaml = template.dryRunPolicyYAML(attestorName: "prod-attestor")
 
     #expect(yaml.contains("enforcementMode: DRYRUN_AUDIT_LOG_ONLY"))
@@ -25092,8 +25092,8 @@ import Testing
     #expect(CertificateAuthorityOperations.CASRole.certificateRequester.rawValue == "roles/privateca.certificateRequester")
 }
 
-@Test func testDAISCertificateAuthorityTemplateDevOpsPool() {
-    let template = DAISCertificateAuthorityTemplate(
+@Test func testCertificateAuthorityTemplateDevOpsPool() {
+    let template = CertificateAuthorityTemplate(
         projectID: "my-project",
         location: "us-central1",
         organization: "Example Inc"
@@ -25104,8 +25104,8 @@ import Testing
     #expect(pool.publishingOptions?.publishCaCert == true)
 }
 
-@Test func testDAISCertificateAuthorityTemplateEnterprisePool() {
-    let template = DAISCertificateAuthorityTemplate(
+@Test func testCertificateAuthorityTemplateEnterprisePool() {
+    let template = CertificateAuthorityTemplate(
         projectID: "my-project",
         organization: "Example Inc"
     )
@@ -25115,8 +25115,8 @@ import Testing
     #expect(pool.issuancePolicy?.maximumLifetime == "31536000s")
 }
 
-@Test func testDAISCertificateAuthorityTemplateRootCA() {
-    let template = DAISCertificateAuthorityTemplate(
+@Test func testCertificateAuthorityTemplateRootCA() {
+    let template = CertificateAuthorityTemplate(
         projectID: "my-project",
         organization: "Example Inc"
     )
@@ -25127,8 +25127,8 @@ import Testing
     #expect(ca.config?.subjectConfig?.subject?.organization == "Example Inc")
 }
 
-@Test func testDAISCertificateAuthorityTemplateServerCertificate() {
-    let template = DAISCertificateAuthorityTemplate(
+@Test func testCertificateAuthorityTemplateServerCertificate() {
+    let template = CertificateAuthorityTemplate(
         projectID: "my-project",
         organization: "Example Inc"
     )
@@ -25143,8 +25143,8 @@ import Testing
     #expect(cert.config?.x509Config?.keyUsage?.extendedKeyUsage?.serverAuth == true)
 }
 
-@Test func testDAISCertificateAuthorityTemplateClientCertificate() {
-    let template = DAISCertificateAuthorityTemplate(
+@Test func testCertificateAuthorityTemplateClientCertificate() {
+    let template = CertificateAuthorityTemplate(
         projectID: "my-project",
         organization: "Example Inc"
     )
@@ -25159,8 +25159,8 @@ import Testing
     #expect(cert.config?.x509Config?.keyUsage?.extendedKeyUsage?.clientAuth == true)
 }
 
-@Test func testDAISCertificateAuthorityTemplateMTLSTemplate() {
-    let template = DAISCertificateAuthorityTemplate(
+@Test func testCertificateAuthorityTemplateMTLSTemplate() {
+    let template = CertificateAuthorityTemplate(
         projectID: "my-project",
         organization: "Example Inc"
     )
@@ -25171,8 +25171,8 @@ import Testing
     #expect(mtlsTemplate.predefinedValues?.keyUsage?.extendedKeyUsage?.clientAuth == true)
 }
 
-@Test func testDAISCertificateAuthorityTemplateSetupScript() {
-    let template = DAISCertificateAuthorityTemplate(
+@Test func testCertificateAuthorityTemplateSetupScript() {
+    let template = CertificateAuthorityTemplate(
         projectID: "my-project",
         organization: "Example Inc"
     )
@@ -25184,8 +25184,8 @@ import Testing
     #expect(script.contains("Example Inc Root CA"))
 }
 
-@Test func testDAISCertificateAuthorityTemplateIssueCertificateScript() {
-    let template = DAISCertificateAuthorityTemplate(
+@Test func testCertificateAuthorityTemplateIssueCertificateScript() {
+    let template = CertificateAuthorityTemplate(
         projectID: "my-project",
         organization: "Example Inc"
     )
@@ -25538,8 +25538,8 @@ import Testing
     #expect(cmd.contains("--role=roles/networkmanagement.admin"))
 }
 
-@Test func testDAISNetworkIntelligenceTemplateVMToVMTest() {
-    let template = DAISNetworkIntelligenceTemplate(projectID: "my-project")
+@Test func testNetworkIntelligenceTemplateVMToVMTest() {
+    let template = NetworkIntelligenceTemplate(projectID: "my-project")
     let test = template.vmToVMTest(
         name: "app-to-db-test",
         sourceInstance: "projects/my-project/zones/us-central1-a/instances/app-vm",
@@ -25553,8 +25553,8 @@ import Testing
     #expect(test.networkProtocol == .tcp)
 }
 
-@Test func testDAISNetworkIntelligenceTemplateVMToInternetTest() {
-    let template = DAISNetworkIntelligenceTemplate(projectID: "my-project")
+@Test func testNetworkIntelligenceTemplateVMToInternetTest() {
+    let template = NetworkIntelligenceTemplate(projectID: "my-project")
     let test = template.vmToInternetTest(
         name: "egress-test",
         sourceInstance: "projects/my-project/zones/us-central1-a/instances/vm1",
@@ -25568,8 +25568,8 @@ import Testing
     #expect(test.destination.port == 443)
 }
 
-@Test func testDAISNetworkIntelligenceTemplateGKETest() {
-    let template = DAISNetworkIntelligenceTemplate(projectID: "my-project")
+@Test func testNetworkIntelligenceTemplateGKETest() {
+    let template = NetworkIntelligenceTemplate(projectID: "my-project")
     let test = template.gkeConnectivityTest(
         name: "gke-egress-test",
         clusterUri: "projects/my-project/locations/us-central1/clusters/my-cluster",
@@ -25582,8 +25582,8 @@ import Testing
     #expect(test.destination.ipAddress == "api.example.com")
 }
 
-@Test func testDAISNetworkIntelligenceTemplateCloudSQLTest() {
-    let template = DAISNetworkIntelligenceTemplate(projectID: "my-project")
+@Test func testNetworkIntelligenceTemplateCloudSQLTest() {
+    let template = NetworkIntelligenceTemplate(projectID: "my-project")
     let test = template.cloudSqlConnectivityTest(
         name: "app-to-sql-test",
         sourceInstance: "projects/my-project/zones/us-central1-a/instances/app-vm",
@@ -25596,16 +25596,16 @@ import Testing
     #expect(test.destination.cloudSqlInstance != nil)
 }
 
-@Test func testDAISNetworkIntelligenceTemplateOperations() {
-    let template = DAISNetworkIntelligenceTemplate(projectID: "my-project")
+@Test func testNetworkIntelligenceTemplateOperations() {
+    let template = NetworkIntelligenceTemplate(projectID: "my-project")
     let ops = template.operations
 
     #expect(ops.projectID == "my-project")
     #expect(ops.enableAPICommand.contains("networkmanagement.googleapis.com"))
 }
 
-@Test func testDAISNetworkIntelligenceTemplateScript() {
-    let template = DAISNetworkIntelligenceTemplate(projectID: "my-project")
+@Test func testNetworkIntelligenceTemplateScript() {
+    let template = NetworkIntelligenceTemplate(projectID: "my-project")
     let script = template.connectivityTestingScript
 
     #expect(script.contains("#!/bin/bash"))
@@ -25996,8 +25996,8 @@ import Testing
     #expect(InterconnectOperations.InterconnectRole.computeNetworkViewer.rawValue == "roles/compute.networkViewer")
 }
 
-@Test func testDAISInterconnectTemplateDedicated() {
-    let template = DAISInterconnectTemplate(projectID: "my-project", region: "us-central1")
+@Test func testInterconnectTemplateDedicated() {
+    let template = InterconnectTemplate(projectID: "my-project", region: "us-central1")
     let interconnect = template.dedicatedInterconnect(
         name: "dc-interconnect",
         location: "lax-loa9-1",
@@ -26013,8 +26013,8 @@ import Testing
     #expect(interconnect.nocContactEmail == "noc@example.com")
 }
 
-@Test func testDAISInterconnectTemplateRouter() {
-    let template = DAISInterconnectTemplate(projectID: "my-project", region: "us-central1")
+@Test func testInterconnectTemplateRouter() {
+    let template = InterconnectTemplate(projectID: "my-project", region: "us-central1")
     let router = template.interconnectRouter(
         name: "ic-router",
         network: "prod-network",
@@ -26027,8 +26027,8 @@ import Testing
     #expect(router.bgpKeepaliveInterval == 20)
 }
 
-@Test func testDAISInterconnectTemplateAttachmentZoneA() {
-    let template = DAISInterconnectTemplate(projectID: "my-project", region: "us-central1")
+@Test func testInterconnectTemplateAttachmentZoneA() {
+    let template = InterconnectTemplate(projectID: "my-project", region: "us-central1")
     let attachment = template.dedicatedAttachmentZoneA(
         name: "vlan-100-a",
         interconnect: "my-interconnect",
@@ -26041,8 +26041,8 @@ import Testing
     #expect(attachment.vlanTag8021q == 100)
 }
 
-@Test func testDAISInterconnectTemplateAttachmentZoneB() {
-    let template = DAISInterconnectTemplate(projectID: "my-project", region: "us-central1")
+@Test func testInterconnectTemplateAttachmentZoneB() {
+    let template = InterconnectTemplate(projectID: "my-project", region: "us-central1")
     let attachment = template.dedicatedAttachmentZoneB(
         name: "vlan-100-b",
         interconnect: "my-interconnect",
@@ -26054,8 +26054,8 @@ import Testing
     #expect(attachment.edgeAvailabilityDomain == .availabilityDomain2)
 }
 
-@Test func testDAISInterconnectTemplatePartnerAttachment() {
-    let template = DAISInterconnectTemplate(projectID: "my-project", region: "us-central1")
+@Test func testInterconnectTemplatePartnerAttachment() {
+    let template = InterconnectTemplate(projectID: "my-project", region: "us-central1")
     let attachment = template.partnerAttachment(
         name: "partner-vlan",
         router: "partner-router"
@@ -26065,8 +26065,8 @@ import Testing
     #expect(attachment.attachmentType == .partner)
 }
 
-@Test func testDAISInterconnectTemplateHAScript() {
-    let template = DAISInterconnectTemplate(projectID: "my-project", region: "us-central1")
+@Test func testInterconnectTemplateHAScript() {
+    let template = InterconnectTemplate(projectID: "my-project", region: "us-central1")
     let script = template.haInterconnectSetupScript(
         interconnect1: "ic-metro1",
         interconnect2: "ic-metro2",
@@ -26083,8 +26083,8 @@ import Testing
     #expect(script.contains("--noc-contact-email=noc@example.com"))
 }
 
-@Test func testDAISInterconnectTemplatePartnerScript() {
-    let template = DAISInterconnectTemplate(projectID: "my-project", region: "us-central1")
+@Test func testInterconnectTemplatePartnerScript() {
+    let template = InterconnectTemplate(projectID: "my-project", region: "us-central1")
     let script = template.partnerInterconnectSetupScript(
         network: "prod-network",
         attachmentName: "partner-attachment"
@@ -26445,16 +26445,16 @@ import Testing
     #expect(HealthcareOperations.HealthcareRole.healthcareDicomStoreAdmin.rawValue == "roles/healthcare.dicomStoreAdmin")
 }
 
-@Test func testDAISHealthcareTemplateDataset() {
-    let template = DAISHealthcareTemplate(projectID: "my-project", location: "us-central1")
+@Test func testHealthcareTemplateDataset() {
+    let template = HealthcareTemplate(projectID: "my-project", location: "us-central1")
     let dataset = template.dataset(name: "clinical-data", timeZone: "America/Chicago")
 
     #expect(dataset.name == "clinical-data")
     #expect(dataset.timeZone == "America/Chicago")
 }
 
-@Test func testDAISHealthcareTemplateFHIRStore() {
-    let template = DAISHealthcareTemplate(projectID: "my-project", location: "us-central1")
+@Test func testHealthcareTemplateFHIRStore() {
+    let template = HealthcareTemplate(projectID: "my-project", location: "us-central1")
     let store = template.fhirStoreR4(
         name: "patient-records",
         dataset: "ehr-dataset",
@@ -26467,8 +26467,8 @@ import Testing
     #expect(store.streamConfigs != nil)
 }
 
-@Test func testDAISHealthcareTemplateHL7v2Store() {
-    let template = DAISHealthcareTemplate(projectID: "my-project", location: "us-central1")
+@Test func testHealthcareTemplateHL7v2Store() {
+    let template = HealthcareTemplate(projectID: "my-project", location: "us-central1")
     let store = template.hl7v2Store(
         name: "hl7-messages",
         dataset: "ehr-dataset",
@@ -26480,8 +26480,8 @@ import Testing
     #expect(store.notificationConfigs?.count == 1)
 }
 
-@Test func testDAISHealthcareTemplateDICOMStore() {
-    let template = DAISHealthcareTemplate(projectID: "my-project", location: "us-central1")
+@Test func testHealthcareTemplateDICOMStore() {
+    let template = HealthcareTemplate(projectID: "my-project", location: "us-central1")
     let store = template.dicomStore(
         name: "radiology-images",
         dataset: "imaging",
@@ -26492,8 +26492,8 @@ import Testing
     #expect(store.notificationConfig?.pubsubTopic == "projects/my-project/topics/dicom-events")
 }
 
-@Test func testDAISHealthcareTemplateSetupScript() {
-    let template = DAISHealthcareTemplate(projectID: "my-project", location: "us-central1")
+@Test func testHealthcareTemplateSetupScript() {
+    let template = HealthcareTemplate(projectID: "my-project", location: "us-central1")
     let script = template.setupScript(
         datasetName: "ehr-dataset",
         fhirStoreName: "patient-records",
@@ -26759,8 +26759,8 @@ import Testing
     #expect(RetailOperations.RetailRole.retailViewer.rawValue == "roles/retail.viewer")
 }
 
-@Test func testDAISRetailTemplateProduct() {
-    let template = DAISRetailTemplate(projectID: "my-project")
+@Test func testRetailTemplateProduct() {
+    let template = RetailTemplate(projectID: "my-project")
     let product = template.product(
         id: "SKU789",
         title: "Super Widget",
@@ -26779,8 +26779,8 @@ import Testing
     #expect(product.images?.count == 1)
 }
 
-@Test func testDAISRetailTemplateProductViewEvent() {
-    let template = DAISRetailTemplate(projectID: "my-project")
+@Test func testRetailTemplateProductViewEvent() {
+    let template = RetailTemplate(projectID: "my-project")
     let event = template.productViewEvent(
         visitorId: "visitor123",
         productId: "SKU456",
@@ -26792,8 +26792,8 @@ import Testing
     #expect(event.productDetails?.first?.product?.id == "SKU456")
 }
 
-@Test func testDAISRetailTemplateAddToCartEvent() {
-    let template = DAISRetailTemplate(projectID: "my-project")
+@Test func testRetailTemplateAddToCartEvent() {
+    let template = RetailTemplate(projectID: "my-project")
     let event = template.addToCartEvent(
         visitorId: "visitor123",
         productId: "SKU456",
@@ -26807,8 +26807,8 @@ import Testing
     #expect(event.cartId == "cart-789")
 }
 
-@Test func testDAISRetailTemplatePurchaseEvent() {
-    let template = DAISRetailTemplate(projectID: "my-project")
+@Test func testRetailTemplatePurchaseEvent() {
+    let template = RetailTemplate(projectID: "my-project")
     let event = template.purchaseEvent(
         visitorId: "visitor123",
         transactionId: "order-12345",
@@ -26824,8 +26824,8 @@ import Testing
     #expect(event.productDetails?.count == 2)
 }
 
-@Test func testDAISRetailTemplateSearchEvent() {
-    let template = DAISRetailTemplate(projectID: "my-project")
+@Test func testRetailTemplateSearchEvent() {
+    let template = RetailTemplate(projectID: "my-project")
     let event = template.searchEvent(
         visitorId: "visitor123",
         query: "blue sneakers",
@@ -26837,8 +26837,8 @@ import Testing
     #expect(event.pageCategories?.contains("Shoes") == true)
 }
 
-@Test func testDAISRetailTemplateRecommendationConfig() {
-    let template = DAISRetailTemplate(projectID: "my-project")
+@Test func testRetailTemplateRecommendationConfig() {
+    let template = RetailTemplate(projectID: "my-project")
     let config = template.recommendationConfig(
         name: "pdp-recs",
         displayName: "Product Detail Recommendations",
@@ -26850,8 +26850,8 @@ import Testing
     #expect(config.solutionTypes?.contains(.recommendation) == true)
 }
 
-@Test func testDAISRetailTemplateSearchConfig() {
-    let template = DAISRetailTemplate(projectID: "my-project")
+@Test func testRetailTemplateSearchConfig() {
+    let template = RetailTemplate(projectID: "my-project")
     let config = template.searchConfig(
         name: "product-search",
         displayName: "Product Search",
@@ -26863,8 +26863,8 @@ import Testing
     #expect(config.solutionTypes?.contains(.search) == true)
 }
 
-@Test func testDAISRetailTemplateProductImportScript() {
-    let template = DAISRetailTemplate(projectID: "my-project")
+@Test func testRetailTemplateProductImportScript() {
+    let template = RetailTemplate(projectID: "my-project")
     let script = template.productImportScript(gcsUri: "gs://my-bucket/products/*.json")
 
     #expect(script.contains("#!/bin/bash"))
@@ -27189,8 +27189,8 @@ import Testing
     #expect(cmd.contains("--role=roles/networkservices.admin"))
 }
 
-@Test func testDAISMediaCDNTemplateGCSOrigin() {
-    let template = DAISMediaCDNTemplate(projectID: "my-project")
+@Test func testMediaCDNTemplateGCSOrigin() {
+    let template = MediaCDNTemplate(projectID: "my-project")
     let origin = template.gcsOrigin(name: "gcs-origin", bucketName: "my-video-bucket")
 
     #expect(origin.name == "gcs-origin")
@@ -27199,8 +27199,8 @@ import Testing
     #expect(origin.maxAttempts == 3)
 }
 
-@Test func testDAISMediaCDNTemplateS3Origin() {
-    let template = DAISMediaCDNTemplate(projectID: "my-project")
+@Test func testMediaCDNTemplateS3Origin() {
+    let template = MediaCDNTemplate(projectID: "my-project")
     let origin = template.s3Origin(
         name: "s3-origin",
         bucketName: "my-s3-bucket",
@@ -27215,8 +27215,8 @@ import Testing
     #expect(origin.awsV4Authentication?.originRegion == "us-west-2")
 }
 
-@Test func testDAISMediaCDNTemplateCustomOrigin() {
-    let template = DAISMediaCDNTemplate(projectID: "my-project")
+@Test func testMediaCDNTemplateCustomOrigin() {
+    let template = MediaCDNTemplate(projectID: "my-project")
     let origin = template.customOrigin(
         name: "custom-origin",
         originAddress: "origin.example.com",
@@ -27228,8 +27228,8 @@ import Testing
     #expect(origin.port == 8443)
 }
 
-@Test func testDAISMediaCDNTemplateSignedURLKeyset() {
-    let template = DAISMediaCDNTemplate(projectID: "my-project")
+@Test func testMediaCDNTemplateSignedURLKeyset() {
+    let template = MediaCDNTemplate(projectID: "my-project")
     let keyset = template.signedURLKeyset(
         name: "signing-keyset",
         publicKeyId: "key-001",
@@ -27241,8 +27241,8 @@ import Testing
     #expect(keyset.publicKeys?.first?.value == "base64PublicKey")
 }
 
-@Test func testDAISMediaCDNTemplateVideoStreamingService() {
-    let template = DAISMediaCDNTemplate(projectID: "my-project")
+@Test func testMediaCDNTemplateVideoStreamingService() {
+    let template = MediaCDNTemplate(projectID: "my-project")
     let service = template.videoStreamingService(
         name: "video-cdn",
         hosts: ["cdn.example.com"],
@@ -27255,8 +27255,8 @@ import Testing
     #expect(service.logConfig?.enable == true)
 }
 
-@Test func testDAISMediaCDNTemplateVideoStreamingServiceWithSignedURLs() {
-    let template = DAISMediaCDNTemplate(projectID: "my-project")
+@Test func testMediaCDNTemplateVideoStreamingServiceWithSignedURLs() {
+    let template = MediaCDNTemplate(projectID: "my-project")
     let service = template.videoStreamingService(
         name: "protected-cdn",
         hosts: ["secure.example.com"],
@@ -27270,8 +27270,8 @@ import Testing
     #expect(routeRule?.routeAction?.cdnPolicy?.signedRequestMode == .requireTokens)
 }
 
-@Test func testDAISMediaCDNTemplateLiveStreamingService() {
-    let template = DAISMediaCDNTemplate(projectID: "my-project")
+@Test func testMediaCDNTemplateLiveStreamingService() {
+    let template = MediaCDNTemplate(projectID: "my-project")
     let service = template.liveStreamingService(
         name: "live-cdn",
         hosts: ["live.example.com"],
@@ -27286,8 +27286,8 @@ import Testing
     #expect(routeRules?.count == 3)
 }
 
-@Test func testDAISMediaCDNTemplateSetupScript() {
-    let template = DAISMediaCDNTemplate(projectID: "my-project")
+@Test func testMediaCDNTemplateSetupScript() {
+    let template = MediaCDNTemplate(projectID: "my-project")
     let script = template.videoStreamingSetupScript(
         serviceName: "video-cdn",
         originName: "video-origin",
@@ -27302,8 +27302,8 @@ import Testing
     #expect(script.contains("edge-cache services import"))
 }
 
-@Test func testDAISMediaCDNTemplateCacheInvalidationScript() {
-    let template = DAISMediaCDNTemplate(projectID: "my-project")
+@Test func testMediaCDNTemplateCacheInvalidationScript() {
+    let template = MediaCDNTemplate(projectID: "my-project")
     let script = template.cacheInvalidationScript(serviceName: "video-cdn")
 
     #expect(script.contains("invalidate-cache"))
@@ -27650,8 +27650,8 @@ import Testing
     #expect(AnthosOperations.AnthosRole.anthosConfigManagementAdmin.rawValue == "roles/anthosconfigmanagement.admin")
 }
 
-@Test func testDAISAnthosTemplateGKEMembership() {
-    let template = DAISAnthosTemplate(projectID: "my-project")
+@Test func testAnthosTemplateGKEMembership() {
+    let template = AnthosTemplate(projectID: "my-project")
     let membership = template.gkeMembership(
         name: "gke-prod",
         clusterResourceLink: "//container.googleapis.com/projects/my-project/locations/us-central1/clusters/prod"
@@ -27661,8 +27661,8 @@ import Testing
     #expect(membership.endpoint?.gkeCluster?.resourceLink.contains("prod") == true)
 }
 
-@Test func testDAISAnthosTemplateOnPremMembership() {
-    let template = DAISAnthosTemplate(projectID: "my-project")
+@Test func testAnthosTemplateOnPremMembership() {
+    let template = AnthosTemplate(projectID: "my-project")
     let membership = template.onPremMembership(
         name: "on-prem-cluster",
         clusterType: .user
@@ -27672,8 +27672,8 @@ import Testing
     #expect(membership.endpoint?.onPremCluster?.clusterType == .user)
 }
 
-@Test func testDAISAnthosTemplateConfigManagementWithGit() {
-    let template = DAISAnthosTemplate(projectID: "my-project")
+@Test func testAnthosTemplateConfigManagementWithGit() {
+    let template = AnthosTemplate(projectID: "my-project")
     let acm = template.configManagementWithGit(
         membership: "my-cluster",
         gitRepo: "https://github.com/org/config-repo",
@@ -27687,8 +27687,8 @@ import Testing
     #expect(acm.policyController?.enabled == true)
 }
 
-@Test func testDAISAnthosTemplateServiceMeshAutomatic() {
-    let template = DAISAnthosTemplate(projectID: "my-project")
+@Test func testAnthosTemplateServiceMeshAutomatic() {
+    let template = AnthosTemplate(projectID: "my-project")
     let asm = template.serviceMeshAutomatic(membership: "my-cluster")
 
     #expect(asm.controlPlane?.management == .automatic)
@@ -27696,16 +27696,16 @@ import Testing
     #expect(asm.meshConfig?.enableAutoMtls == true)
 }
 
-@Test func testDAISAnthosTemplateSecureFleet() {
-    let template = DAISAnthosTemplate(projectID: "my-project")
+@Test func testAnthosTemplateSecureFleet() {
+    let template = AnthosTemplate(projectID: "my-project")
     let fleet = template.secureFleet(displayName: "Secure Fleet")
 
     #expect(fleet.displayName == "Secure Fleet")
     #expect(fleet.defaultClusterConfig?.securityPostureConfig?.mode == .basic)
 }
 
-@Test func testDAISAnthosTemplateFleetSetupScript() {
-    let template = DAISAnthosTemplate(projectID: "my-project")
+@Test func testAnthosTemplateFleetSetupScript() {
+    let template = AnthosTemplate(projectID: "my-project")
     let script = template.fleetSetupScript(
         fleetName: "prod-fleet",
         clusterNames: ["cluster-a", "cluster-b"],
@@ -27720,8 +27720,8 @@ import Testing
     #expect(script.contains("features enable mesh"))
 }
 
-@Test func testDAISAnthosTemplateConfigManagementYAML() {
-    let template = DAISAnthosTemplate(projectID: "my-project")
+@Test func testAnthosTemplateConfigManagementYAML() {
+    let template = AnthosTemplate(projectID: "my-project")
     let yaml = template.configManagementYAML(
         gitRepo: "https://github.com/example/config",
         branch: "main",
@@ -27735,8 +27735,8 @@ import Testing
     #expect(yaml.contains("enabled: true"))
 }
 
-@Test func testDAISAnthosTemplateMultiClusterIngressScript() {
-    let template = DAISAnthosTemplate(projectID: "my-project")
+@Test func testAnthosTemplateMultiClusterIngressScript() {
+    let template = AnthosTemplate(projectID: "my-project")
     let script = template.multiClusterIngressSetupScript(
         configCluster: "config-cluster",
         region: "us-central1"
@@ -28067,7 +28067,7 @@ import Testing
         ],
         "labels": {
             "env": "test",
-            "app": "dais"
+            "app": "my-app"
         },
         "deletionProtection": false
     }

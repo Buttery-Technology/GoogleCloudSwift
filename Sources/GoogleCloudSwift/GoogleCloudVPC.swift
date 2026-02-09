@@ -1157,11 +1157,11 @@ public enum PredefinedCIDRRange {
     public static let restrictedGoogleAccess = "199.36.153.4/30"
 }
 
-// MARK: - DAIS VPC Templates
+// MARK: - Cloud VPC Templates
 
-/// Predefined VPC configurations for DAIS deployments.
-public enum DAISVPCTemplate {
-    /// Create a VPC network for DAIS
+/// Predefined VPC configurations for Cloud deployments.
+public enum VPCTemplate {
+    /// Create a VPC network for Cloud
     public static func network(
         projectID: String,
         deploymentName: String
@@ -1171,11 +1171,11 @@ public enum DAISVPCTemplate {
             projectID: projectID,
             autoCreateSubnetworks: false,
             routingMode: .global,
-            description: "VPC network for DAIS deployment \(deploymentName)"
+            description: "VPC network for Cloud deployment \(deploymentName)"
         )
     }
 
-    /// Create a subnet for DAIS nodes
+    /// Create a subnet for Cloud nodes
     public static func nodeSubnet(
         projectID: String,
         deploymentName: String,
@@ -1188,7 +1188,7 @@ public enum DAISVPCTemplate {
             projectID: projectID,
             region: region,
             ipCidrRange: cidrRange,
-            description: "Subnet for DAIS nodes",
+            description: "Subnet for Cloud nodes",
             privateIpGoogleAccess: true,
             enableFlowLogs: true,
             flowLogAggregationInterval: .interval5Min
@@ -1209,7 +1209,7 @@ public enum DAISVPCTemplate {
             allowed: [.init(protocol: .tcp, ports: ["\(port)"])],
             sourceRanges: ["10.0.0.0/8"],
             targetTags: ["\(deploymentName)-node"],
-            description: "Allow gRPC traffic between DAIS nodes"
+            description: "Allow gRPC traffic between Cloud nodes"
         )
     }
 
@@ -1266,7 +1266,7 @@ public enum DAISVPCTemplate {
             ],
             sourceTags: ["\(deploymentName)-node"],
             targetTags: ["\(deploymentName)-node"],
-            description: "Allow all internal traffic between DAIS nodes"
+            description: "Allow all internal traffic between Cloud nodes"
         )
     }
 
@@ -1281,7 +1281,7 @@ public enum DAISVPCTemplate {
             networkName: "\(deploymentName)-vpc",
             projectID: projectID,
             region: region,
-            description: "Cloud Router for DAIS deployment"
+            description: "Cloud Router for Cloud deployment"
         )
     }
 
@@ -1319,7 +1319,7 @@ public enum DAISVPCTemplate {
 
         return """
         #!/bin/bash
-        # DAIS VPC Network Setup Script
+        # Cloud VPC Network Setup Script
         # Deployment: \(deploymentName)
         # Project: \(projectID)
         # Region: \(region)
@@ -1327,7 +1327,7 @@ public enum DAISVPCTemplate {
         set -e
 
         echo "========================================"
-        echo "DAIS VPC Network Configuration"
+        echo "Cloud VPC Network Configuration"
         echo "========================================"
 
         # Create VPC network
@@ -1370,7 +1370,7 @@ public enum DAISVPCTemplate {
     ) -> String {
         """
         #!/bin/bash
-        # DAIS VPC Network Teardown Script
+        # Cloud VPC Network Teardown Script
         # WARNING: This will delete all VPC resources!
 
         set -e

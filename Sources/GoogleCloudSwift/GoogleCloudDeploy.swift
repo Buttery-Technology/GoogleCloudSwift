@@ -626,10 +626,10 @@ public struct CloudDeployOperations {
     }
 }
 
-// MARK: - DAIS Cloud Deploy Template
+// MARK: - Cloud Cloud Deploy Template
 
-/// Cloud Deploy templates for DAIS deployments
-public struct DAISCloudDeployTemplate {
+/// Cloud Deploy templates for Cloud deployments
+public struct CloudDeployTemplate {
 
     /// Create delivery pipeline for Cloud Run
     public static func cloudRunPipeline(
@@ -642,7 +642,7 @@ public struct DAISCloudDeployTemplate {
             name: "\(deploymentName)-pipeline",
             projectID: projectID,
             location: location,
-            description: "DAIS \(deploymentName) delivery pipeline",
+            description: "Cloud \(deploymentName) delivery pipeline",
             serialPipeline: GoogleCloudDeliveryPipeline.SerialPipeline(
                 stages: stages.map { stage in
                     GoogleCloudDeliveryPipeline.SerialPipeline.Stage(
@@ -653,7 +653,7 @@ public struct DAISCloudDeployTemplate {
             ),
             labels: [
                 "deployment": deploymentName,
-                "managed-by": "dais"
+                "managed-by": "googlecloudswift"
             ]
         )
     }
@@ -671,13 +671,13 @@ public struct DAISCloudDeployTemplate {
             name: "\(deploymentName)-\(environment)",
             projectID: projectID,
             location: location,
-            description: "DAIS \(deploymentName) \(environment) target",
+            description: "Cloud \(deploymentName) \(environment) target",
             targetType: .cloudRun(location: runLocation),
             requireApproval: requireApproval,
             labels: [
                 "deployment": deploymentName,
                 "environment": environment,
-                "managed-by": "dais"
+                "managed-by": "googlecloudswift"
             ]
         )
     }
@@ -697,13 +697,13 @@ public struct DAISCloudDeployTemplate {
             name: "\(deploymentName)-\(environment)",
             projectID: projectID,
             location: location,
-            description: "DAIS \(deploymentName) \(environment) GKE target",
+            description: "Cloud \(deploymentName) \(environment) GKE target",
             targetType: .gke(cluster: cluster, internalIP: false),
             requireApproval: requireApproval,
             labels: [
                 "deployment": deploymentName,
                 "environment": environment,
-                "managed-by": "dais"
+                "managed-by": "googlecloudswift"
             ]
         )
     }
@@ -783,9 +783,9 @@ public struct DAISCloudDeployTemplate {
                 --project=\(projectID) \\
                 --region=\(location) \\
                 --run-location=\(env.runLocation) \\
-                --description="DAIS \(deploymentName) \(env.name)" \\
+                --description="Cloud \(deploymentName) \(env.name)" \\
             \(env.requireApproval ? "    --require-approval \\" : "")
-                --labels=deployment=\(deploymentName),environment=\(env.name),managed-by=dais || true
+                --labels=deployment=\(deploymentName),environment=\(env.name),managed-by=googlecloudswift || true
 
 
             """
@@ -800,8 +800,8 @@ public struct DAISCloudDeployTemplate {
           name: \(deploymentName)-pipeline
           labels:
             deployment: \(deploymentName)
-            managed-by: dais
-        description: DAIS \(deploymentName) delivery pipeline
+            managed-by: googlecloudswift
+        description: Cloud \(deploymentName) delivery pipeline
         serialPipeline:
           stages:
 

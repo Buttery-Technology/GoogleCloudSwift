@@ -1130,11 +1130,11 @@ public enum PredefinedMetricFilter {
     public static let lbBackendLatencies = "metric.type=\"loadbalancing.googleapis.com/https/backend_latencies\""
 }
 
-// MARK: - DAIS Monitoring Templates
+// MARK: - Cloud Monitoring Templates
 
-/// Predefined monitoring configurations for DAIS deployments.
-public enum DAISMonitoringTemplate {
-    /// Create email notification channel for DAIS alerts
+/// Predefined monitoring configurations for Cloud deployments.
+public enum MonitoringTemplate {
+    /// Create email notification channel for Cloud alerts
     public static func emailChannel(
         projectID: String,
         deploymentName: String,
@@ -1147,7 +1147,7 @@ public enum DAISMonitoringTemplate {
         )
     }
 
-    /// Create Slack notification channel for DAIS alerts
+    /// Create Slack notification channel for Cloud alerts
     public static func slackChannel(
         projectID: String,
         deploymentName: String,
@@ -1162,7 +1162,7 @@ public enum DAISMonitoringTemplate {
         )
     }
 
-    /// Create CPU usage alert policy for DAIS
+    /// Create CPU usage alert policy for Cloud
     public static func cpuAlertPolicy(
         projectID: String,
         deploymentName: String,
@@ -1187,15 +1187,15 @@ public enum DAISMonitoringTemplate {
             ],
             notificationChannels: notificationChannels,
             documentation: AlertDocumentation(
-                content: "CPU utilization has exceeded \(Int(threshold * 100))% for DAIS deployment '\(deploymentName)'.\n\nConsider scaling up or investigating high-CPU processes.",
+                content: "CPU utilization has exceeded \(Int(threshold * 100))% for Cloud deployment '\(deploymentName)'.\n\nConsider scaling up or investigating high-CPU processes.",
                 subject: "High CPU Alert: \(deploymentName)"
             ),
-            userLabels: ["app": "butteryai", "deployment": deploymentName],
+            userLabels: ["app": "my-app", "deployment": deploymentName],
             severity: .warning
         )
     }
 
-    /// Create memory usage alert policy for DAIS
+    /// Create memory usage alert policy for Cloud
     public static func memoryAlertPolicy(
         projectID: String,
         deploymentName: String,
@@ -1216,15 +1216,15 @@ public enum DAISMonitoringTemplate {
             ],
             notificationChannels: notificationChannels,
             documentation: AlertDocumentation(
-                content: "Memory utilization has exceeded \(Int(threshold * 100))% for DAIS deployment '\(deploymentName)'.",
+                content: "Memory utilization has exceeded \(Int(threshold * 100))% for Cloud deployment '\(deploymentName)'.",
                 subject: "High Memory Alert: \(deploymentName)"
             ),
-            userLabels: ["app": "butteryai", "deployment": deploymentName],
+            userLabels: ["app": "my-app", "deployment": deploymentName],
             severity: .warning
         )
     }
 
-    /// Create error rate alert policy for DAIS
+    /// Create error rate alert policy for Cloud
     public static func errorRateAlertPolicy(
         projectID: String,
         deploymentName: String,
@@ -1245,15 +1245,15 @@ public enum DAISMonitoringTemplate {
             ],
             notificationChannels: notificationChannels,
             documentation: AlertDocumentation(
-                content: "Error rate has exceeded \(Int(threshold * 100))% for DAIS deployment '\(deploymentName)'.\n\nCheck logs for details.",
+                content: "Error rate has exceeded \(Int(threshold * 100))% for Cloud deployment '\(deploymentName)'.\n\nCheck logs for details.",
                 subject: "High Error Rate: \(deploymentName)"
             ),
-            userLabels: ["app": "butteryai", "deployment": deploymentName],
+            userLabels: ["app": "my-app", "deployment": deploymentName],
             severity: .error
         )
     }
 
-    /// Create uptime check for DAIS HTTP endpoint
+    /// Create uptime check for Cloud HTTP endpoint
     public static func httpUptimeCheck(
         projectID: String,
         deploymentName: String,
@@ -1278,7 +1278,7 @@ public enum DAISMonitoringTemplate {
         )
     }
 
-    /// Create uptime check for DAIS gRPC endpoint
+    /// Create uptime check for Cloud gRPC endpoint
     public static func grpcUptimeCheck(
         projectID: String,
         deploymentName: String,
@@ -1294,18 +1294,18 @@ public enum DAISMonitoringTemplate {
         )
     }
 
-    /// Create custom metric for DAIS request latency
+    /// Create custom metric for Cloud request latency
     public static func requestLatencyMetric(
         projectID: String,
         deploymentName: String
     ) -> GoogleCloudMetricDescriptor {
         GoogleCloudMetricDescriptor(
-            type: "custom.googleapis.com/dais/\(deploymentName)/request_latency",
+            type: "custom.googleapis.com/app/\(deploymentName)/request_latency",
             projectID: projectID,
             metricKind: .gauge,
             valueType: .distribution,
             unit: "ms",
-            description: "Request latency for DAIS deployment",
+            description: "Request latency for Cloud deployment",
             displayName: "\(deploymentName) Request Latency",
             labels: [
                 GoogleCloudMetricDescriptor.LabelDescriptor(key: "method", description: "gRPC method name"),
@@ -1314,13 +1314,13 @@ public enum DAISMonitoringTemplate {
         )
     }
 
-    /// Create custom metric for DAIS active connections
+    /// Create custom metric for Cloud active connections
     public static func activeConnectionsMetric(
         projectID: String,
         deploymentName: String
     ) -> GoogleCloudMetricDescriptor {
         GoogleCloudMetricDescriptor(
-            type: "custom.googleapis.com/dais/\(deploymentName)/active_connections",
+            type: "custom.googleapis.com/app/\(deploymentName)/active_connections",
             projectID: projectID,
             metricKind: .gauge,
             valueType: .int64,
@@ -1328,25 +1328,25 @@ public enum DAISMonitoringTemplate {
             description: "Active gRPC connections",
             displayName: "\(deploymentName) Active Connections",
             labels: [
-                GoogleCloudMetricDescriptor.LabelDescriptor(key: "node", description: "DAIS node name")
+                GoogleCloudMetricDescriptor.LabelDescriptor(key: "node", description: "Cloud node name")
             ]
         )
     }
 
-    /// Create a monitoring group for DAIS instances
+    /// Create a monitoring group for Cloud instances
     public static func instanceGroup(
         projectID: String,
         deploymentName: String
     ) -> GoogleCloudMonitoringGroup {
         GoogleCloudMonitoringGroup(
-            displayName: "\(deploymentName) DAIS Nodes",
+            displayName: "\(deploymentName) Cloud Nodes",
             projectID: projectID,
             filter: "resource.metadata.name=starts_with(\"\(deploymentName)\") AND resource.type=\"gce_instance\"",
             isCluster: true
         )
     }
 
-    /// Generate a complete DAIS monitoring setup script
+    /// Generate a complete Cloud monitoring setup script
     public static func setupScript(
         projectID: String,
         deploymentName: String,
@@ -1356,14 +1356,14 @@ public enum DAISMonitoringTemplate {
     ) -> String {
         var script = """
         #!/bin/bash
-        # DAIS Monitoring Setup Script
+        # Cloud Monitoring Setup Script
         # Deployment: \(deploymentName)
         # Project: \(projectID)
 
         set -e
 
         echo "========================================"
-        echo "DAIS Monitoring Configuration"
+        echo "Cloud Monitoring Configuration"
         echo "========================================"
 
         # Enable Cloud Monitoring API
@@ -1386,7 +1386,7 @@ public enum DAISMonitoringTemplate {
         let group = instanceGroup(projectID: projectID, deploymentName: deploymentName)
         script += """
 
-        # Create monitoring group for DAIS instances
+        # Create monitoring group for Cloud instances
         echo "Creating monitoring group..."
         \(group.createCommand)
 
@@ -1441,7 +1441,7 @@ public enum DAISMonitoringTemplate {
         return script
     }
 
-    /// Generate alert policy JSON for DAIS
+    /// Generate alert policy JSON for Cloud
     public static func alertPolicyJSON(
         policy: GoogleCloudAlertPolicy
     ) -> String {

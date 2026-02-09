@@ -928,11 +928,11 @@ public enum PredefinedLogFilter {
     public static let dataAccessLogs = "logName =~ \"data_access\""
 }
 
-// MARK: - DAIS Logging Templates
+// MARK: - Cloud Logging Templates
 
-/// Predefined logging configurations for DAIS deployments.
-public enum DAISLoggingTemplate {
-    /// Create a log sink for DAIS error logs to BigQuery
+/// Predefined logging configurations for Cloud deployments.
+public enum LoggingTemplate {
+    /// Create a log sink for Cloud error logs to BigQuery
     public static func errorLogsSink(
         projectID: String,
         deploymentName: String,
@@ -942,12 +942,12 @@ public enum DAISLoggingTemplate {
             name: "\(deploymentName)-error-logs",
             projectID: projectID,
             destination: .bigQuery(datasetID: datasetID),
-            filter: "labels.app=\"butteryai\" AND labels.deployment=\"\(deploymentName)\" AND severity >= ERROR",
-            description: "Export DAIS error logs to BigQuery for analysis"
+            filter: "labels.app=\"my-app\" AND labels.deployment=\"\(deploymentName)\" AND severity >= ERROR",
+            description: "Export Cloud error logs to BigQuery for analysis"
         )
     }
 
-    /// Create a log sink for DAIS audit logs to Cloud Storage
+    /// Create a log sink for Cloud audit logs to Cloud Storage
     public static func auditLogsSink(
         projectID: String,
         deploymentName: String,
@@ -957,12 +957,12 @@ public enum DAISLoggingTemplate {
             name: "\(deploymentName)-audit-logs",
             projectID: projectID,
             destination: .storage(bucketName: bucketName),
-            filter: "labels.app=\"butteryai\" AND labels.deployment=\"\(deploymentName)\" AND logName =~ \"audit\"",
-            description: "Archive DAIS audit logs to Cloud Storage"
+            filter: "labels.app=\"my-app\" AND labels.deployment=\"\(deploymentName)\" AND logName =~ \"audit\"",
+            description: "Archive Cloud audit logs to Cloud Storage"
         )
     }
 
-    /// Create a log bucket for DAIS logs with extended retention
+    /// Create a log bucket for Cloud logs with extended retention
     public static func logBucket(
         projectID: String,
         deploymentName: String,
@@ -974,12 +974,12 @@ public enum DAISLoggingTemplate {
             projectID: projectID,
             location: location,
             retentionDays: retentionDays,
-            description: "DAIS deployment logs with extended retention",
+            description: "Cloud deployment logs with extended retention",
             analyticsEnabled: true
         )
     }
 
-    /// Create a log view for DAIS errors only
+    /// Create a log view for Cloud errors only
     public static func errorLogsView(
         projectID: String,
         deploymentName: String,
@@ -990,12 +990,12 @@ public enum DAISLoggingTemplate {
             bucketName: "_Default",
             projectID: projectID,
             location: location,
-            filter: "labels.app=\"butteryai\" AND labels.deployment=\"\(deploymentName)\" AND severity >= ERROR",
-            description: "View for DAIS error logs only"
+            filter: "labels.app=\"my-app\" AND labels.deployment=\"\(deploymentName)\" AND severity >= ERROR",
+            description: "View for Cloud error logs only"
         )
     }
 
-    /// Create an exclusion for DAIS debug logs in production
+    /// Create an exclusion for Cloud debug logs in production
     public static func debugLogExclusion(
         projectID: String,
         deploymentName: String
@@ -1003,12 +1003,12 @@ public enum DAISLoggingTemplate {
         GoogleCloudLogExclusion(
             name: "\(deploymentName)-exclude-debug",
             projectID: projectID,
-            filter: "labels.app=\"butteryai\" AND labels.deployment=\"\(deploymentName)\" AND severity = DEBUG",
-            description: "Exclude debug logs from DAIS production deployment"
+            filter: "labels.app=\"my-app\" AND labels.deployment=\"\(deploymentName)\" AND severity = DEBUG",
+            description: "Exclude debug logs from Cloud production deployment"
         )
     }
 
-    /// Create error count metric for DAIS
+    /// Create error count metric for Cloud
     public static func errorCountMetric(
         projectID: String,
         deploymentName: String
@@ -1016,8 +1016,8 @@ public enum DAISLoggingTemplate {
         GoogleCloudLogMetric(
             name: "\(deploymentName)-error-count",
             projectID: projectID,
-            filter: "labels.app=\"butteryai\" AND labels.deployment=\"\(deploymentName)\" AND severity >= ERROR",
-            description: "Count of errors in DAIS deployment",
+            filter: "labels.app=\"my-app\" AND labels.deployment=\"\(deploymentName)\" AND severity >= ERROR",
+            description: "Count of errors in Cloud deployment",
             metricType: .counter,
             labelExtractors: [
                 "node": "EXTRACT(labels.node)",
@@ -1026,7 +1026,7 @@ public enum DAISLoggingTemplate {
         )
     }
 
-    /// Create latency metric for DAIS gRPC calls
+    /// Create latency metric for Cloud gRPC calls
     public static func grpcLatencyMetric(
         projectID: String,
         deploymentName: String
@@ -1034,7 +1034,7 @@ public enum DAISLoggingTemplate {
         GoogleCloudLogMetric(
             name: "\(deploymentName)-grpc-latency",
             projectID: projectID,
-            filter: "labels.app=\"butteryai\" AND labels.deployment=\"\(deploymentName)\" AND labels.type=\"grpc\"",
+            filter: "labels.app=\"my-app\" AND labels.deployment=\"\(deploymentName)\" AND labels.type=\"grpc\"",
             description: "gRPC call latency distribution",
             metricType: .distribution,
             valueExtractor: "EXTRACT(jsonPayload.latency_ms)",
@@ -1048,7 +1048,7 @@ public enum DAISLoggingTemplate {
         )
     }
 
-    /// Generate a complete DAIS logging setup script
+    /// Generate a complete Cloud logging setup script
     public static func setupScript(
         projectID: String,
         deploymentName: String,
@@ -1058,14 +1058,14 @@ public enum DAISLoggingTemplate {
     ) -> String {
         var script = """
         #!/bin/bash
-        # DAIS Logging Setup Script
+        # Cloud Logging Setup Script
         # Deployment: \(deploymentName)
         # Project: \(projectID)
 
         set -e
 
         echo "========================================"
-        echo "DAIS Logging Configuration"
+        echo "Cloud Logging Configuration"
         echo "========================================"
 
         # Enable Cloud Logging API
@@ -1143,22 +1143,22 @@ public enum DAISLoggingTemplate {
         echo ""
         echo "Logging configuration complete!"
         echo ""
-        echo "View logs: gcloud logging read 'labels.app=\"butteryai\" AND labels.deployment=\"\(deploymentName)\"' --project=\(projectID) --limit=50"
-        echo "View errors: gcloud logging read 'labels.app=\"butteryai\" AND labels.deployment=\"\(deploymentName)\" AND severity >= ERROR' --project=\(projectID)"
+        echo "View logs: gcloud logging read 'labels.app=\"my-app\" AND labels.deployment=\"\(deploymentName)\"' --project=\(projectID) --limit=50"
+        echo "View errors: gcloud logging read 'labels.app=\"my-app\" AND labels.deployment=\"\(deploymentName)\" AND severity >= ERROR' --project=\(projectID)"
         """
 
         return script
     }
 
-    /// Common log queries for DAIS
-    public static func daisLogQuery(
+    /// Common log queries for Cloud
+    public static func appLogQuery(
         projectID: String,
         deploymentName: String,
         nodeName: String? = nil,
         component: String? = nil,
         minSeverity: LogSeverity = .info
     ) -> String {
-        var filter = "labels.app=\"butteryai\" AND labels.deployment=\"\(deploymentName)\""
+        var filter = "labels.app=\"my-app\" AND labels.deployment=\"\(deploymentName)\""
         filter += " AND severity >= \(minSeverity.rawValue)"
         if let node = nodeName {
             filter += " AND labels.node=\"\(node)\""

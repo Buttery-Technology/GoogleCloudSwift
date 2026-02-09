@@ -362,17 +362,17 @@ public struct OpenTelemetryTraceConfig: Sendable {
     }
 }
 
-// MARK: - DAIS Trace Template
+// MARK: - Cloud Trace Template
 
-/// Production-ready Cloud Trace templates for DAIS systems
-public struct DAISTraceTemplate: Sendable {
+/// Production-ready Cloud Trace templates for Cloud systems
+public struct TraceTemplate: Sendable {
     public let projectID: String
     public let serviceName: String
     public let serviceAccount: String?
 
     public init(
         projectID: String,
-        serviceName: String = "dais-service",
+        serviceName: String = "app-service",
         serviceAccount: String? = nil
     ) {
         self.projectID = projectID
@@ -405,7 +405,7 @@ public struct DAISTraceTemplate: Sendable {
     /// BigQuery sink for trace analytics
     public func bigQuerySink(datasetID: String) -> GoogleCloudTraceSink {
         GoogleCloudTraceSink(
-            name: "dais-trace-bq-sink",
+            name: "app-trace-bq-sink",
             projectID: projectID,
             destination: "bigquery.googleapis.com/projects/\(projectID)/datasets/\(datasetID)"
         )
@@ -444,7 +444,7 @@ public struct DAISTraceTemplate: Sendable {
 
         script += """
         echo ""
-        echo "DAIS Cloud Trace setup complete!"
+        echo "Cloud Cloud Trace setup complete!"
         echo ""
         echo "OpenTelemetry Environment Variables:"
         """

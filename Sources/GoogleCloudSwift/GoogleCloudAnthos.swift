@@ -763,10 +763,10 @@ public struct AnthosOperations: Sendable {
     }
 }
 
-// MARK: - DAIS Anthos Template
+// MARK: - Cloud Anthos Template
 
-/// DAIS template for Anthos configurations
-public struct DAISAnthosTemplate: Sendable {
+/// Cloud template for Anthos configurations
+public struct AnthosTemplate: Sendable {
     public let projectID: String
 
     public init(projectID: String) {

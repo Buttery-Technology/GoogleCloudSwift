@@ -460,10 +460,10 @@ public enum TaskQueueRole: String, Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - DAIS Task Templates
+// MARK: - Cloud Task Templates
 
-/// DAIS-specific Cloud Tasks configurations
-public enum DAISTasksTemplate {
+/// Cloud-specific Cloud Tasks configurations
+public enum TasksTemplate {
 
     /// Queue for async API processing
     public static func apiProcessingQueue(
@@ -630,7 +630,7 @@ public enum DAISTasksTemplate {
         )
     }
 
-    /// Setup script for DAIS task queues
+    /// Setup script for Cloud task queues
     public static func setupScript(
         projectID: String,
         location: String,
@@ -638,7 +638,7 @@ public enum DAISTasksTemplate {
     ) -> String {
         """
         #!/bin/bash
-        # DAIS Cloud Tasks Setup Script
+        # Cloud Cloud Tasks Setup Script
         set -e
 
         PROJECT_ID="\(projectID)"
@@ -688,7 +688,7 @@ public enum DAISTasksTemplate {
     ) -> String {
         """
         #!/bin/bash
-        # DAIS Cloud Tasks Teardown Script
+        # Cloud Cloud Tasks Teardown Script
         set -e
 
         PROJECT_ID="\(projectID)"
