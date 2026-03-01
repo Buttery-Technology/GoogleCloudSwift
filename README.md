@@ -232,6 +232,282 @@ GoogleCloudAuthClient.computeScopes   // compute (Compute Engine only)
 GoogleCloudAuthClient.storageScopes   // storage (Cloud Storage only)
 ```
 
+### SSH — Programmatic Remote Access
+
+GoogleCloudSwift includes a full SSH client built on [swift-nio-ssh](https://github.com/apple/swift-nio-ssh) for programmatic remote command execution, file transfer, and instance provisioning — no shelling out to `gcloud compute ssh` or external binaries.
+
+#### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    GoogleCloudComputeSSH                        │
+│  High-level actor that ties Compute API + SSH together.        │
+│  Resolves instance names → IPs, injects keys, provisions VMs. │
+├──────────────────────────────┬──────────────────────────────────┤
+│   GoogleCloudComputeAPI      │    GoogleCloudSSHClient          │
+│   (instance lookup,          │    (TCP connect, NIO SSH         │
+│    metadata injection)       │     handshake, exec, transfer)  │
+├──────────────────────────────┴──────────────────────────────────┤
+│                  GoogleCloudSSHKeyManager                       │
+│  Key generation (Ed25519, ECDSA P-256/P-384), OpenSSH          │
+│  formatting, GCE metadata assembly.                            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key types:**
+
+| Type | Role |
+|------|------|
+| `GoogleCloudSSHClient` | Actor wrapping swift-nio-ssh. Opens TCP connections, runs the SSH handshake, executes commands, transfers files via base64 encoding. |
+| `GoogleCloudSSHClientProtocol` | Protocol abstraction for testability. Inject a mock in tests without touching the network. |
+| `GoogleCloudComputeSSH` | High-level actor. Resolves instance name → external IP, injects SSH keys into GCE metadata, waits for SSH readiness, runs commands, uploads/downloads files, and orchestrates full provisioning flows. |
+| `GoogleCloudSSHKeyManager` | Generates Ed25519 or ECDSA key pairs, formats them as OpenSSH `authorized_keys` entries, and builds the `ssh-keys` metadata value that GCE expects. |
+| `SSHCommandResult` | Result of a remote command: `exitCode`, `stdout`, `stderr`, `succeeded`. |
+| `GoogleCloudSSHError` | Typed errors for connection, auth, channel, command, timeout, transfer, and key generation failures. |
+
+#### Generating SSH Keys
+
+Keys are generated in-memory — no files written to disk. The public key is formatted in OpenSSH `authorized_keys` format, ready for GCE metadata injection.
+
+```swift
+import GoogleCloudSwift
+
+// Ed25519 (default, recommended)
+let keyPair = try GoogleCloudSSHKeyManager.generateKeyPair(username: "deploy")
+// keyPair.authorizedKey → "ssh-ed25519 AAAAC3Nz... deploy"
+
+// ECDSA P-256
+let ecdsaKey = try GoogleCloudSSHKeyManager.generateKeyPair(
+    algorithm: .ecdsaP256,
+    username: "admin"
+)
+
+// Format for GCE instance metadata
+let metadataEntry = GoogleCloudSSHKeyManager.formatForGCEMetadata(keyPair)
+// → "deploy:ssh-ed25519 AAAAC3Nz... deploy"
+
+// Build ssh-keys metadata value (appends to existing, deduplicates)
+let sshKeysValue = GoogleCloudSSHKeyManager.buildSSHKeysMetadata(
+    existing: existingMetadata,  // nil or current ssh-keys value
+    newKeys: [keyPair, ecdsaKey]
+)
+```
+
+**Wire format details:** The public key blob follows the SSH wire format defined in [RFC 4253](https://www.rfc-editor.org/rfc/rfc4253) — each field is a `uint32` big-endian length prefix followed by the raw bytes. Ed25519 encodes `string "ssh-ed25519" || string <32-byte-pubkey>`. ECDSA encodes `string key-type || string curve-name || string Q` where Q is the uncompressed point (`0x04 || x || y`) from `x963Representation`.
+
+#### Low-Level SSH Client
+
+`GoogleCloudSSHClient` is an actor that manages NIO event loops and TCP connections. Each `executeCommand` call opens a fresh SSH connection, runs a single command, and returns the result.
+
+```swift
+let sshClient = GoogleCloudSSHClient()  // creates internal EventLoopGroup
+
+// Or share an existing event loop group
+let sshClient = GoogleCloudSSHClient(eventLoopGroup: existingGroup)
+
+// Execute a remote command
+let result = try await sshClient.executeCommand(
+    "uname -a",
+    host: "34.120.55.10",
+    port: 22,
+    username: "deploy",
+    privateKey: keyPair.privateKey,
+    timeout: 30
+)
+print(result.stdout)         // "Linux dais-node 6.8.0 ..."
+print(result.exitCode)       // 0
+print(result.succeeded)      // true
+
+// Upload a file (base64-encoded over SSH exec)
+let configData = Data(dockerComposeYAML.utf8)
+try await sshClient.uploadFile(
+    localData: configData,
+    remotePath: "/opt/app/docker-compose.yml",
+    host: "34.120.55.10",
+    port: 22,
+    username: "deploy",
+    privateKey: keyPair.privateKey,
+    permissions: "0644"
+)
+
+// Download a file
+let envData = try await sshClient.downloadFile(
+    remotePath: "/opt/app/.env",
+    host: "34.120.55.10",
+    port: 22,
+    username: "deploy",
+    privateKey: keyPair.privateKey
+)
+```
+
+**How file transfer works:** Files are transferred via base64 encoding over SSH exec channels, not SCP/SFTP. Upload runs `echo '<base64>' | base64 -d > <path> && chmod <perms> <path>`. Download runs `base64 <path>` and decodes the output. This avoids requiring SFTP subsystem support on the remote host. Paths are shell-escaped (single-quote wrapping with internal quote escaping) to prevent injection.
+
+**Connection lifecycle:** Each call to `executeCommand` creates a new TCP connection → SSH handshake → child channel (session) → exec request → collect stdout/stderr → read exit status → close. The SSH client uses `NIOSSHHandler` with private key authentication and accepts all host keys (appropriate for ephemeral cloud VMs where host keys change on every recreate).
+
+#### High-Level Compute SSH
+
+`GoogleCloudComputeSSH` combines the Compute API (for instance lookups) with the SSH client. You work with instance names and zones — it resolves IPs and manages SSH keys automatically.
+
+```swift
+let computeAPI = await GoogleCloudComputeAPI.create(
+    authClient: authClient,
+    httpClient: httpClient
+)
+let sshClient = GoogleCloudSSHClient()
+let computeSSH = GoogleCloudComputeSSH(
+    computeAPI: computeAPI,
+    sshClient: sshClient
+)
+
+// Generate a key pair
+let keyPair = try GoogleCloudSSHKeyManager.generateKeyPair(username: "deploy")
+
+// Inject the SSH key into the instance's metadata
+// (reads current metadata, appends key, updates via setMetadata API)
+try await computeSSH.injectSSHKey(
+    instanceName: "dais-node",
+    zone: "us-central1-a",
+    keyPair: keyPair
+)
+
+// Wait until SSH is reachable (retries every 5s, default timeout 120s)
+try await computeSSH.waitForSSH(
+    instanceName: "dais-node",
+    zone: "us-central1-a",
+    keyPair: keyPair
+)
+
+// Execute a command by instance name
+let result = try await computeSSH.executeCommand(
+    "docker compose ps",
+    instanceName: "dais-node",
+    zone: "us-central1-a",
+    keyPair: keyPair
+)
+
+// Execute multiple commands sequentially (stops on first failure by default)
+let results = try await computeSSH.executeCommands(
+    ["apt-get update", "apt-get install -y docker-ce", "systemctl enable docker"],
+    instanceName: "dais-node",
+    zone: "us-central1-a",
+    keyPair: keyPair
+)
+
+// Upload a file
+try await computeSSH.uploadFile(
+    localData: Data(script.utf8),
+    remotePath: "/opt/app/setup.sh",
+    instanceName: "dais-node",
+    zone: "us-central1-a",
+    keyPair: keyPair,
+    permissions: "0755"
+)
+
+// Download a file
+let logData = try await computeSSH.downloadFile(
+    remotePath: "/var/log/app.log",
+    instanceName: "dais-node",
+    zone: "us-central1-a",
+    keyPair: keyPair
+)
+```
+
+#### SSH Key Injection Flow
+
+When you call `injectSSHKey`, the following happens:
+
+1. **GET instance metadata** — calls `computeAPI.getInstance()` to read the current metadata, including the `fingerprint` (an opaque string GCE uses for optimistic concurrency)
+2. **Build updated ssh-keys** — parses the existing `ssh-keys` metadata item, appends the new key (deduplicating), preserves all other metadata items
+3. **SET metadata** — calls `computeAPI.setMetadata()` with the updated items and the fingerprint. GCE rejects the update if the fingerprint doesn't match (another writer modified metadata concurrently), preventing lost updates
+4. **Wait for operation** — polls the GCE operation until it completes
+
+This is the same flow that `gcloud compute ssh` uses under the hood.
+
+#### Full Provisioning
+
+`provisionInstance` orchestrates the entire setup sequence — key injection, SSH readiness, file uploads, and setup commands — in a single call:
+
+```swift
+let results = try await computeSSH.provisionInstance(
+    instanceName: "dais-node",
+    zone: "us-central1-a",
+    keyPair: keyPair,
+    setupCommands: [
+        "apt-get update -q",
+        "apt-get install -yq docker-ce docker-compose-plugin",
+        "systemctl enable docker",
+        "cd /opt/dais && docker compose up -d"
+    ],
+    filesToUpload: [
+        (data: Data(composeYAML.utf8), remotePath: "/opt/dais/docker-compose.yml"),
+        (data: Data(envContents.utf8), remotePath: "/opt/dais/.env"),
+    ]
+)
+
+// Check results
+for (i, result) in results.enumerated() {
+    if !result.succeeded {
+        print("Command \(i) failed: \(result.stderr)")
+    }
+}
+```
+
+The provisioning sequence is: inject SSH key → wait for SSH → upload files → run commands (sequentially, stopping on first failure).
+
+#### Testing with Mocks
+
+The `GoogleCloudSSHClientProtocol` allows mock injection for unit tests:
+
+```swift
+actor MockSSH: GoogleCloudSSHClientProtocol {
+    func executeCommand(
+        _ command: String, host: String, port: Int,
+        username: String, privateKey: NIOSSHPrivateKey,
+        timeout: TimeInterval
+    ) async throws -> SSHCommandResult {
+        SSHCommandResult(exitCode: 0, stdout: "ok", stderr: "")
+    }
+
+    func uploadFile(
+        localData: Data, remotePath: String, host: String,
+        port: Int, username: String, privateKey: NIOSSHPrivateKey,
+        permissions: String
+    ) async throws { }
+
+    func downloadFile(
+        remotePath: String, host: String, port: Int,
+        username: String, privateKey: NIOSSHPrivateKey
+    ) async throws -> Data { Data() }
+}
+
+// Use in tests
+let computeSSH = GoogleCloudComputeSSH(
+    computeAPI: computeAPI,
+    sshClient: MockSSH()
+)
+```
+
+#### Error Handling
+
+All SSH operations throw `GoogleCloudSSHError` with specific cases:
+
+```swift
+do {
+    try await computeSSH.executeCommand(...)
+} catch let error as GoogleCloudSSHError {
+    switch error {
+    case .connectionFailed(let msg):  // TCP connection refused/unreachable
+    case .authenticationFailed(let msg):  // Key rejected by server
+    case .channelFailed(let msg):  // SSH session channel failed
+    case .commandFailed(let code, let stderr):  // Non-zero exit
+    case .timeout(let seconds):  // Operation exceeded time limit
+    case .transferFailed(let msg):  // Upload/download failed
+    case .keyGenerationFailed(let msg):  // Key generation error
+    case .noExternalIP(let name):  // Instance has no public IP
+    }
+}
+```
+
 ## Models Overview
 
 GoogleCloudSwift provides models for 60 Google Cloud services:
@@ -241,6 +517,7 @@ GoogleCloudSwift provides models for 60 Google Cloud services:
 | **REST API Client** | Direct API access with JWT auth | `GoogleCloudAuthClient`, `GoogleCloudHTTPClient`, `GoogleCloudComputeAPI` |
 | **Provider** | Project & region configuration | `GoogleCloudProvider`, `GoogleCloudRegion` |
 | **Compute Engine** | VM instances & REST API | `GoogleCloudComputeInstance`, `GoogleCloudMachineType`, `ComputeInstanceInsert` |
+| **Compute SSH** | Programmatic SSH via swift-nio-ssh | `GoogleCloudComputeSSH`, `GoogleCloudSSHClient`, `GoogleCloudSSHKeyManager`, `SSHCommandResult` |
 | **Secret Manager** | Secure credentials | `GoogleCloudSecret`, `SecretManagerIAMBinding` |
 | **Cloud Storage** | Object storage | `GoogleCloudStorageBucket`, `LifecycleRule` |
 | **Cloud SQL** | Managed databases (PostgreSQL, MySQL, SQL Server) | `GoogleCloudSQLInstance`, `GoogleCloudSQLDatabase` |
