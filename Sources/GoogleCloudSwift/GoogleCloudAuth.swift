@@ -198,9 +198,24 @@ public actor GoogleCloudAuthClient {
         "https://www.googleapis.com/auth/compute"
     ]
 
+    /// Cloud SQL Admin specific scopes.
+    public static let sqlAdminScopes = [
+        "https://www.googleapis.com/auth/sqlservice.admin"
+    ]
+
     /// Storage specific scopes.
     public static let storageScopes = [
         "https://www.googleapis.com/auth/devstorage.full_control"
+    ]
+
+    /// Cloud Monitoring read-only scopes.
+    public static let monitoringScopes = [
+        "https://www.googleapis.com/auth/monitoring.read"
+    ]
+
+    /// Cloud Logging read-only scopes.
+    public static let loggingScopes = [
+        "https://www.googleapis.com/auth/logging.read"
     ]
 
     /// Initialize the auth client with service account credentials.
