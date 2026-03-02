@@ -105,23 +105,23 @@ public actor GoogleCloudMonitoringAPI {
 		pageSize: Int? = nil,
 		pageToken: String? = nil
 	) async throws -> MonitoringTimeSeriesListResponse {
-		var queryParams: [(String, String)] = [
-			("filter", filter),
-			("interval.startTime", intervalStartTime),
-			("interval.endTime", intervalEndTime),
+		var queryParams: [String: String] = [
+			"filter": filter,
+			"interval.startTime": intervalStartTime,
+			"interval.endTime": intervalEndTime,
 		]
 
 		if let period = aggregationAlignmentPeriod {
-			queryParams.append(("aggregation.alignmentPeriod", period))
+			queryParams["aggregation.alignmentPeriod"] = period
 		}
 		if let aligner = aggregationPerSeriesAligner {
-			queryParams.append(("aggregation.perSeriesAligner", aligner))
+			queryParams["aggregation.perSeriesAligner"] = aligner
 		}
 		if let pageSize {
-			queryParams.append(("pageSize", String(pageSize)))
+			queryParams["pageSize"] = String(pageSize)
 		}
 		if let pageToken {
-			queryParams.append(("pageToken", pageToken))
+			queryParams["pageToken"] = pageToken
 		}
 
 		let response: GoogleCloudAPIResponse<MonitoringTimeSeriesListResponse> = try await client.get(
@@ -152,16 +152,16 @@ public actor GoogleCloudMonitoringAPI {
 		pageSize: Int? = nil,
 		pageToken: String? = nil
 	) async throws -> MonitoringMetricDescriptorListResponse {
-		var queryParams: [(String, String)] = []
+		var queryParams: [String: String] = [:]
 
 		if let filter {
-			queryParams.append(("filter", filter))
+			queryParams["filter"] = filter
 		}
 		if let pageSize {
-			queryParams.append(("pageSize", String(pageSize)))
+			queryParams["pageSize"] = String(pageSize)
 		}
 		if let pageToken {
-			queryParams.append(("pageToken", pageToken))
+			queryParams["pageToken"] = pageToken
 		}
 
 		let response: GoogleCloudAPIResponse<MonitoringMetricDescriptorListResponse> = try await client.get(
